@@ -1,12 +1,12 @@
 <p align="center">
   <a href="https://www.github.com/hoshinonyaruko/gensokyo-hunyuan">
-    <img src="pic/1.png" width="200" height="200" alt="gensokyo-hunyuan">
+    <img src="pic/2.png" width="200" height="200" alt="gensokyo-hunyuan">
   </a>
 </p>
 
 <div align="center">
 
-# gensokyo-hunyuan
+# Gensokyo-hunyuan
 
 _✨ 基于tencentcloud/hunyuan 的一键混元api连接器 ✨_  
 
