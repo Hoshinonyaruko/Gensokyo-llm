@@ -10,14 +10,12 @@ on:
 jobs:
   build-ubuntu:
     name: Build on ${{ matrix.os }} for ${{ matrix.goarch }}
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ubuntu-latest #here
     strategy:
       matrix:
         include:
           - os: linux
             goarch: amd64
-          - os: linux
-            goarch: arm64
 
     steps:
     - name: Checkout code
@@ -57,14 +55,12 @@ jobs:
         path: output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
   build-darwin:
     name: Build on ${{ matrix.os }} for ${{ matrix.goarch }}
-    runs-on: darwin-latest
+    runs-on: macos-latest
     strategy:
       matrix:
         include:
           - os: darwin
             goarch: amd64
-          - os: darwin
-            goarch: arm64
 
     steps:
     - name: Checkout code
