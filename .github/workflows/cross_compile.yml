@@ -49,7 +49,8 @@ jobs:
     - name: Install build dependencies (Windows)
       if: matrix.os == 'windows'
       run: |
-        choco install mingw-w64
+        choco install msys2 --params "/NoUpdate /InstallDir:C:\msys64" --no-progress -y
+        C:\msys64\usr\bin\bash -lc "pacman -Sy --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-g++"
         echo "CGO_ENABLED=1" >> $GITHUB_ENV
         echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
         echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
