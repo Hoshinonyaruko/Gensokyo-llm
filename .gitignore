@@ -1,0 +1,6 @@
+# specific
+config.yml
+*.sqlite
+
+# Go specific
+*.exe
