@@ -51,7 +51,7 @@ jobs:
       run: |
         choco install msys2 --params "/NoUpdate /InstallDir:C:\msys64" --no-progress -y
         C:\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm"
-        C:\msys64\usr\bin\bash -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-g++"
+        C:\msys64\usr\bin\bash -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw64/mingw-w64-x86_64-pkg-config mingw-w64-x86_64-cmake mingw-w64-x86_64-extra-cmake-modules mingw-w64-x86_64-toolchain"
         echo "CGO_ENABLED=1" >> $GITHUB_ENV
         echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
         echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
