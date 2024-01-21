@@ -40,10 +40,25 @@ jobs:
       with:
         go-version: '1.21.1' # Set to specific Go version.
 
-    - name: Install build dependencies
+    - name: Install build dependencies (macOS)
+      if: matrix.os == 'darwin'
+      run: |
+        brew update
+        brew install sqlite3
+
+    - name: Install build dependencies (Ubuntu)
+      if: matrix.os == 'linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential libc6-dev libsqlite3-dev
+
+  - name: Install build dependencies (Windows)
+      if: matrix.os == 'windows'
+      run: |
+        choco install mingw
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        echo "CC=gcc" >> $GITHUB_ENV
+        echo "CXX=g++" >> $GITHUB_ENV
 
     - name: Create output directory
       run: mkdir -p output
