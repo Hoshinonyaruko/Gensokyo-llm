@@ -43,7 +43,7 @@ jobs:
     - name: Install build dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential libsqlite3-dev
+        sudo apt-get install -y build-essential libc6-dev libsqlite3-dev
 
     - name: Create output directory
       run: mkdir -p output
