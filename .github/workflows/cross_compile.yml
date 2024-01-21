@@ -8,9 +8,9 @@ on:
       - '*'
 
 jobs:
-  build:
+  build-ubuntu:
     name: Build on ${{ matrix.os }} for ${{ matrix.goarch }}
-    runs-on: ${{ if matrix.os == 'linux' }}ubuntu-latest${{ else }}${{ matrix.os }}-latest${{ endif }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
@@ -18,12 +18,53 @@ jobs:
             goarch: amd64
           - os: linux
             goarch: arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.21.1' # Set to specific Go version.
+
+    - name: Install build dependencies (Ubuntu)
+      if: matrix.os == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libc6-dev libsqlite3-dev
+
+    - name: Create output directory
+      run: mkdir -p output
+
+    - name: Compile Go for target
+      env:
+        GOOS: ${{ matrix.os }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 1
+      run: |
+        if [ "$GOOS" = "windows" ]; then
+          go build -o output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}.exe
+        else
+          go build -o output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}
+        fi
+      shell: bash
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}
+        path: output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
+  build-darwin:
+    name: Build on ${{ matrix.os }} for ${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
           - os: darwin
             goarch: amd64
           - os: darwin
             goarch: arm64
-          - os: windows
-            goarch: amd64
 
     steps:
     - name: Checkout code
@@ -40,11 +81,44 @@ jobs:
         brew update
         brew install sqlite3
 
-    - name: Install build dependencies (Ubuntu)
-      if: matrix.os == 'linux'
+    - name: Create output directory
+      run: mkdir -p output
+
+    - name: Compile Go for target
+      env:
+        GOOS: ${{ matrix.os }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 1
       run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential libc6-dev libsqlite3-dev
+        if [ "$GOOS" = "windows" ]; then
+          go build -o output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}.exe
+        else
+          go build -o output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}
+        fi
+      shell: bash
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}
+        path: output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
+  build-win:
+    name: Build on ${{ matrix.os }} for ${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            goarch: amd64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.21.1' # Set to specific Go version.
 
     - name: Install build dependencies (Windows)
       if: matrix.os == 'windows'
@@ -77,9 +151,9 @@ jobs:
       with:
         name: gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}
         path: output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
-
+        
   prepare_release:
-    needs: build
+    needs: [build-ubuntu, build-darwin,build-win]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
