@@ -84,6 +84,7 @@ _✨ 基于tencentcloud/hunyuan 的一键混元api连接器 ✨_
 ## 兼容性
 可在各种架构运行
 （原生android暂不支持，sqlitev3需要cgo）
+由于cgo编译比较复杂，arm平台，或者其他架构，可试图在对应系统架构下，自行本地编译
 
 
 
