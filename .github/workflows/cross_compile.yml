@@ -74,6 +74,7 @@ jobs:
         else
           go build -o output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}
         fi
+      shell: bash
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
