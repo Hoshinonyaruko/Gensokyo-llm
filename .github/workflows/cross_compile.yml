@@ -104,7 +104,7 @@ jobs:
         path: output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
 
   prepare_release:
-    needs: [build-ubuntu, build-darwin, build-win]
+    needs: [build-ubuntu, build-win]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
