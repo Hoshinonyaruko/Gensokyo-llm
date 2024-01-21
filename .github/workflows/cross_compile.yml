@@ -53,12 +53,12 @@ jobs:
         sudo apt-get install -y build-essential libc6-dev libsqlite3-dev
 
     - name: Install build dependencies (Windows)
-        if: matrix.os == 'windows'
-        run: |
-          choco install mingw
-          echo "CGO_ENABLED=1" >> $GITHUB_ENV
-          echo "CC=gcc" >> $GITHUB_ENV
-          echo "CXX=g++" >> $GITHUB_ENV
+      if: matrix.os == 'windows'
+      run: |
+        choco install mingw
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        echo "CC=gcc" >> $GITHUB_ENV
+        echo "CXX=g++" >> $GITHUB_ENV
 
     - name: Create output directory
       run: mkdir -p output
