@@ -17,10 +17,6 @@ jobs:
           - os: linux
             goarch: amd64
           - os: linux
-            goarch: 386
-          - os: linux
-            goarch: arm
-          - os: linux
             goarch: arm64
           - os: darwin
             goarch: amd64
@@ -28,8 +24,6 @@ jobs:
             goarch: arm64
           - os: windows
             goarch: amd64
-          - os: windows
-            goarch: 386
 
     steps:
     - name: Checkout code
@@ -55,10 +49,10 @@ jobs:
     - name: Install build dependencies (Windows)
       if: matrix.os == 'windows'
       run: |
-        choco install mingw
+        choco install mingw-w64
         echo "CGO_ENABLED=1" >> $GITHUB_ENV
-        echo "CC=gcc" >> $GITHUB_ENV
-        echo "CXX=g++" >> $GITHUB_ENV
+        echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
+        echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
 
     - name: Create output directory
       run: mkdir -p output
