@@ -10,7 +10,7 @@ on:
 jobs:
   build-ubuntu:
     name: Build on ${{ matrix.os }} for ${{ matrix.goarch }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest #here
     strategy:
       matrix:
         include:
