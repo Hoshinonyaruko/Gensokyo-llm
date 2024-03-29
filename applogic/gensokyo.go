@@ -46,6 +46,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	var message structs.OnebotGroupMessage
 	err = json.Unmarshal(body, &message)
 	if err != nil {
+		fmt.Printf("Error parsing request body: %+v\n", string(body))
 		http.Error(w, "Error parsing request body", http.StatusInternalServerError)
 		return
 	}
@@ -63,9 +64,17 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		case "重置":
 			fmt.Println("处理重置操作")
 			app.migrateUserToNewContext(message.UserID)
-			utils.SendGroupMessage(message.GroupID, "重置成功")
+			if message.RealMessageType == "group_private" || message.MessageType == "private" {
+				utils.SendPrivateMessage(message.UserID, "重置成功")
+			} else {
+				utils.SendGroupMessage(message.GroupID, "重置成功")
+			}
 
 		default:
+			if !config.GetGroupmessage() {
+				fmt.Printf("你设置了不响应群信息：%v", message)
+				return
+			}
 			// 当msg不符合任何已定义case时的处理逻辑
 			conversationID, parentMessageID, err := app.handleUserContext(message.UserID)
 			//每句话清空上一句话的messageBuilder
@@ -138,12 +147,26 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								if exists && strings.HasPrefix(response, accumulatedMessage) {
 									newPart := response[len(accumulatedMessage):]
 									if newPart != "" {
-										fmt.Printf("A完整信息: %s,已发送信息:%s", response, accumulatedMessage)
-										utils.SendGroupMessage(message.GroupID, newPart)
+										fmt.Printf("A完整信息: %s,已发送信息:%s\n", response, accumulatedMessage)
+										// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
+										if message.RealMessageType == "group_private" || message.MessageType == "private" {
+											utils.SendPrivateMessage(message.UserID, newPart)
+										} else {
+											utils.SendGroupMessage(message.GroupID, newPart)
+										}
 									}
+
 								} else if response != "" {
 									// 如果accumulatedMessage不存在或不是子串，print
 									fmt.Printf("B完整信息: %s,已发送信息:%s", response, accumulatedMessage)
+									if accumulatedMessage == "" {
+										// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
+										if message.RealMessageType == "group_private" || message.MessageType == "private" {
+											utils.SendPrivateMessage(message.UserID, response)
+										} else {
+											utils.SendGroupMessage(message.GroupID, response)
+										}
+									}
 								}
 
 								// 清空映射中对应的累积消息
@@ -152,13 +175,13 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						} else {
 							//发送信息
 							fmt.Printf("发信息: %s", string(line))
-							splitAndSendMessages(message.GroupID, message.UserID, string(line))
+							splitAndSendMessages(message, string(line))
 						}
 					}
 
 				}
 
-				// 在SSE流结束后更新用户上下文
+				// 在SSE流结束后更新用户上下文 在这里调用gensokyo流式接口的最后一步 插推荐气泡
 				if lastMessageID != "" {
 					fmt.Printf("lastMessageID: %s\n", lastMessageID)
 					err := app.updateUserContext(message.UserID, lastMessageID)
@@ -184,7 +207,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 				// 使用提取的response内容发送消息
 				if response, ok := responseData["response"].(string); ok && response != "" {
-					utils.SendGroupMessage(message.GroupID, response)
+					// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
+					if message.RealMessageType == "group_private" || message.MessageType == "private" {
+						utils.SendPrivateMessage(message.UserID, response)
+					} else {
+						utils.SendGroupMessage(message.GroupID, response)
+					}
 				}
 
 				// 更新用户上下文
@@ -212,4 +240,50 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func splitAndSendMessages(message structs.OnebotGroupMessage, line string) {
+	// 提取JSON部分
+	dataPrefix := "data: "
+	jsonStr := strings.TrimPrefix(line, dataPrefix)
+
+	// 解析JSON数据
+	var sseData struct {
+		Response string `json:"response"`
+	}
+	err := json.Unmarshal([]byte(jsonStr), &sseData)
+	if err != nil {
+		fmt.Printf("Error unmarshalling SSE data: %v\n", err)
+		return
+	}
+
+	// 处理提取出的信息
+	processMessage(sseData.Response, message)
+}
+
+func processMessage(response string, msg structs.OnebotGroupMessage) {
+	key := utils.GetKey(msg.GroupID, msg.UserID)
+
+	// 定义中文全角和英文标点符号
+	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?'}
+
+	for _, char := range response {
+		messageBuilder.WriteRune(char)
+		if utils.ContainsRune(punctuations, char) {
+			// 达到标点符号，发送累积的整个消息
+			if messageBuilder.Len() > 0 {
+				accumulatedMessage := messageBuilder.String()
+				groupUserMessages[key] += accumulatedMessage
+
+				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
+				if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
+					utils.SendPrivateMessage(msg.UserID, accumulatedMessage)
+				} else {
+					utils.SendGroupMessage(msg.GroupID, accumulatedMessage)
+				}
+
+				messageBuilder.Reset() // 重置消息构建器
+			}
+		}
+	}
 }

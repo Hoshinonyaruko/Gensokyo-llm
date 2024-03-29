@@ -29,6 +29,17 @@ func PrintChatProRequest(request *hunyuan.ChatProRequest) {
 
 }
 
+func PrintChatStdRequest(request *hunyuan.ChatStdRequest) {
+
+	// 打印Messages
+	for i, msg := range request.Messages {
+		fmt.Printf("Message %d:\n", i)
+		fmt.Printf("Content: %s\n", *msg.Content)
+		fmt.Printf("Role: %s\n", *msg.Role)
+	}
+
+}
+
 // contains 检查一个字符串切片是否包含一个特定的字符串
 func Contains(slice []string, item string) bool {
 	for _, a := range slice {
@@ -48,8 +59,14 @@ func GetKey(groupid int64, userid int64) string {
 func ContainsRune(slice []rune, value rune) bool {
 	for _, item := range slice {
 		if item == value {
-			// 直接返回这个比较表达式的结果
-			return rand.Float64() >= 0.6
+			// 获取概率百分比
+			probability := config.GetSplitByPuntuations()
+			// 将概率转换为0到1之间的浮点数
+			probabilityPercentage := float64(probability) / 100.0
+			// 生成一个0到1之间的随机浮点数
+			randomValue := rand.Float64()
+			// 如果随机数小于或等于概率，则返回true
+			return randomValue <= probabilityPercentage
 		}
 	}
 	return false
@@ -103,6 +120,40 @@ func SendGroupMessage(groupID int64, message string) error {
 		"group_id": groupID,
 		"message":  message,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// 发送POST请求
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmt.Errorf("failed to send POST request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received non-OK response status: %s", resp.Status)
+	}
+
+	// TODO: 处理响应体（如果需要）
+
+	return nil
+}
+
+func SendPrivateMessage(UserID int64, message string) error {
+	// 获取基础URL
+	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+
+	// 构建完整的URL
+	url := baseURL + "/send_private_msg"
+
+	// 构造请求体
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"user_id": UserID,
+		"message": message,
+	})
+
 	if err != nil {
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}

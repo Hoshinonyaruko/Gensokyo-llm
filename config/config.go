@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"math/rand"
 	"os"
 	"sync"
 
@@ -18,25 +20,28 @@ type Config struct {
 }
 
 type Settings struct {
-	SecretId          string   `yaml:"secretId"`
-	SecretKey         string   `yaml:"secretKey"`
-	Region            string   `yaml:"region"`
-	UseSse            bool     `yaml:"useSse"`
-	Port              int      `yaml:"port"`
-	HttpPath          string   `yaml:"path"`
-	SystemPrompt      string   `yaml:"systemPrompt"`
-	IPWhiteList       []string `yaml:"iPWhiteList"`
-	MaxTokensHunyuan  int      `yaml:"maxTokensHunyuan"`
-	ApiType           int      `yaml:"apiType"`
-	WenxinAccessToken string   `yaml:"wenxinAccessToken"`
-	WenxinApiPath     string   `yaml:"wenxinApiPath"`
-	MaxTokenWenxin    int      `yaml:"maxTokenWenxin"`
-	GptModel          string   `yaml:"gptModel"`
-	GptApiPath        string   `yaml:"gptApiPath"`
-	GptToken          string   `yaml:"gptToken"`
-	MaxTokenGpt       int      `yaml:"maxTokenGpt"`
-	GptSafeMode       bool     `yaml:"gptSafeMode"`
-	GptSseType        int      `yaml:"gptSseType"`
+	SecretId           string   `yaml:"secretId"`
+	SecretKey          string   `yaml:"secretKey"`
+	Region             string   `yaml:"region"`
+	UseSse             bool     `yaml:"useSse"`
+	Port               int      `yaml:"port"`
+	HttpPath           string   `yaml:"path"`
+	SystemPrompt       []string `yaml:"systemPrompt"`
+	IPWhiteList        []string `yaml:"iPWhiteList"`
+	MaxTokensHunyuan   int      `yaml:"maxTokensHunyuan"`
+	ApiType            int      `yaml:"apiType"`
+	WenxinAccessToken  string   `yaml:"wenxinAccessToken"`
+	WenxinApiPath      string   `yaml:"wenxinApiPath"`
+	MaxTokenWenxin     int      `yaml:"maxTokenWenxin"`
+	GptModel           string   `yaml:"gptModel"`
+	GptApiPath         string   `yaml:"gptApiPath"`
+	GptToken           string   `yaml:"gptToken"`
+	MaxTokenGpt        int      `yaml:"maxTokenGpt"`
+	GptSafeMode        bool     `yaml:"gptSafeMode"`
+	GptSseType         int      `yaml:"gptSseType"`
+	Groupmessage       bool     `yaml:"groupMessage"`
+	SplitByPuntuations int      `yaml:"splitByPuntuations"`
+	HunyuanType        int      `yaml:"hunyuanType"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -129,9 +134,19 @@ func GetHttpPath() string {
 func SystemPrompt() string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.SystemPrompt
+	if instance != nil && len(instance.Settings.SystemPrompt) > 0 {
+		prompts := instance.Settings.SystemPrompt
+		if len(prompts) == 1 {
+			// 如果只有一个成员，直接返回
+			return prompts[0]
+		} else {
+			selectedIndex := rand.Intn(len(prompts))
+			selectedPrompt := prompts[selectedIndex]
+			fmt.Printf("Selected system prompt: %s\n", selectedPrompt) // 输出你返回的是哪个
+			return selectedPrompt
+		}
 	}
+	//如果是nil返回0代表不使用系统提示词
 	return "0"
 }
 
@@ -251,6 +266,36 @@ func GetGptSseType() int {
 	defer mu.Unlock()
 	if instance != nil {
 		return instance.Settings.GptSseType
+	}
+	return 0
+}
+
+// 是否开启群信息
+func GetGroupmessage() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.Groupmessage
+	}
+	return false
+}
+
+// 获取SplitByPuntuations
+func GetSplitByPuntuations() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.SplitByPuntuations
+	}
+	return 0
+}
+
+// 获取HunyuanType
+func GetHunyuanType() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.HunyuanType
 	}
 	return 0
 }
