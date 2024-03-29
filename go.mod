@@ -1,4 +1,4 @@
-module github.com/hoshinonyaruko/gensokyo-hunyuan
+module github.com/hoshinonyaruko/gensokyo-llm
 
 go 1.21.1
 

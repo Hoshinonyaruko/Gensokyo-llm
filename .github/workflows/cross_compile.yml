@@ -42,9 +42,25 @@ jobs:
         CGO_ENABLED: 1
       run: |
         if [ "$GOOS" = "windows" ]; then
-          go build -o output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}.exe
+          go build -ldflags="-s -w" -o output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}.exe
         else
-          go build -o output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}
+          go build -ldflags="-s -w" -o output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}
+        fi
+      shell: bash
+
+    - name: Compress executable files with UPX (except for gensokyo-android-arm64)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y upx
+        if [[ "${{ matrix.os }}" == *"windows"* ]]; then
+          FILENAME="output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}.exe"
+        else
+          FILENAME="output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}"
+        fi
+        if [[ "${{ matrix.os }}" == "android" && "${{ matrix.goarch }}" == "arm64" ]]; then
+          echo "Skipping UPX compression for $FILENAME"
+        else
+          upx --best --lzma "$FILENAME"
         fi
       shell: bash
 
@@ -100,8 +116,83 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
       with:
-        name: gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}
-        path: output/gensokyo-hunyuan-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
+        name: gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}
+        path: output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
+  build-win:
+    name: Build on ${{ matrix.os }} for ${{ matrix.goarch }}
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            goarch: amd64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.21.1' # Set to specific Go version.
+
+    - name: Install build dependencies (Windows)
+      if: matrix.os == 'windows'
+      run: |
+        choco install msys2 --params "/NoUpdate /InstallDir:C:\msys64" --no-progress -y
+        C:\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm"
+        C:\msys64\usr\bin\bash -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw64/mingw-w64-x86_64-pkg-config mingw-w64-x86_64-cmake mingw-w64-x86_64-extra-cmake-modules mingw-w64-x86_64-toolchain"
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        echo "CC=x86_64-w64-mingw32-gcc" >> $GITHUB_ENV
+        echo "CXX=x86_64-w64-mingw32-g++" >> $GITHUB_ENV
+
+    - name: Create output directory
+      run: mkdir -p output
+
+    - name: Compile Go for target
+      env:
+        GOOS: ${{ matrix.os }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 1
+      run: |
+        if [ "$GOOS" = "windows" ]; then
+          go build -ldflags="-s -w" -o output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}.exe
+        else
+          go build -ldflags="-s -w" -o output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}
+        fi
+      shell: bash
+
+    - name: Setup UPX
+      run: |
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v3.96/upx-3.96-win64.zip" -OutFile "upx.zip"
+          Expand-Archive -Path "upx.zip" -DestinationPath "${{ github.workspace }}"
+          echo "${{ github.workspace }}/upx-3.96-win64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        else
+          sudo apt-get update
+          sudo apt-get install -y upx
+        fi
+      shell: bash
+
+    - name: Compress executable files with UPX (except for gensokyo-android-arm64)
+      run: |
+        if [[ "${{ matrix.os }}" == *"windows"* ]]; then
+          FILENAME="output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}.exe"
+        else
+          FILENAME="output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}"
+        fi
+        if [[ "${{ matrix.os }}" == "android" && "${{ matrix.goarch }}" == "arm64" ]]; then
+          echo "Skipping UPX compression for $FILENAME"
+        else
+          upx --best --lzma "$FILENAME"
+        fi
+      shell: bash
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}
+        path: output/gensokyo-llm-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
 
   prepare_release:
     needs: [build-ubuntu, build-win]

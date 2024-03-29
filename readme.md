@@ -1,27 +1,35 @@
 <p align="center">
-  <a href="https://www.github.com/hoshinonyaruko/gensokyo-hunyuan">
-    <img src="pic/2.png" width="200" height="200" alt="gensokyo-hunyuan">
+  <a href="https://www.github.com/hoshinonyaruko/gensokyo-llm">
+    <img src="pic/2.png" width="200" height="200" alt="gensokyo-llm">
   </a>
 </p>
 
 <div align="center">
 
-# Gensokyo-hunyuan
+# gensokyo-llm
 
-_✨ 基于tencentcloud/hunyuan 的一键混元api连接器 ✨_  
+_✨ 适用于Gensokyo以及Onebot的大模型数字人一键端 ✨_  
 
 ## 特点
+
+支持所有Onebotv11标准框架.
 
 可一键对接[Gensokyo框架](https://gensokyo.bot) 仅需配置反向http地址用于接收信息，正向http地址用于调用发送api
 
 基于sqlite数据库自动维系上下文，对话模式中，使用重置 命令即可重置
 
+可设置system，角色卡,上下文长度,内置多种模型,混元,文心,chatgpt
+
+同时对外提供带有自动上下文的openai原始风味api(经典3参数,id,parent id,messgae)
+
 可作为api运行，也可一键接入QQ频道机器人[QQ机器人开放平台](https://q.qq.com)
 
 ## 使用方法
-使用命令行运行gensokyo-hunyuan可执行程序
+使用命令行运行gensokyo-llm可执行程序
 
 配置config.yml 启动，后监听 port 端口 提供/conversation api
+
+支持中间件开发,在gensokyo框架层到gensokyo-llm的http请求之间,可开发中间件实现向量拓展,数据库拓展,动态修改用户问题.
 
 ## 接口调用说明
 
