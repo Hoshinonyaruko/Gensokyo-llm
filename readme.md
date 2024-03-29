@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://www.github.com/hoshinonyaruko/gensokyo-llm">
-    <img src="pic/2.png" width="200" height="200" alt="gensokyo-llm">
+    <img src="pic/2.jpg" width="200" height="200" alt="gensokyo-llm">
   </a>
 </p>
 
@@ -23,6 +23,8 @@ _✨ 适用于Gensokyo以及Onebot的大模型数字人一键端 ✨_
 同时对外提供带有自动上下文的openai原始风味api(经典3参数,id,parent id,messgae)
 
 可作为api运行，也可一键接入QQ频道机器人[QQ机器人开放平台](https://q.qq.com)
+
+可转换gpt的sse类型，递增还是只发新增的sse
 
 ## 使用方法
 使用命令行运行gensokyo-llm可执行程序

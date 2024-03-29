@@ -112,17 +112,12 @@ jobs:
         fi
       shell: bash
 
-    - name: Setup UPX
+    - name: Setup UPX on Windows
       run: |
-        if [[ "${{ runner.os }}" == "Windows" ]]; then
-          Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v3.96/upx-3.96-win64.zip" -OutFile "upx.zip"
-          Expand-Archive -Path "upx.zip" -DestinationPath "${{ github.workspace }}"
-          echo "${{ github.workspace }}/upx-3.96-win64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        else
-          sudo apt-get update
-          sudo apt-get install -y upx
-        fi
-      shell: bash
+        Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v3.96/upx-3.96-win64.zip" -OutFile "upx.zip"
+        Expand-Archive -Path "upx.zip" -DestinationPath "${{ github.workspace }}"
+        echo "${{ github.workspace }}/upx-3.96-win64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      shell: powershell
 
     - name: Compress executable files with UPX (except for gensokyo-android-arm64)
       run: |
