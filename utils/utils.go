@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
@@ -115,6 +116,10 @@ func SendGroupMessage(groupID int64, message string) error {
 	// 构建完整的URL
 	url := baseURL + "/send_group_msg"
 
+	if config.GetSensitiveModeType() == 1 {
+		message = acnode.CheckWord(message)
+	}
+
 	// 构造请求体
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"group_id": groupID,
@@ -147,6 +152,10 @@ func SendPrivateMessage(UserID int64, message string) error {
 
 	// 构建完整的URL
 	url := baseURL + "/send_private_msg"
+
+	if config.GetSensitiveModeType() == 1 {
+		message = acnode.CheckWord(message)
+	}
 
 	// 构造请求体
 	requestBody, err := json.Marshal(map[string]interface{}{
