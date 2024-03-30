@@ -1,6 +1,6 @@
 package template
 
-const ConfigTemplate = `
+const ConfigTemplate = `	
 version: 1
 settings:
 
