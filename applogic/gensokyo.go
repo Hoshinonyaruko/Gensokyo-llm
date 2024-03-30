@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
@@ -88,9 +89,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			// 构建并发送请求到conversation接口
 			portStr := fmt.Sprintf(":%d", port)
 			url := "http://127.0.0.1" + portStr + "/conversation"
-
+			msg := message.Message.(string)
+			if config.GetSensitiveMode() {
+				msg = acnode.CheckWord(msg)
+			}
 			requestBody, err := json.Marshal(map[string]interface{}{
-				"message":         message.Message,
+				"message":         msg,
 				"conversationId":  conversationID,
 				"parentMessageId": parentMessageID,
 				"user_id":         message.UserID,

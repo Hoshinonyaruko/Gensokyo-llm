@@ -42,6 +42,15 @@ type Settings struct {
 	Groupmessage       bool     `yaml:"groupMessage"`
 	SplitByPuntuations int      `yaml:"splitByPuntuations"`
 	HunyuanType        int      `yaml:"hunyuanType"`
+	FirstQ             []string `yaml:"firstQ"`
+	FirstA             []string `yaml:"firstA"`
+	SecondQ            []string `yaml:"secondQ"`
+	SecondA            []string `yaml:"secondA"`
+	ThirdQ             []string `yaml:"thirdQ"`
+	ThirdA             []string `yaml:"thirdA"`
+	SensitiveMode      bool     `yaml:"sensitiveMode"`
+	SensitiveModeType  int      `yaml:"sensitiveModeType"`
+	DefaultChangeWord  string   `yaml:"defaultChangeWord"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -296,6 +305,150 @@ func GetHunyuanType() int {
 	defer mu.Unlock()
 	if instance != nil {
 		return instance.Settings.HunyuanType
+	}
+	return 0
+}
+
+// 获取FirstQ
+func GetFirstQ() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil && len(instance.Settings.FirstQ) > 0 {
+		questions := instance.Settings.FirstQ
+		if len(questions) == 1 {
+			// 如果只有一个成员，直接返回
+			return questions[0]
+		} else {
+			// 随机选择一个返回
+			selectedIndex := rand.Intn(len(questions))
+			selectedQuestion := questions[selectedIndex]
+			fmt.Printf("Selected first question: %s\n", selectedQuestion) // 输出你返回的是哪个问题
+			return selectedQuestion
+		}
+	}
+	// 如果是nil或者空数组，返回空字符串
+	return ""
+}
+
+// 获取FirstA
+func GetFirstA() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil && len(instance.Settings.FirstA) > 0 {
+		answers := instance.Settings.FirstA
+		if len(answers) == 1 {
+			// 如果只有一个成员，直接返回
+			return answers[0]
+		} else {
+			// 随机选择一个返回
+			selectedIndex := rand.Intn(len(answers))
+			selectedAnswer := answers[selectedIndex]
+			fmt.Printf("Selected first answer: %s\n", selectedAnswer) // 输出你返回的是哪个回答
+			return selectedAnswer
+		}
+	}
+	// 如果是nil或者空数组，返回空字符串
+	return ""
+}
+
+// 获取SecondQ
+func GetSecondQ() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil && len(instance.Settings.SecondQ) > 0 {
+		questions := instance.Settings.SecondQ
+		if len(questions) == 1 {
+			return questions[0]
+		} else {
+			selectedIndex := rand.Intn(len(questions))
+			selectedQuestion := questions[selectedIndex]
+			fmt.Printf("Selected second question: %s\n", selectedQuestion)
+			return selectedQuestion
+		}
+	}
+	return ""
+}
+
+// 获取SecondA
+func GetSecondA() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil && len(instance.Settings.SecondA) > 0 {
+		answers := instance.Settings.SecondA
+		if len(answers) == 1 {
+			return answers[0]
+		} else {
+			selectedIndex := rand.Intn(len(answers))
+			selectedAnswer := answers[selectedIndex]
+			fmt.Printf("Selected second answer: %s\n", selectedAnswer)
+			return selectedAnswer
+		}
+	}
+	return ""
+}
+
+// 获取ThirdQ
+func GetThirdQ() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil && len(instance.Settings.ThirdQ) > 0 {
+		questions := instance.Settings.ThirdQ
+		if len(questions) == 1 {
+			return questions[0]
+		} else {
+			selectedIndex := rand.Intn(len(questions))
+			selectedQuestion := questions[selectedIndex]
+			fmt.Printf("Selected third question: %s\n", selectedQuestion)
+			return selectedQuestion
+		}
+	}
+	return ""
+}
+
+// 获取ThirdA
+func GetThirdA() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil && len(instance.Settings.ThirdA) > 0 {
+		answers := instance.Settings.ThirdA
+		if len(answers) == 1 {
+			return answers[0]
+		} else {
+			selectedIndex := rand.Intn(len(answers))
+			selectedAnswer := answers[selectedIndex]
+			fmt.Printf("Selected third answer: %s\n", selectedAnswer)
+			return selectedAnswer
+		}
+	}
+	return ""
+}
+
+// 获取DefaultChangeWord
+func GetDefaultChangeWord() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.DefaultChangeWord
+	}
+	return "*"
+}
+
+// 是否SensitiveMode
+func GetSensitiveMode() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.SensitiveMode
+	}
+	return false
+}
+
+// 获取SensitiveModeType
+func GetSensitiveModeType() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.SensitiveModeType
 	}
 	return 0
 }
