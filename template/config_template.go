@@ -11,8 +11,17 @@ settings:
   apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt
   iPWhiteList : ["192.168.0.102"]               #接口调用,安全ip白名单,gensokyo的ip地址,或调用api的程序的ip地址
   systemPrompt : [""]                           #人格提示词,或多个随机
+  firstQ : [""]                                 #强化思想钢印,在每次对话的system之前固定一个QA,需都填写内容,会增加token消耗,可一定程度提高人格提示词效果,或抵抗催眠
+  firstA : [""]                                 #强化思想钢印,在每次对话的system之前固定一个QA,需都填写内容,会增加token消耗,可一定程度提高人格提示词效果,或抵抗催眠
+  secondQ : [""]                                #可空
+  secondA : [""]                                #可空
+  thirdQ : [""]                                 #可空
+  thirdA : [""]                                 #可空
   groupMessage : true                       	#是否响应群信息
   splitByPuntuations : 40                       #截断率,仅在sse时有效,100则代表每句截断
+  sensitiveMode : flase                         #是否开启敏感词替换
+  sensitiveModeType : 0                         #0=只过滤用户输入 1=输出也进行过滤
+  defaultChangeWord : "*"                       #默认的屏蔽词替换,你可以在sensitive_words.txt的####后修改为自己需要,可以用记事本批量替换
 
   #混元配置项
   secretId : ""                                 #腾讯云账号(右上角)-访问管理-访问密钥，生成获取

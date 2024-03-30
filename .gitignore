@@ -1,6 +1,8 @@
 # specific
 config.yml
 *.sqlite
+sensitive_words.txt
+white.txt
 
 # Go specific
 *.exe

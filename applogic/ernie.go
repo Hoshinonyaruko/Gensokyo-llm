@@ -53,6 +53,35 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		history = truncateHistoryErnie(history, msg.Text)
 	}
 
+	// 分别获取FirstQ&A, SecondQ&A, ThirdQ&A
+	pairs := []struct {
+		Q     string
+		A     string
+		RoleQ string // 问题的角色
+		RoleA string // 答案的角色
+	}{
+		{config.GetFirstQ(), config.GetFirstA(), "user", "assistant"},
+		{config.GetSecondQ(), config.GetSecondA(), "user", "assistant"},
+		{config.GetThirdQ(), config.GetThirdA(), "user", "assistant"},
+	}
+
+	// 检查每一对Q&A是否均不为空，并追加到历史信息中
+	for _, pair := range pairs {
+		if pair.Q != "" && pair.A != "" {
+			qMessage := structs.Message{
+				Text: pair.Q,
+				Role: pair.RoleQ,
+			}
+			aMessage := structs.Message{
+				Text: pair.A,
+				Role: pair.RoleA,
+			}
+
+			// 注意追加的顺序，确保问题在答案之前
+			history = append(history, qMessage, aMessage)
+		}
+	}
+
 	// 构建请求负载
 	var payload structs.WXRequestPayload
 	for _, hMsg := range history {
