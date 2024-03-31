@@ -108,3 +108,12 @@ type GPTUsageInfo struct {
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
 }
+
+// InterfaceBody 结构体定义
+type InterfaceBody struct {
+	Content        string   `json:"content"`
+	State          int      `json:"state"`
+	PromptKeyboard []string `json:"prompt_keyboard"`
+	ActionButton   int      `json:"action_button"`
+	CallbackData   string   `json:"callback_data"`
+}
