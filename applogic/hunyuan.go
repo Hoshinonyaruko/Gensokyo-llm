@@ -2,11 +2,11 @@ package applogic
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
@@ -44,19 +44,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取历史信息
 	var history []structs.Message
-	if msg.ParentMessageID != "" {
-		history, err = app.getHistory(msg.ConversationID, msg.ParentMessageID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// 截断历史信息
-		history = truncateHistoryHunYuan(history, msg.Text)
-	}
-
 	// 获取系统提示词
 	systemPromptContent := config.SystemPrompt() // 注意检查实际的函数名是否正确
 
@@ -100,7 +88,19 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fmt.Printf("history:%v\n", history)
+	// 获取历史信息
+	if msg.ParentMessageID != "" {
+		history, err = app.getHistory(msg.ConversationID, msg.ParentMessageID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// 截断历史信息
+		history = truncateHistoryHunYuan(history, msg.Text)
+	}
+
+	fmtf.Printf("history:%v\n", history)
 
 	if config.GetHunyuanType() == 0 {
 		// 构建 hunyuan 请求
@@ -131,7 +131,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 		// 发送请求并获取响应
 		response, err := app.Client.ChatPro(request)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("hunyuanapi返回错误: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmtf.Sprintf("hunyuanapi返回错误: %v", err), http.StatusInternalServerError)
 			return
 		}
 		if !config.GetuseSse() {
@@ -140,14 +140,14 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			var totalUsage structs.UsageInfo
 			for event := range response.BaseSSEResponse.Events {
 				if event.Err != nil {
-					http.Error(w, fmt.Sprintf("接收事件时发生错误: %v", event.Err), http.StatusInternalServerError)
+					http.Error(w, fmtf.Sprintf("接收事件时发生错误: %v", event.Err), http.StatusInternalServerError)
 					return
 				}
 
 				// 解析事件数据
 				var eventData map[string]interface{}
 				if err := json.Unmarshal(event.Data, &eventData); err != nil {
-					http.Error(w, fmt.Sprintf("解析事件数据出错: %v", err), http.StatusInternalServerError)
+					http.Error(w, fmtf.Sprintf("解析事件数据出错: %v", err), http.StatusInternalServerError)
 					return
 				}
 
@@ -200,7 +200,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 
 			for event := range response.BaseSSEResponse.Events {
 				if event.Err != nil {
-					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("接收事件时发生错误: %v", event.Err))
+					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("接收事件时发生错误: %v", event.Err))
 					flusher.Flush()
 					continue
 				}
@@ -208,7 +208,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 				// 解析事件数据和提取信息
 				var eventData map[string]interface{}
 				if err := json.Unmarshal(event.Data, &eventData); err != nil {
-					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("解析事件数据出错: %v", err))
+					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("解析事件数据出错: %v", err))
 					flusher.Flush()
 					continue
 				}
@@ -219,7 +219,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 				totalUsage.CompletionTokens += usageInfo.CompletionTokens
 
 				// 发送当前事件的响应数据，但不包含assistantMessageID
-				//fmt.Printf("发送当前事件的响应数据，但不包含assistantMessageID\n")
+				//fmtf.Printf("发送当前事件的响应数据，但不包含assistantMessageID\n")
 				tempResponseMap := map[string]interface{}{
 					"response":       responseText,
 					"conversationId": msg.ConversationID,
@@ -228,17 +228,18 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 					},
 				}
 				tempResponseJSON, _ := json.Marshal(tempResponseMap)
-				fmt.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
+				fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
 				flusher.Flush()
 			}
 
-			// 处理完所有事件后，生成并发送包含assistantMessageID的最终响应
-			//fmt.Printf("处理完所有事件后，生成并发送包含assistantMessageID的最终响应\n")
-			responseText := responseTextBuilder.String()
+			//一点点奇怪的转换
+			conversationId, _ := conversationMap.LoadOrStore(msg.ConversationID, "")
+			completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
+			// 在所有事件处理完毕后发送最终响应
 			assistantMessageID, err := app.addMessage(structs.Message{
 				ConversationID:  msg.ConversationID,
 				ParentMessageID: userMessageID,
-				Text:            responseText,
+				Text:            completeResponse.(string),
 				Role:            "assistant",
 			})
 
@@ -247,17 +248,24 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			finalResponseMap := map[string]interface{}{
-				"response":       responseText,
-				"conversationId": msg.ConversationID,
-				"messageId":      assistantMessageID,
-				"details": map[string]interface{}{
-					"usage": totalUsage,
-				},
+			// 在所有事件处理完毕后发送最终响应
+			// 首先从 conversationMap 获取真实的 conversationId
+			if actualConversationId, ok := conversationMap.Load(msg.ConversationID); ok {
+				if finalContent, ok := lastCompleteResponses.Load(actualConversationId); ok {
+					finalResponseMap := map[string]interface{}{
+						"response":       finalContent,
+						"conversationId": actualConversationId,
+						"messageId":      assistantMessageID,
+						"details": map[string]interface{}{
+							"usage": totalUsage,
+						},
+					}
+					finalResponseJSON, _ := json.Marshal(finalResponseMap)
+					fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+					flusher.Flush()
+				}
 			}
-			finalResponseJSON, _ := json.Marshal(finalResponseMap)
-			fmt.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
-			flusher.Flush()
+
 		}
 	} else {
 		// 构建 hunyuan 标准版请求
@@ -288,7 +296,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 		// 发送请求并获取响应
 		response, err := app.Client.ChatStd(request)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("hunyuanapi返回错误: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmtf.Sprintf("hunyuanapi返回错误: %v", err), http.StatusInternalServerError)
 			return
 		}
 		if !config.GetuseSse() {
@@ -297,14 +305,14 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			var totalUsage structs.UsageInfo
 			for event := range response.BaseSSEResponse.Events {
 				if event.Err != nil {
-					http.Error(w, fmt.Sprintf("接收事件时发生错误: %v", event.Err), http.StatusInternalServerError)
+					http.Error(w, fmtf.Sprintf("接收事件时发生错误: %v", event.Err), http.StatusInternalServerError)
 					return
 				}
 
 				// 解析事件数据
 				var eventData map[string]interface{}
 				if err := json.Unmarshal(event.Data, &eventData); err != nil {
-					http.Error(w, fmt.Sprintf("解析事件数据出错: %v", err), http.StatusInternalServerError)
+					http.Error(w, fmtf.Sprintf("解析事件数据出错: %v", err), http.StatusInternalServerError)
 					return
 				}
 
@@ -357,7 +365,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 
 			for event := range response.BaseSSEResponse.Events {
 				if event.Err != nil {
-					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("接收事件时发生错误: %v", event.Err))
+					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("接收事件时发生错误: %v", event.Err))
 					flusher.Flush()
 					continue
 				}
@@ -365,7 +373,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 				// 解析事件数据和提取信息
 				var eventData map[string]interface{}
 				if err := json.Unmarshal(event.Data, &eventData); err != nil {
-					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("解析事件数据出错: %v", err))
+					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("解析事件数据出错: %v", err))
 					flusher.Flush()
 					continue
 				}
@@ -376,7 +384,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 				totalUsage.CompletionTokens += usageInfo.CompletionTokens
 
 				// 发送当前事件的响应数据，但不包含assistantMessageID
-				//fmt.Printf("发送当前事件的响应数据，但不包含assistantMessageID\n")
+				//fmtf.Printf("发送当前事件的响应数据，但不包含assistantMessageID\n")
 				tempResponseMap := map[string]interface{}{
 					"response":       responseText,
 					"conversationId": msg.ConversationID,
@@ -385,17 +393,19 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 					},
 				}
 				tempResponseJSON, _ := json.Marshal(tempResponseMap)
-				fmt.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
+				fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
 				flusher.Flush()
 			}
 
 			// 处理完所有事件后，生成并发送包含assistantMessageID的最终响应
-			//fmt.Printf("处理完所有事件后，生成并发送包含assistantMessageID的最终响应\n")
-			responseText := responseTextBuilder.String()
+			//一点点奇怪的转换
+			conversationId, _ := conversationMap.LoadOrStore(msg.ConversationID, "")
+			completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
+			// 在所有事件处理完毕后发送最终响应
 			assistantMessageID, err := app.addMessage(structs.Message{
 				ConversationID:  msg.ConversationID,
 				ParentMessageID: userMessageID,
-				Text:            responseText,
+				Text:            completeResponse.(string),
 				Role:            "assistant",
 			})
 
@@ -404,17 +414,23 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			finalResponseMap := map[string]interface{}{
-				"response":       responseText,
-				"conversationId": msg.ConversationID,
-				"messageId":      assistantMessageID,
-				"details": map[string]interface{}{
-					"usage": totalUsage,
-				},
+			// 在所有事件处理完毕后发送最终响应
+			// 首先从 conversationMap 获取真实的 conversationId
+			if actualConversationId, ok := conversationMap.Load(msg.ConversationID); ok {
+				if finalContent, ok := lastCompleteResponses.Load(actualConversationId); ok {
+					finalResponseMap := map[string]interface{}{
+						"response":       finalContent,
+						"conversationId": actualConversationId,
+						"messageId":      assistantMessageID,
+						"details": map[string]interface{}{
+							"usage": totalUsage,
+						},
+					}
+					finalResponseJSON, _ := json.Marshal(finalResponseMap)
+					fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+					flusher.Flush()
+				}
 			}
-			finalResponseJSON, _ := json.Marshal(finalResponseMap)
-			fmt.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
-			flusher.Flush()
 		}
 	}
 

@@ -2,9 +2,9 @@ package applogic
 
 import (
 	"database/sql"
-	"fmt"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
@@ -21,7 +21,7 @@ func (app *App) createConversation(conversationID string) error {
 }
 
 func (app *App) addMessage(msg structs.Message) (string, error) {
-	fmt.Printf("添加信息：%v\n", msg)
+	fmtf.Printf("添加信息：%v\n", msg)
 	// Generate a new UUID for message ID
 	messageID := utils.GenerateUUID() // Implement this function to generate a UUID
 
@@ -43,7 +43,7 @@ func (app *App) EnsureTablesExist() error {
 
 	_, err := app.DB.Exec(createMessagesTableSQL)
 	if err != nil {
-		return fmt.Errorf("error creating messages table: %w", err)
+		return fmtf.Errorf("error creating messages table: %w", err)
 	}
 
 	// 其他创建
@@ -61,7 +61,7 @@ func (app *App) EnsureUserContextTableExists() error {
 
 	_, err := app.DB.Exec(createTableSQL)
 	if err != nil {
-		return fmt.Errorf("error creating user_context table: %w", err)
+		return fmtf.Errorf("error creating user_context table: %w", err)
 	}
 
 	return nil
@@ -186,7 +186,7 @@ func (app *App) getHistory(conversationID, parentMessageID string) ([]structs.Me
 			Role: msg.Role,
 			Text: msg.Text,
 		}
-		fmt.Printf("加入:%v\n", historyEntry)
+		fmtf.Printf("加入:%v\n", historyEntry)
 		history = append(history, historyEntry)
 	}
 	return history, nil

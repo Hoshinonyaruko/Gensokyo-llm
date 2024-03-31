@@ -4,16 +4,18 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
+
+//var mutexErnie sync.Mutex
 
 func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -44,20 +46,8 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取历史信息
-	var history []structs.Message
-	if msg.ParentMessageID != "" {
-		history, err = app.getHistory(msg.ConversationID, msg.ParentMessageID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// 截断历史信息
-		history = truncateHistoryErnie(history, msg.Text)
-	}
-
 	// 分别获取FirstQ&A, SecondQ&A, ThirdQ&A
+	var history []structs.Message
 	pairs := []struct {
 		Q     string
 		A     string
@@ -84,6 +74,18 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 			// 注意追加的顺序，确保问题在答案之前
 			history = append(history, qMessage, aMessage)
 		}
+	}
+
+	// 获取历史信息
+	if msg.ParentMessageID != "" {
+		history, err = app.getHistory(msg.ConversationID, msg.ParentMessageID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// 截断历史信息
+		history = truncateHistoryErnie(history, msg.Text)
 	}
 
 	// 构建请求负载
@@ -121,8 +123,8 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 	apiPath := config.GetWenxinApiPath()
 
 	// 构建请求URL
-	url := fmt.Sprintf("%s?access_token=%s", apiPath, accessToken)
-	fmt.Printf("%v\n", url)
+	url := fmtf.Sprintf("%s?access_token=%s", apiPath, accessToken)
+	fmtf.Printf("%v\n", url)
 
 	// 序列化请求负载
 	jsonData, err := json.Marshal(payload)
@@ -130,7 +132,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("Error occurred during marshaling. Error: %s", err.Error())
 	}
 
-	fmt.Printf("%v\n", string(jsonData))
+	fmtf.Printf("%v\n", string(jsonData))
 
 	// 创建并发送POST请求
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
@@ -152,7 +154,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 	remainingRequests := resp.Header.Get("X-Ratelimit-Remaining-Requests")
 	remainingTokens := resp.Header.Get("X-Ratelimit-Remaining-Tokens")
 
-	fmt.Printf("RateLimit: Requests %s, Tokens %s, Remaining Requests %s, Remaining Tokens %s\n",
+	fmtf.Printf("RateLimit: Requests %s, Tokens %s, Remaining Requests %s, Remaining Tokens %s\n",
 		rateLimitRequests, rateLimitTokens, remainingRequests, remainingTokens)
 
 	// 检查是否不使用SSE
@@ -168,7 +170,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(bodyBytes, &response); err != nil {
 			log.Fatalf("Error occurred during response decoding to map. Error: %s", err)
 		}
-		fmt.Printf("%v\n", response)
+		fmtf.Printf("%v\n", response)
 
 		// 然后尝试解析为具体的结构体以获取详细信息
 		var responseStruct struct {
@@ -189,7 +191,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := json.Unmarshal(bodyBytes, &responseStruct); err != nil {
-			http.Error(w, fmt.Sprintf("解析响应体出错: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmtf.Sprintf("解析响应体出错: %v", err), http.StatusInternalServerError)
 			return
 		}
 		// 根据API响应构造消息和响应给客户端
@@ -256,7 +258,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 				// 处理错误
-				fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("读取流数据时发生错误: %v", err))
+				fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("读取流数据时发生错误: %v", err))
 				flusher.Flush()
 				continue
 			}
@@ -283,7 +285,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 				}
 				// 解析JSON数据
 				if err := json.Unmarshal([]byte(eventDataJSON), &eventData); err != nil {
-					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("解析事件数据出错: %v", err))
+					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("解析事件数据出错: %v", err))
 					flusher.Flush()
 					continue
 				}
@@ -302,7 +304,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 					},
 				}
 				tempResponseJSON, _ := json.Marshal(tempResponseMap)
-				fmt.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
+				fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
 				flusher.Flush()
 
 				// 如果这是最后一个消息
@@ -313,11 +315,13 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 处理完所有事件后，生成并发送包含assistantMessageID的最终响应
-		responseText := responseTextBuilder.String()
+		//一点点奇怪的转换
+		conversationId, _ := conversationMap.LoadOrStore(msg.ConversationID, "")
+		completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
 		assistantMessageID, err := app.addMessage(structs.Message{
 			ConversationID:  msg.ConversationID,
 			ParentMessageID: userMessageID,
-			Text:            responseText,
+			Text:            completeResponse.(string),
 			Role:            "assistant",
 		})
 
@@ -326,17 +330,24 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		finalResponseMap := map[string]interface{}{
-			"response":       responseText,
-			"conversationId": msg.ConversationID,
-			"messageId":      assistantMessageID,
-			"details": map[string]interface{}{
-				"usage": totalUsage,
-			},
-		}
-		finalResponseJSON, _ := json.Marshal(finalResponseMap)
-		fmt.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
 		flusher.Flush()
+		// 在所有事件处理完毕后发送最终响应
+		// 首先从 conversationMap 获取真实的 conversationId
+		if actualConversationId, ok := conversationMap.Load(msg.ConversationID); ok {
+			if finalContent, ok := lastCompleteResponses.Load(actualConversationId); ok {
+				finalResponseMap := map[string]interface{}{
+					"response":       finalContent,
+					"conversationId": actualConversationId,
+					"messageId":      assistantMessageID,
+					"details": map[string]interface{}{
+						"usage": totalUsage,
+					},
+				}
+				finalResponseJSON, _ := json.Marshal(finalResponseMap)
+				fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+				flusher.Flush()
+			}
+		}
 	}
 }
 

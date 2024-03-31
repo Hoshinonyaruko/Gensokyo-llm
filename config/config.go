@@ -1,11 +1,12 @@
 package config
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"sync"
+	"time"
 
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"gopkg.in/yaml.v3"
 )
 
@@ -13,6 +14,8 @@ var (
 	instance *Config
 	mu       sync.Mutex
 )
+
+var r = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 type Config struct {
 	Version  int      `yaml:"version"`
@@ -59,6 +62,8 @@ type Settings struct {
 	RestoreResponses     []string `yaml:"restoreResponses"`
 	UsePrivateSSE        bool     `yaml:"usePrivateSSE"`
 	Promptkeyboard       []string `yaml:"promptkeyboard"`
+	Savelogs             bool     `yaml:"savelogs"`
+	AntiPromptLimit      float64  `yaml:"antiPromptLimit"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -159,7 +164,7 @@ func SystemPrompt() string {
 		} else {
 			selectedIndex := rand.Intn(len(prompts))
 			selectedPrompt := prompts[selectedIndex]
-			fmt.Printf("Selected system prompt: %s\n", selectedPrompt) // 输出你返回的是哪个
+			fmtf.Printf("Selected system prompt: %s\n", selectedPrompt) // 输出你返回的是哪个
 			return selectedPrompt
 		}
 	}
@@ -330,7 +335,7 @@ func GetFirstQ() string {
 			// 随机选择一个返回
 			selectedIndex := rand.Intn(len(questions))
 			selectedQuestion := questions[selectedIndex]
-			fmt.Printf("Selected first question: %s\n", selectedQuestion) // 输出你返回的是哪个问题
+			fmtf.Printf("Selected first question: %s\n", selectedQuestion) // 输出你返回的是哪个问题
 			return selectedQuestion
 		}
 	}
@@ -351,7 +356,7 @@ func GetFirstA() string {
 			// 随机选择一个返回
 			selectedIndex := rand.Intn(len(answers))
 			selectedAnswer := answers[selectedIndex]
-			fmt.Printf("Selected first answer: %s\n", selectedAnswer) // 输出你返回的是哪个回答
+			fmtf.Printf("Selected first answer: %s\n", selectedAnswer) // 输出你返回的是哪个回答
 			return selectedAnswer
 		}
 	}
@@ -370,7 +375,7 @@ func GetSecondQ() string {
 		} else {
 			selectedIndex := rand.Intn(len(questions))
 			selectedQuestion := questions[selectedIndex]
-			fmt.Printf("Selected second question: %s\n", selectedQuestion)
+			fmtf.Printf("Selected second question: %s\n", selectedQuestion)
 			return selectedQuestion
 		}
 	}
@@ -388,7 +393,7 @@ func GetSecondA() string {
 		} else {
 			selectedIndex := rand.Intn(len(answers))
 			selectedAnswer := answers[selectedIndex]
-			fmt.Printf("Selected second answer: %s\n", selectedAnswer)
+			fmtf.Printf("Selected second answer: %s\n", selectedAnswer)
 			return selectedAnswer
 		}
 	}
@@ -406,7 +411,7 @@ func GetThirdQ() string {
 		} else {
 			selectedIndex := rand.Intn(len(questions))
 			selectedQuestion := questions[selectedIndex]
-			fmt.Printf("Selected third question: %s\n", selectedQuestion)
+			fmtf.Printf("Selected third question: %s\n", selectedQuestion)
 			return selectedQuestion
 		}
 	}
@@ -424,7 +429,7 @@ func GetThirdA() string {
 		} else {
 			selectedIndex := rand.Intn(len(answers))
 			selectedAnswer := answers[selectedIndex]
-			fmt.Printf("Selected third answer: %s\n", selectedAnswer)
+			fmtf.Printf("Selected third answer: %s\n", selectedAnswer)
 			return selectedAnswer
 		}
 	}
@@ -505,7 +510,7 @@ func GetRandomSaveResponse() string {
 			// 如果有多个元素，随机选择一个返回
 			selectedIndex := rand.Intn(len(instance.Settings.SaveResponses))
 			selectedResponse := instance.Settings.SaveResponses[selectedIndex]
-			fmt.Printf("Selected save response: %s\n", selectedResponse)
+			fmtf.Printf("Selected save response: %s\n", selectedResponse)
 			return selectedResponse
 		}
 	}
@@ -527,7 +532,7 @@ func GetRandomRestoreResponses() string {
 			// 如果有多个元素，随机选择一个返回
 			selectedIndex := rand.Intn(len(instance.Settings.RestoreResponses))
 			selectedResponse := instance.Settings.RestoreResponses[selectedIndex]
-			fmt.Printf("Selected save response: %s\n", selectedResponse)
+			fmtf.Printf("Selected save response: %s\n", selectedResponse)
 			return selectedResponse
 		}
 	}
@@ -556,6 +561,7 @@ func GetUsePrivateSSE() bool {
 }
 
 // GetPromptkeyboard 获取Promptkeyboard，如果超过3个成员则随机选择3个
+
 func GetPromptkeyboard() []string {
 	mu.Lock()
 	defer mu.Unlock()
@@ -567,15 +573,37 @@ func GetPromptkeyboard() []string {
 
 		// 如果数组成员超过3个，随机选择3个返回
 		selected := make([]string, 3)
+		indexesSelected := make(map[int]bool)
 		for i := 0; i < 3; i++ {
-			// 生成一个随机索引
-			index := rand.Intn(len(promptKeyboard))
-			// 将随机选中的元素添加到结果中
+			index := r.Intn(len(promptKeyboard))
+			// 确保不重复选择
+			for indexesSelected[index] {
+				index = r.Intn(len(promptKeyboard))
+			}
+			indexesSelected[index] = true
 			selected[i] = promptKeyboard[index]
-			// 从slice中移除已选元素，避免重复选择
-			promptKeyboard = append(promptKeyboard[:index], promptKeyboard[index+1:]...)
 		}
 		return selected
 	}
 	return nil
+}
+
+// 获取Savelogs
+func GetSavelogs() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.Savelogs
+	}
+	return false
+}
+
+// 获取AntiPromptLimit
+func GetAntiPromptLimit() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.AntiPromptLimit
+	}
+	return 0.9
 }

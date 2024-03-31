@@ -6,3 +6,6 @@ white.txt
 
 # Go specific
 *.exe
+
+# log
+log
