@@ -3,11 +3,11 @@ package applogic
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 )
 
 // ResponseData 用于解析外层响应
@@ -32,35 +32,35 @@ func checkResponseThreshold(msg string) bool {
 		"user_id":         "",
 	})
 	if err != nil {
-		fmt.Printf("Error marshalling request: %v\n", err)
+		fmtf.Printf("Error marshalling request: %v\n", err)
 		return false
 	}
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
-		fmt.Printf("Error sending request: %v\n", err)
+		fmtf.Printf("Error sending request: %v\n", err)
 		return false
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Error reading response body: %v\n", err)
+		fmtf.Printf("Error reading response body: %v\n", err)
 		return false
 	}
-	fmt.Printf("Response: %s\n", string(responseBody))
+	fmtf.Printf("Response: %s\n", string(responseBody))
 
 	var responseData ResponseData
 	if err := json.Unmarshal(responseBody, &responseData); err != nil {
-		fmt.Printf("Error unmarshalling response data: %v\n", err)
+		fmtf.Printf("Error unmarshalling response data: %v\n", err)
 		return false
 	}
 
 	var nestedResponse NestedResponse
 	if err := json.Unmarshal([]byte(responseData.Response), &nestedResponse); err != nil {
-		fmt.Printf("Error unmarshalling nested response data: %v\n", err)
+		fmtf.Printf("Error unmarshalling nested response data: %v\n", err)
 		return false
 	}
-	fmt.Printf("大模型agent安全检查结果: %v\n", nestedResponse.Result)
-	return nestedResponse.Result > 0.5
+	fmtf.Printf("大模型agent安全检查结果: %v\n", nestedResponse.Result)
+	return nestedResponse.Result > config.GetAntiPromptLimit()
 }

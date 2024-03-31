@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
@@ -83,24 +84,24 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	var message structs.OnebotGroupMessage
 	err = json.Unmarshal(body, &message)
 	if err != nil {
-		fmt.Printf("Error parsing request body: %+v\n", string(body))
+		fmtf.Printf("Error parsing request body: %+v\n", string(body))
 		http.Error(w, "Error parsing request body", http.StatusInternalServerError)
 		return
 	}
 
 	// 打印消息和其他相关信息
-	fmt.Printf("Received message: %v\n", message.Message)
-	fmt.Printf("Full message details: %+v\n", message)
+	fmtf.Printf("Received message: %v\n", message.Message)
+	fmtf.Printf("Full message details: %+v\n", message)
 
 	// 判断message.Message的类型
 	switch msg := message.Message.(type) {
 	case string:
 		// message.Message是一个string
-		fmt.Printf("Received string message: %s\n", msg)
+		fmtf.Printf("Received string message: %s\n", msg)
 
 		//是否过滤群信息
 		if !config.GetGroupmessage() {
-			fmt.Printf("你设置了不响应群信息：%v", message)
+			fmtf.Printf("你设置了不响应群信息：%v", message)
 			return
 		}
 
@@ -123,29 +124,80 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		//处理重置指令
 		if isResetCommand {
-			fmt.Println("处理重置操作")
+			fmtf.Println("处理重置操作")
 			app.migrateUserToNewContext(message.UserID)
 			RestoreResponse := config.GetRandomRestoreResponses()
 			if message.RealMessageType == "group_private" || message.MessageType == "private" {
-				utils.SendPrivateMessage(message.UserID, RestoreResponse)
+				if !config.GetUsePrivateSSE() {
+					utils.SendPrivateMessage(message.UserID, RestoreResponse)
+				} else {
+					// 从配置中获取promptkeyboard
+					promptkeyboard := config.GetPromptkeyboard()
+
+					// 创建InterfaceBody结构体实例
+					messageSSE := structs.InterfaceBody{
+						Content:        RestoreResponse, // 假设空格字符串是期望的内容
+						State:          20,              // 假设的状态码
+						PromptKeyboard: promptkeyboard,  // 使用更新后的promptkeyboard
+					}
+
+					// 发送SSE私人消息
+					utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+				}
 			} else {
 				utils.SendGroupMessage(message.GroupID, RestoreResponse)
 			}
 			return
 		}
 
+		//审核部分 文本替换规则
+		newmsg := message.Message.(string)
+		if config.GetSensitiveMode() {
+			newmsg = acnode.CheckWord(newmsg)
+		}
+
 		//提示词安全部分
 		if config.GetAntiPromptAttackPath() != "" {
-			checkmsg := message.Message.(string)
 			if config.GetIgnoreExtraTips() {
-				checkmsg = utils.RemoveBracketsContent(checkmsg)
+				newmsg = utils.RemoveBracketsContent(newmsg)
 			}
-			if checkResponseThreshold(checkmsg) {
-				fmt.Printf("提示词不安全,过滤:%v", message)
+
+			if checkResponseThreshold(newmsg) {
+				fmtf.Printf("提示词不安全,过滤:%v", message)
 				saveresponse := config.GetRandomSaveResponse()
 				if saveresponse != "" {
 					if message.RealMessageType == "group_private" || message.MessageType == "private" {
-						utils.SendPrivateMessage(message.UserID, saveresponse)
+						if !config.GetUsePrivateSSE() {
+							utils.SendPrivateMessage(message.UserID, saveresponse)
+						} else {
+							// 从配置中获取恢复响应数组
+							RestoreResponses := config.GetRestoreCommand()
+
+							var selectedRestoreResponse string
+							// 如果RestoreResponses至少有一个成员，则随机选择一个
+							if len(RestoreResponses) > 0 {
+								selectedRestoreResponse = RestoreResponses[rand.Intn(len(RestoreResponses))]
+							}
+
+							// 从配置中获取promptkeyboard
+							promptkeyboard := config.GetPromptkeyboard()
+
+							// 确保promptkeyboard至少有一个成员
+							if len(promptkeyboard) > 0 {
+								// 使用随机选中的RestoreResponse替换promptkeyboard的第一个成员
+								promptkeyboard[0] = selectedRestoreResponse
+							}
+
+							// 创建InterfaceBody结构体实例
+							messageSSE := structs.InterfaceBody{
+								Content:        saveresponse,   // 假设空格字符串是期望的内容
+								State:          20,             // 假设的状态码
+								PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
+							}
+
+							// 发送SSE私人消息
+							utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+						}
 					} else {
 						utils.SendGroupMessage(message.GroupID, saveresponse)
 					}
@@ -158,21 +210,16 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		conversationID, parentMessageID, err := app.handleUserContext(message.UserID)
 		//每句话清空上一句话的messageBuilder
 		messageBuilder.Reset()
-		fmt.Printf("conversationID: %s,parentMessageID%s\n", conversationID, parentMessageID)
+		fmtf.Printf("conversationID: %s,parentMessageID%s\n", conversationID, parentMessageID)
 		if err != nil {
-			fmt.Printf("Error handling user context: %v\n", err)
+			fmtf.Printf("Error handling user context: %v\n", err)
 			return
 		}
 		// 构建并发送请求到conversation接口
 		port := config.GetPort()
-		portStr := fmt.Sprintf(":%d", port)
+		portStr := fmtf.Sprintf(":%d", port)
 		url := "http://127.0.0.1" + portStr + "/conversation"
 
-		//审核部分 文本替换规则
-		newmsg := message.Message.(string)
-		if config.GetSensitiveMode() {
-			newmsg = acnode.CheckWord(newmsg)
-		}
 		requestBody, err := json.Marshal(map[string]interface{}{
 			"message":         newmsg,
 			"conversationId":  conversationID,
@@ -180,13 +227,13 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			"user_id":         message.UserID,
 		})
 		if err != nil {
-			fmt.Printf("Error marshalling request: %v\n", err)
+			fmtf.Printf("Error marshalling request: %v\n", err)
 			return
 		}
 
 		resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
 		if err != nil {
-			fmt.Printf("Error sending request to conversation interface: %v\n", err)
+			fmtf.Printf("Error sending request to conversation interface: %v\n", err)
 			return
 		}
 
@@ -203,7 +250,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 					if err == io.EOF {
 						break // 流结束
 					}
-					fmt.Printf("Error reading SSE response: %v\n", err)
+					fmtf.Printf("Error reading SSE response: %v\n", err)
 					return
 				}
 
@@ -213,7 +260,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// 处理接收到的数据
-				fmt.Printf("Received SSE data: %s", string(line))
+				fmtf.Printf("Received SSE data: %s", string(line))
 
 				// 去除"data: "前缀后进行JSON解析
 				jsonData := strings.TrimPrefix(string(line), "data: ")
@@ -232,7 +279,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							if exists && strings.HasPrefix(response, accumulatedMessage) {
 								newPart := response[len(accumulatedMessage):]
 								if newPart != "" {
-									fmt.Printf("A完整信息: %s,已发送信息:%s 新部分:%s\n", response, accumulatedMessage, newPart)
+									fmtf.Printf("A完整信息: %s,已发送信息:%s 新部分:%s\n", response, accumulatedMessage, newPart)
 									//这里记录完整的信息
 									//RecordStringByNewmsg(newmsg, response)
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
@@ -254,7 +301,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 							} else if response != "" {
 								// 如果accumulatedMessage不存在或不是子串，print
-								fmt.Printf("B完整信息: %s,已发送信息:%s", response, accumulatedMessage)
+								fmtf.Printf("B完整信息: %s,已发送信息:%s", response, accumulatedMessage)
 								if accumulatedMessage == "" {
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 									if message.RealMessageType == "group_private" || message.MessageType == "private" {
@@ -270,7 +317,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						}
 					} else {
 						//发送信息
-						fmt.Printf("发信息: %s", string(line))
+						fmtf.Printf("发信息: %s", string(line))
 						splitAndSendMessages(message, string(line), newmsg)
 					}
 				}
@@ -279,10 +326,10 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 			// 在SSE流结束后更新用户上下文 在这里调用gensokyo流式接口的最后一步 插推荐气泡
 			if lastMessageID != "" {
-				fmt.Printf("lastMessageID: %s\n", lastMessageID)
+				fmtf.Printf("lastMessageID: %s\n", lastMessageID)
 				err := app.updateUserContext(message.UserID, lastMessageID)
 				if err != nil {
-					fmt.Printf("Error updating user context: %v\n", err)
+					fmtf.Printf("Error updating user context: %v\n", err)
 				}
 				if config.GetUsePrivateSSE() {
 					//发气泡和按钮
@@ -302,15 +349,15 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			// 处理常规响应
 			responseBody, err := io.ReadAll(resp.Body)
 			if err != nil {
-				fmt.Printf("Error reading response body: %v\n", err)
+				fmtf.Printf("Error reading response body: %v\n", err)
 				return
 			}
-			fmt.Printf("Response from conversation interface: %s\n", string(responseBody))
+			fmtf.Printf("Response from conversation interface: %s\n", string(responseBody))
 
 			// 使用map解析响应数据以获取response字段和messageId
 			var responseData map[string]interface{}
 			if err := json.Unmarshal(responseBody, &responseData); err != nil {
-				fmt.Printf("Error unmarshalling response data: %v\n", err)
+				fmtf.Printf("Error unmarshalling response data: %v\n", err)
 				return
 			}
 
@@ -328,7 +375,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			if messageId, ok := responseData["messageId"].(string); ok {
 				err := app.updateUserContext(message.UserID, messageId)
 				if err != nil {
-					fmt.Printf("Error updating user context: %v\n", err)
+					fmtf.Printf("Error updating user context: %v\n", err)
 				}
 			}
 		}
@@ -339,12 +386,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 	case map[string]interface{}:
 		// message.Message是一个map[string]interface{}
-		fmt.Println("Received map message, handling not implemented yet")
+		fmtf.Println("Received map message, handling not implemented yet")
 		// 处理map类型消息的逻辑（TODO）
 
 	default:
 		// message.Message是一个未知类型
-		fmt.Printf("Received message of unexpected type: %T\n", msg)
+		fmtf.Printf("Received message of unexpected type: %T\n", msg)
 		return
 	}
 
@@ -361,7 +408,7 @@ func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newme
 	}
 	err := json.Unmarshal([]byte(jsonStr), &sseData)
 	if err != nil {
-		fmt.Printf("Error unmarshalling SSE data: %v\n", err)
+		fmtf.Printf("Error unmarshalling SSE data: %v\n", err)
 		return
 	}
 

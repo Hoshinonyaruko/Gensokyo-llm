@@ -3,7 +3,6 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"net/http"
 	"regexp"
@@ -12,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 )
@@ -24,9 +24,9 @@ func PrintChatProRequest(request *hunyuan.ChatProRequest) {
 
 	// 打印Messages
 	for i, msg := range request.Messages {
-		fmt.Printf("Message %d:\n", i)
-		fmt.Printf("Content: %s\n", *msg.Content)
-		fmt.Printf("Role: %s\n", *msg.Role)
+		fmtf.Printf("Message %d:\n", i)
+		fmtf.Printf("Content: %s\n", *msg.Content)
+		fmtf.Printf("Role: %s\n", *msg.Role)
 	}
 
 }
@@ -35,9 +35,9 @@ func PrintChatStdRequest(request *hunyuan.ChatStdRequest) {
 
 	// 打印Messages
 	for i, msg := range request.Messages {
-		fmt.Printf("Message %d:\n", i)
-		fmt.Printf("Content: %s\n", *msg.Content)
-		fmt.Printf("Role: %s\n", *msg.Role)
+		fmtf.Printf("Message %d:\n", i)
+		fmtf.Printf("Content: %s\n", *msg.Content)
+		fmtf.Printf("Role: %s\n", *msg.Role)
 	}
 
 }
@@ -54,7 +54,7 @@ func Contains(slice []string, item string) bool {
 
 // 获取复合键
 func GetKey(groupid int64, userid int64) string {
-	return fmt.Sprintf("%d.%d", groupid, userid)
+	return fmtf.Sprintf("%d.%d", groupid, userid)
 }
 
 // 随机的分布发送
@@ -127,19 +127,19 @@ func SendGroupMessage(groupID int64, message string) error {
 		"message":  message,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
+		return fmtf.Errorf("failed to marshal request body: %w", err)
 	}
 
 	// 发送POST请求
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
-		return fmt.Errorf("failed to send POST request: %w", err)
+		return fmtf.Errorf("failed to send POST request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("received non-OK response status: %s", resp.Status)
+		return fmtf.Errorf("received non-OK response status: %s", resp.Status)
 	}
 
 	// TODO: 处理响应体（如果需要）
@@ -165,19 +165,19 @@ func SendPrivateMessage(UserID int64, message string) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
+		return fmtf.Errorf("failed to marshal request body: %w", err)
 	}
 
 	// 发送POST请求
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
-		return fmt.Errorf("failed to send POST request: %w", err)
+		return fmtf.Errorf("failed to send POST request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("received non-OK response status: %s", resp.Status)
+		return fmtf.Errorf("received non-OK response status: %s", resp.Status)
 	}
 
 	// TODO: 处理响应体（如果需要）
@@ -203,19 +203,19 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 		"message": message,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
+		return fmtf.Errorf("failed to marshal request body: %w", err)
 	}
 
 	// 发送POST请求
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
-		return fmt.Errorf("failed to send POST request: %w", err)
+		return fmtf.Errorf("failed to send POST request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("received non-OK response status: %s", resp.Status)
+		return fmtf.Errorf("received non-OK response status: %s", resp.Status)
 	}
 
 	// TODO: 处理响应体（如果需要）
@@ -225,14 +225,15 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 
 // ReverseString 颠倒给定字符串中的字符顺序
 func ReverseString(s string) string {
-	// 将字符串转换为rune切片，以便处理多字节字符
-	runes := []rune(s)
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		// 交换前后对应的字符
-		runes[i], runes[j] = runes[j], runes[i]
-	}
-	// 将颠倒后的rune切片转换回字符串
-	return string(runes)
+	// // 将字符串转换为rune切片，以便处理多字节字符
+	// runes := []rune(s)
+	// for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+	// 	// 交换前后对应的字符
+	// 	runes[i], runes[j] = runes[j], runes[i]
+	// }
+	// // 将颠倒后的rune切片转换回字符串
+	// return string(runes)
+	return "####" + s + "####"
 }
 
 // RemoveBracketsContent 接收一个字符串，并移除所有[[...]]的内容
