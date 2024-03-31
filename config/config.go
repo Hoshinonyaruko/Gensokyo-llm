@@ -20,37 +20,45 @@ type Config struct {
 }
 
 type Settings struct {
-	SecretId           string   `yaml:"secretId"`
-	SecretKey          string   `yaml:"secretKey"`
-	Region             string   `yaml:"region"`
-	UseSse             bool     `yaml:"useSse"`
-	Port               int      `yaml:"port"`
-	HttpPath           string   `yaml:"path"`
-	SystemPrompt       []string `yaml:"systemPrompt"`
-	IPWhiteList        []string `yaml:"iPWhiteList"`
-	MaxTokensHunyuan   int      `yaml:"maxTokensHunyuan"`
-	ApiType            int      `yaml:"apiType"`
-	WenxinAccessToken  string   `yaml:"wenxinAccessToken"`
-	WenxinApiPath      string   `yaml:"wenxinApiPath"`
-	MaxTokenWenxin     int      `yaml:"maxTokenWenxin"`
-	GptModel           string   `yaml:"gptModel"`
-	GptApiPath         string   `yaml:"gptApiPath"`
-	GptToken           string   `yaml:"gptToken"`
-	MaxTokenGpt        int      `yaml:"maxTokenGpt"`
-	GptSafeMode        bool     `yaml:"gptSafeMode"`
-	GptSseType         int      `yaml:"gptSseType"`
-	Groupmessage       bool     `yaml:"groupMessage"`
-	SplitByPuntuations int      `yaml:"splitByPuntuations"`
-	HunyuanType        int      `yaml:"hunyuanType"`
-	FirstQ             []string `yaml:"firstQ"`
-	FirstA             []string `yaml:"firstA"`
-	SecondQ            []string `yaml:"secondQ"`
-	SecondA            []string `yaml:"secondA"`
-	ThirdQ             []string `yaml:"thirdQ"`
-	ThirdA             []string `yaml:"thirdA"`
-	SensitiveMode      bool     `yaml:"sensitiveMode"`
-	SensitiveModeType  int      `yaml:"sensitiveModeType"`
-	DefaultChangeWord  string   `yaml:"defaultChangeWord"`
+	SecretId             string   `yaml:"secretId"`
+	SecretKey            string   `yaml:"secretKey"`
+	Region               string   `yaml:"region"`
+	UseSse               bool     `yaml:"useSse"`
+	Port                 int      `yaml:"port"`
+	HttpPath             string   `yaml:"path"`
+	SystemPrompt         []string `yaml:"systemPrompt"`
+	IPWhiteList          []string `yaml:"iPWhiteList"`
+	MaxTokensHunyuan     int      `yaml:"maxTokensHunyuan"`
+	ApiType              int      `yaml:"apiType"`
+	WenxinAccessToken    string   `yaml:"wenxinAccessToken"`
+	WenxinApiPath        string   `yaml:"wenxinApiPath"`
+	MaxTokenWenxin       int      `yaml:"maxTokenWenxin"`
+	GptModel             string   `yaml:"gptModel"`
+	GptApiPath           string   `yaml:"gptApiPath"`
+	GptToken             string   `yaml:"gptToken"`
+	MaxTokenGpt          int      `yaml:"maxTokenGpt"`
+	GptSafeMode          bool     `yaml:"gptSafeMode"`
+	GptSseType           int      `yaml:"gptSseType"`
+	Groupmessage         bool     `yaml:"groupMessage"`
+	SplitByPuntuations   int      `yaml:"splitByPuntuations"`
+	HunyuanType          int      `yaml:"hunyuanType"`
+	FirstQ               []string `yaml:"firstQ"`
+	FirstA               []string `yaml:"firstA"`
+	SecondQ              []string `yaml:"secondQ"`
+	SecondA              []string `yaml:"secondA"`
+	ThirdQ               []string `yaml:"thirdQ"`
+	ThirdA               []string `yaml:"thirdA"`
+	SensitiveMode        bool     `yaml:"sensitiveMode"`
+	SensitiveModeType    int      `yaml:"sensitiveModeType"`
+	DefaultChangeWord    string   `yaml:"defaultChangeWord"`
+	AntiPromptAttackPath string   `yaml:"antiPromptAttackPath"`
+	ReverseUserPrompt    bool     `yaml:"reverseUserPrompt"`
+	IgnoreExtraTips      bool     `yaml:"ignoreExtraTips"`
+	SaveResponses        []string `yaml:"saveResponses"`
+	RestoreCommand       []string `yaml:"restoreCommand"`
+	RestoreResponses     []string `yaml:"restoreResponses"`
+	UsePrivateSSE        bool     `yaml:"usePrivateSSE"`
+	Promptkeyboard       []string `yaml:"promptkeyboard"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -451,4 +459,123 @@ func GetSensitiveModeType() int {
 		return instance.Settings.SensitiveModeType
 	}
 	return 0
+}
+
+// 获取AntiPromptAttackPath
+func GetAntiPromptAttackPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.AntiPromptAttackPath
+	}
+	return ""
+}
+
+// 获取ReverseUserPrompt
+func GetReverseUserPrompt() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.ReverseUserPrompt
+	}
+	return false
+}
+
+// 获取IgnoreExtraTips
+func GetIgnoreExtraTips() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.IgnoreExtraTips
+	}
+	return false
+}
+
+// GetRandomSaveResponse 从SaveResponses数组中随机选择一个字符串返回
+func GetRandomSaveResponse() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// 检查SaveResponses是否为空或nil
+	if len(instance.Settings.SaveResponses) > 0 {
+		if len(instance.Settings.SaveResponses) == 1 {
+			// 如果只有一个元素，直接返回这个元素
+			return instance.Settings.SaveResponses[0]
+		} else {
+			// 如果有多个元素，随机选择一个返回
+			selectedIndex := rand.Intn(len(instance.Settings.SaveResponses))
+			selectedResponse := instance.Settings.SaveResponses[selectedIndex]
+			fmt.Printf("Selected save response: %s\n", selectedResponse)
+			return selectedResponse
+		}
+	}
+	// 如果数组为空，返回空字符串
+	return ""
+}
+
+// GetRestoreResponses 从RestoreResponses数组中随机选择一个字符串返回
+func GetRandomRestoreResponses() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// 检查RestoreResponses是否为空或nil
+	if len(instance.Settings.RestoreResponses) > 0 {
+		if len(instance.Settings.RestoreResponses) == 1 {
+			// 如果只有一个元素，直接返回这个元素
+			return instance.Settings.RestoreResponses[0]
+		} else {
+			// 如果有多个元素，随机选择一个返回
+			selectedIndex := rand.Intn(len(instance.Settings.RestoreResponses))
+			selectedResponse := instance.Settings.RestoreResponses[selectedIndex]
+			fmt.Printf("Selected save response: %s\n", selectedResponse)
+			return selectedResponse
+		}
+	}
+	// 如果数组为空，返回空字符串
+	return ""
+}
+
+// 获取RestoreCommand
+func GetRestoreCommand() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RestoreCommand
+	}
+	return nil
+}
+
+// 获取UsePrivateSSE
+func GetUsePrivateSSE() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.UsePrivateSSE
+	}
+	return false
+}
+
+// GetPromptkeyboard 获取Promptkeyboard，如果超过3个成员则随机选择3个
+func GetPromptkeyboard() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil && len(instance.Settings.Promptkeyboard) > 0 {
+		promptKeyboard := instance.Settings.Promptkeyboard
+		if len(promptKeyboard) <= 3 {
+			return promptKeyboard
+		}
+
+		// 如果数组成员超过3个，随机选择3个返回
+		selected := make([]string, 3)
+		for i := 0; i < 3; i++ {
+			// 生成一个随机索引
+			index := rand.Intn(len(promptKeyboard))
+			// 将随机选中的元素添加到结果中
+			selected[i] = promptKeyboard[index]
+			// 从slice中移除已选元素，避免重复选择
+			promptKeyboard = append(promptKeyboard[:index], promptKeyboard[index+1:]...)
+		}
+		return selected
+	}
+	return nil
 }

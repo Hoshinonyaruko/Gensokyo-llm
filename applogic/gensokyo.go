@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
@@ -14,6 +15,41 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
+
+var newmsgToStringMap = make(map[string]string)
+var stringToIndexMap = make(map[string]int)
+
+// RecordStringById 根据id记录一个string
+func RecordStringByNewmsg(id, value string) {
+	newmsgToStringMap[id] = value
+}
+
+// GetStringById 根据newmsg取出对应的string
+func GetStringByNewmsg(newmsg string) string {
+	if value, exists := newmsgToStringMap[newmsg]; exists {
+		return value
+	}
+	// 如果id不存在，返回空字符串
+	return ""
+}
+
+// IncrementIndex 为给定的字符串递增索引
+func IncrementIndex(s string) int {
+	// 检查map中是否已经有这个字符串的索引
+	if _, exists := stringToIndexMap[s]; !exists {
+		// 如果不存在，初始化为0
+		stringToIndexMap[s] = 0
+	}
+	// 递增索引
+	stringToIndexMap[s]++
+	// 返回新的索引值
+	return stringToIndexMap[s]
+}
+
+// ResetIndex 将给定字符串的索引归零
+func ResetIndex(s string) {
+	stringToIndexMap[s] = 0
+}
 
 func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	// 只处理POST请求
@@ -61,177 +97,245 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	case string:
 		// message.Message是一个string
 		fmt.Printf("Received string message: %s\n", msg)
-		switch msg {
-		case "重置":
+
+		//是否过滤群信息
+		if !config.GetGroupmessage() {
+			fmt.Printf("你设置了不响应群信息：%v", message)
+			return
+		}
+
+		// 从GetRestoreCommand获取重置指令的列表
+		restoreCommands := config.GetRestoreCommand()
+
+		checkResetCommand := msg
+		if config.GetIgnoreExtraTips() {
+			checkResetCommand = utils.RemoveBracketsContent(checkResetCommand)
+		}
+
+		// 检查checkResetCommand是否在restoreCommands列表中
+		isResetCommand := false
+		for _, command := range restoreCommands {
+			if checkResetCommand == command {
+				isResetCommand = true
+				break
+			}
+		}
+
+		//处理重置指令
+		if isResetCommand {
 			fmt.Println("处理重置操作")
 			app.migrateUserToNewContext(message.UserID)
+			RestoreResponse := config.GetRandomRestoreResponses()
 			if message.RealMessageType == "group_private" || message.MessageType == "private" {
-				utils.SendPrivateMessage(message.UserID, "重置成功")
+				utils.SendPrivateMessage(message.UserID, RestoreResponse)
 			} else {
-				utils.SendGroupMessage(message.GroupID, "重置成功")
+				utils.SendGroupMessage(message.GroupID, RestoreResponse)
 			}
+			return
+		}
 
-		default:
-			if !config.GetGroupmessage() {
-				fmt.Printf("你设置了不响应群信息：%v", message)
-				return
+		//提示词安全部分
+		if config.GetAntiPromptAttackPath() != "" {
+			checkmsg := message.Message.(string)
+			if config.GetIgnoreExtraTips() {
+				checkmsg = utils.RemoveBracketsContent(checkmsg)
 			}
-			// 当msg不符合任何已定义case时的处理逻辑
-			conversationID, parentMessageID, err := app.handleUserContext(message.UserID)
-			//每句话清空上一句话的messageBuilder
-			messageBuilder.Reset()
-			fmt.Printf("conversationID: %s,parentMessageID%s\n", conversationID, parentMessageID)
-			if err != nil {
-				fmt.Printf("Error handling user context: %v\n", err)
-				return
-			}
-			port := config.GetPort()
-			// 构建并发送请求到conversation接口
-			portStr := fmt.Sprintf(":%d", port)
-			url := "http://127.0.0.1" + portStr + "/conversation"
-			msg := message.Message.(string)
-			if config.GetSensitiveMode() {
-				msg = acnode.CheckWord(msg)
-			}
-			requestBody, err := json.Marshal(map[string]interface{}{
-				"message":         msg,
-				"conversationId":  conversationID,
-				"parentMessageId": parentMessageID,
-				"user_id":         message.UserID,
-			})
-			if err != nil {
-				fmt.Printf("Error marshalling request: %v\n", err)
-				return
-			}
-
-			resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
-			if err != nil {
-				fmt.Printf("Error sending request to conversation interface: %v\n", err)
-				return
-			}
-
-			defer resp.Body.Close()
-
-			var lastMessageID string
-
-			if config.GetuseSse() {
-				// 处理SSE流式响应
-				reader := bufio.NewReader(resp.Body)
-				for {
-					line, err := reader.ReadBytes('\n')
-					if err != nil {
-						if err == io.EOF {
-							break // 流结束
-						}
-						fmt.Printf("Error reading SSE response: %v\n", err)
-						return
+			if checkResponseThreshold(checkmsg) {
+				fmt.Printf("提示词不安全,过滤:%v", message)
+				saveresponse := config.GetRandomSaveResponse()
+				if saveresponse != "" {
+					if message.RealMessageType == "group_private" || message.MessageType == "private" {
+						utils.SendPrivateMessage(message.UserID, saveresponse)
+					} else {
+						utils.SendGroupMessage(message.GroupID, saveresponse)
 					}
+				}
+				return
+			}
+		}
 
-					// 忽略空行
-					if string(line) == "\n" {
-						continue
+		// 请求conversation api 增加当前用户上下文
+		conversationID, parentMessageID, err := app.handleUserContext(message.UserID)
+		//每句话清空上一句话的messageBuilder
+		messageBuilder.Reset()
+		fmt.Printf("conversationID: %s,parentMessageID%s\n", conversationID, parentMessageID)
+		if err != nil {
+			fmt.Printf("Error handling user context: %v\n", err)
+			return
+		}
+		// 构建并发送请求到conversation接口
+		port := config.GetPort()
+		portStr := fmt.Sprintf(":%d", port)
+		url := "http://127.0.0.1" + portStr + "/conversation"
+
+		//审核部分 文本替换规则
+		newmsg := message.Message.(string)
+		if config.GetSensitiveMode() {
+			newmsg = acnode.CheckWord(newmsg)
+		}
+		requestBody, err := json.Marshal(map[string]interface{}{
+			"message":         newmsg,
+			"conversationId":  conversationID,
+			"parentMessageId": parentMessageID,
+			"user_id":         message.UserID,
+		})
+		if err != nil {
+			fmt.Printf("Error marshalling request: %v\n", err)
+			return
+		}
+
+		resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+		if err != nil {
+			fmt.Printf("Error sending request to conversation interface: %v\n", err)
+			return
+		}
+
+		defer resp.Body.Close()
+
+		var lastMessageID string
+
+		if config.GetuseSse() {
+			// 处理SSE流式响应
+			reader := bufio.NewReader(resp.Body)
+			for {
+				line, err := reader.ReadBytes('\n')
+				if err != nil {
+					if err == io.EOF {
+						break // 流结束
 					}
+					fmt.Printf("Error reading SSE response: %v\n", err)
+					return
+				}
 
-					// 处理接收到的数据
-					fmt.Printf("Received SSE data: %s", string(line))
+				// 忽略空行
+				if string(line) == "\n" {
+					continue
+				}
 
-					// 去除"data: "前缀后进行JSON解析
-					jsonData := strings.TrimPrefix(string(line), "data: ")
-					var responseData map[string]interface{}
-					if err := json.Unmarshal([]byte(jsonData), &responseData); err == nil {
-						if id, ok := responseData["messageId"].(string); ok {
-							lastMessageID = id // 更新lastMessageID
-							// 检查是否有未发送的消息部分
-							key := utils.GetKey(message.GroupID, message.UserID)
-							accumulatedMessage, exists := groupUserMessages[key]
+				// 处理接收到的数据
+				fmt.Printf("Received SSE data: %s", string(line))
 
-							// 提取response字段
-							if response, ok := responseData["response"].(string); ok {
-								// 如果accumulatedMessage是response的子串，则提取新的部分并发送
-								if exists && strings.HasPrefix(response, accumulatedMessage) {
-									newPart := response[len(accumulatedMessage):]
-									if newPart != "" {
-										fmt.Printf("A完整信息: %s,已发送信息:%s\n", response, accumulatedMessage)
-										// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
-										if message.RealMessageType == "group_private" || message.MessageType == "private" {
+				// 去除"data: "前缀后进行JSON解析
+				jsonData := strings.TrimPrefix(string(line), "data: ")
+				var responseData map[string]interface{}
+				if err := json.Unmarshal([]byte(jsonData), &responseData); err == nil {
+					//接收到最后一条信息
+					if id, ok := responseData["messageId"].(string); ok {
+						lastMessageID = id // 更新lastMessageID
+						// 检查是否有未发送的消息部分
+						key := utils.GetKey(message.GroupID, message.UserID)
+						accumulatedMessage, exists := groupUserMessages[key]
+
+						// 提取response字段
+						if response, ok := responseData["response"].(string); ok {
+							// 如果accumulatedMessage是response的子串，则提取新的部分并发送
+							if exists && strings.HasPrefix(response, accumulatedMessage) {
+								newPart := response[len(accumulatedMessage):]
+								if newPart != "" {
+									fmt.Printf("A完整信息: %s,已发送信息:%s 新部分:%s\n", response, accumulatedMessage, newPart)
+									//这里记录完整的信息
+									//RecordStringByNewmsg(newmsg, response)
+									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
+									if message.RealMessageType == "group_private" || message.MessageType == "private" {
+										if !config.GetUsePrivateSSE() {
 											utils.SendPrivateMessage(message.UserID, newPart)
 										} else {
-											utils.SendGroupMessage(message.GroupID, newPart)
+											//最后一条了
+											messageSSE := structs.InterfaceBody{
+												Content: newPart,
+												State:   11,
+											}
+											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 										}
-									}
-
-								} else if response != "" {
-									// 如果accumulatedMessage不存在或不是子串，print
-									fmt.Printf("B完整信息: %s,已发送信息:%s", response, accumulatedMessage)
-									if accumulatedMessage == "" {
-										// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
-										if message.RealMessageType == "group_private" || message.MessageType == "private" {
-											utils.SendPrivateMessage(message.UserID, response)
-										} else {
-											utils.SendGroupMessage(message.GroupID, response)
-										}
+									} else {
+										utils.SendGroupMessage(message.GroupID, newPart)
 									}
 								}
 
-								// 清空映射中对应的累积消息
-								groupUserMessages[key] = ""
+							} else if response != "" {
+								// 如果accumulatedMessage不存在或不是子串，print
+								fmt.Printf("B完整信息: %s,已发送信息:%s", response, accumulatedMessage)
+								if accumulatedMessage == "" {
+									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
+									if message.RealMessageType == "group_private" || message.MessageType == "private" {
+										utils.SendPrivateMessage(message.UserID, response)
+									} else {
+										utils.SendGroupMessage(message.GroupID, response)
+									}
+								}
 							}
-						} else {
-							//发送信息
-							fmt.Printf("发信息: %s", string(line))
-							splitAndSendMessages(message, string(line))
+
+							// 清空映射中对应的累积消息
+							groupUserMessages[key] = ""
 						}
-					}
-
-				}
-
-				// 在SSE流结束后更新用户上下文 在这里调用gensokyo流式接口的最后一步 插推荐气泡
-				if lastMessageID != "" {
-					fmt.Printf("lastMessageID: %s\n", lastMessageID)
-					err := app.updateUserContext(message.UserID, lastMessageID)
-					if err != nil {
-						fmt.Printf("Error updating user context: %v\n", err)
-					}
-				}
-			} else {
-				// 处理常规响应
-				responseBody, err := io.ReadAll(resp.Body)
-				if err != nil {
-					fmt.Printf("Error reading response body: %v\n", err)
-					return
-				}
-				fmt.Printf("Response from conversation interface: %s\n", string(responseBody))
-
-				// 使用map解析响应数据以获取response字段和messageId
-				var responseData map[string]interface{}
-				if err := json.Unmarshal(responseBody, &responseData); err != nil {
-					fmt.Printf("Error unmarshalling response data: %v\n", err)
-					return
-				}
-
-				// 使用提取的response内容发送消息
-				if response, ok := responseData["response"].(string); ok && response != "" {
-					// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
-					if message.RealMessageType == "group_private" || message.MessageType == "private" {
-						utils.SendPrivateMessage(message.UserID, response)
 					} else {
-						utils.SendGroupMessage(message.GroupID, response)
+						//发送信息
+						fmt.Printf("发信息: %s", string(line))
+						splitAndSendMessages(message, string(line), newmsg)
 					}
 				}
 
-				// 更新用户上下文
-				if messageId, ok := responseData["messageId"].(string); ok {
-					err := app.updateUserContext(message.UserID, messageId)
-					if err != nil {
-						fmt.Printf("Error updating user context: %v\n", err)
+			}
+
+			// 在SSE流结束后更新用户上下文 在这里调用gensokyo流式接口的最后一步 插推荐气泡
+			if lastMessageID != "" {
+				fmt.Printf("lastMessageID: %s\n", lastMessageID)
+				err := app.updateUserContext(message.UserID, lastMessageID)
+				if err != nil {
+					fmt.Printf("Error updating user context: %v\n", err)
+				}
+				if config.GetUsePrivateSSE() {
+					//发气泡和按钮
+					promptkeyboard := config.GetPromptkeyboard()
+					//最后一条了
+					messageSSE := structs.InterfaceBody{
+						Content:        " ",
+						State:          20,
+						PromptKeyboard: promptkeyboard,
 					}
+					utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+					ResetIndex(newmsg)
+				}
+
+			}
+		} else {
+			// 处理常规响应
+			responseBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Printf("Error reading response body: %v\n", err)
+				return
+			}
+			fmt.Printf("Response from conversation interface: %s\n", string(responseBody))
+
+			// 使用map解析响应数据以获取response字段和messageId
+			var responseData map[string]interface{}
+			if err := json.Unmarshal(responseBody, &responseData); err != nil {
+				fmt.Printf("Error unmarshalling response data: %v\n", err)
+				return
+			}
+
+			// 使用提取的response内容发送消息
+			if response, ok := responseData["response"].(string); ok && response != "" {
+				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
+				if message.RealMessageType == "group_private" || message.MessageType == "private" {
+					utils.SendPrivateMessage(message.UserID, response)
+				} else {
+					utils.SendGroupMessage(message.GroupID, response)
 				}
 			}
 
-			// 发送响应
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Request received and processed"))
+			// 更新用户上下文
+			if messageId, ok := responseData["messageId"].(string); ok {
+				err := app.updateUserContext(message.UserID, messageId)
+				if err != nil {
+					fmt.Printf("Error updating user context: %v\n", err)
+				}
+			}
 		}
+
+		// 发送响应
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Request received and processed"))
 
 	case map[string]interface{}:
 		// message.Message是一个map[string]interface{}
@@ -246,7 +350,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func splitAndSendMessages(message structs.OnebotGroupMessage, line string) {
+func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newmesssage string) {
 	// 提取JSON部分
 	dataPrefix := "data: "
 	jsonStr := strings.TrimPrefix(line, dataPrefix)
@@ -262,10 +366,10 @@ func splitAndSendMessages(message structs.OnebotGroupMessage, line string) {
 	}
 
 	// 处理提取出的信息
-	processMessage(sseData.Response, message)
+	processMessage(sseData.Response, message, newmesssage)
 }
 
-func processMessage(response string, msg structs.OnebotGroupMessage) {
+func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage string) {
 	key := utils.GetKey(msg.GroupID, msg.UserID)
 
 	// 定义中文全角和英文标点符号
@@ -281,7 +385,30 @@ func processMessage(response string, msg structs.OnebotGroupMessage) {
 
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 				if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
-					utils.SendPrivateMessage(msg.UserID, accumulatedMessage)
+					if !config.GetUsePrivateSSE() {
+						utils.SendPrivateMessage(msg.UserID, accumulatedMessage)
+					} else {
+						if IncrementIndex(newmesssage) == 1 {
+							//第一条信息
+							//取出当前信息作为按钮回调
+							//CallbackData := GetStringById(lastMessageID)
+							uerid := strconv.FormatInt(msg.UserID, 10)
+							messageSSE := structs.InterfaceBody{
+								Content:      accumulatedMessage,
+								State:        1,
+								ActionButton: 10,
+								CallbackData: uerid,
+							}
+							utils.SendPrivateMessageSSE(msg.UserID, messageSSE)
+						} else {
+							//SSE的前半部分
+							messageSSE := structs.InterfaceBody{
+								Content: accumulatedMessage,
+								State:   1,
+							}
+							utils.SendPrivateMessageSSE(msg.UserID, messageSSE)
+						}
+					}
 				} else {
 					utils.SendGroupMessage(msg.GroupID, accumulatedMessage)
 				}

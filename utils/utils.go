@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -182,4 +183,62 @@ func SendPrivateMessage(UserID int64, message string) error {
 	// TODO: 处理响应体（如果需要）
 
 	return nil
+}
+
+func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
+	// 获取基础URL
+	baseURL := config.GetHttpPath() // 假设config.GetHttpPath()返回基础URL
+
+	// 构建完整的URL
+	url := baseURL + "/send_private_msg_sse"
+
+	// 检查是否需要启用敏感词过滤
+	if config.GetSensitiveModeType() == 1 && message.Content != "" {
+		message.Content = acnode.CheckWord(message.Content)
+	}
+
+	// 构造请求体，包括InterfaceBody
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"user_id": UserID,
+		"message": message,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// 发送POST请求
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmt.Errorf("failed to send POST request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received non-OK response status: %s", resp.Status)
+	}
+
+	// TODO: 处理响应体（如果需要）
+
+	return nil
+}
+
+// ReverseString 颠倒给定字符串中的字符顺序
+func ReverseString(s string) string {
+	// 将字符串转换为rune切片，以便处理多字节字符
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		// 交换前后对应的字符
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	// 将颠倒后的rune切片转换回字符串
+	return string(runes)
+}
+
+// RemoveBracketsContent 接收一个字符串，并移除所有[[...]]的内容
+func RemoveBracketsContent(input string) string {
+	// 编译一个正则表达式，用于匹配[[任意字符]]的模式
+	re := regexp.MustCompile(`\[\[.*?\]\]`)
+	// 使用正则表达式的ReplaceAllString方法删除匹配的部分
+	return re.ReplaceAllString(input, "")
 }
