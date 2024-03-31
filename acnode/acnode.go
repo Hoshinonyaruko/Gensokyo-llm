@@ -10,6 +10,7 @@ import (
 	"unicode/utf16"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 )
 
 // 定义包级别的全局变量
@@ -207,14 +208,14 @@ func loadWordsIntoAC(ac *AhoCorasick, filename string) error {
 		// 如果文件不存在，则创建一个空文件
 		file, err := os.Create(filename)
 		if err != nil {
-			return fmt.Errorf("failed to create the file: %v", err)
+			return fmtf.Errorf("failed to create the file: %v", err)
 		}
 		file.Close() // 创建后立即关闭文件，因为下面会再次打开它用于读写
 	}
 	// 打开原文件
 	file, err := os.Open(filename)
 	if err != nil {
-		return fmt.Errorf("failed to open the sensitive words file: %v", err)
+		return fmtf.Errorf("failed to open the sensitive words file: %v", err)
 	}
 	defer file.Close()
 
@@ -258,7 +259,7 @@ func loadWordsIntoAC(ac *AhoCorasick, filename string) error {
 	file.Close()                                       // 关闭原文件以便覆盖
 	err = os.WriteFile(filename, buffer.Bytes(), 0644) // 覆盖原文件
 	if err != nil {
-		return fmt.Errorf("failed to write back to the sensitive words file: %v", err)
+		return fmtf.Errorf("failed to write back to the sensitive words file: %v", err)
 	}
 
 	return nil
@@ -287,7 +288,8 @@ func CheckWord(word string) string {
 	if len([]rune(word)) > 5000 {
 		if strings.Contains(word, "[CQ:image,file=base64://") {
 			// 当word包含特定字符串时原样返回
-			return fmt.Sprintf("原样返回的文本：%s", word)
+			fmtf.Printf("原样返回的文本：%s", word)
+			return word
 		}
 		log.Printf("错误请求：字符数超过最大限制（5000字符）。内容：%s", word)
 		return "错误：字符数超过最大限制（5000字符）"

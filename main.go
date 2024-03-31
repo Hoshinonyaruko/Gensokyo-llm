@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/hoshinonyaruko/gensokyo-llm/applogic"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/template"
 )
@@ -22,12 +22,12 @@ func main() {
 		// 将修改后的配置写入 config.yml
 		err = os.WriteFile("config.yml", []byte(template.ConfigTemplate), 0644)
 		if err != nil {
-			fmt.Println("Error writing config.yml:", err)
+			fmtf.Println("Error writing config.yml:", err)
 			return
 		}
 
-		fmt.Println("请配置config.yml然后再次运行.")
-		fmt.Print("按下 Enter 继续...")
+		fmtf.Println("请配置config.yml然后再次运行.")
+		fmtf.Print("按下 Enter 继续...")
 		bufio.NewReader(os.Stdin).ReadBytes('\n')
 		os.Exit(0)
 	}
@@ -36,15 +36,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
+	//日志落地
+	if config.GetSavelogs() {
+		fmtf.SetEnableFileLog(true)
+	}
 	// Deprecated
 	secretId := conf.Settings.SecretId
 	secretKey := conf.Settings.SecretKey
-	fmt.Printf("secretId:%v\n", secretId)
-	fmt.Printf("secretKey:%v\n", secretKey)
+	fmtf.Printf("secretId:%v\n", secretId)
+	fmtf.Printf("secretKey:%v\n", secretKey)
 	region := config.Getregion()
 	client, err := hunyuan.NewClientWithSecretId(secretId, secretKey, region)
 	if err != nil {
-		fmt.Printf("创建hunyuanapi出错:%v", err)
+		fmtf.Printf("创建hunyuanapi出错:%v", err)
 	}
 
 	db, err := sql.Open("sqlite3", "file:mydb.sqlite?cache=shared&mode=rwc")
@@ -84,8 +88,8 @@ func main() {
 
 	http.HandleFunc("/gensokyo", app.GensokyoHandler)
 	port := config.GetPort()
-	portStr := fmt.Sprintf(":%d", port)
-	fmt.Printf("listening on %v\n", portStr)
+	portStr := fmtf.Sprintf(":%d", port)
+	fmtf.Printf("listening on %v\n", portStr)
 	// 这里阻塞等待并处理请求
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }

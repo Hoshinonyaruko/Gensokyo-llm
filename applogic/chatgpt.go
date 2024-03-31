@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
@@ -22,6 +22,7 @@ var (
 	// conversationMap 存储 msg.ConversationID 到真实 conversationId 的映射
 	conversationMap       sync.Map
 	lastCompleteResponses sync.Map // 存储每个conversationId的完整累积信息
+	mutexchatgpt          sync.Mutex
 )
 
 func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
@@ -53,18 +54,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取历史信息
 	var history []structs.Message
-	if msg.ParentMessageID != "" {
-		history, err = app.getHistory(msg.ConversationID, msg.ParentMessageID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// 截断历史信息
-		history = truncateHistoryGpt(history, msg.Text)
-	}
 
 	// 获取系统提示词
 	systemPromptContent := config.SystemPrompt()
@@ -106,6 +96,18 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 获取历史信息
+	if msg.ParentMessageID != "" {
+		history, err = app.getHistory(msg.ConversationID, msg.ParentMessageID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// 截断历史信息
+		history = truncateHistoryGpt(history, msg.Text)
+	}
+
 	// 构建请求到ChatGPT API
 	model := config.GetGptModel()
 	apiURL := config.GetGptApiPath()
@@ -135,24 +137,24 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		"safe_mode": safemode,
 		"stream":    useSSe,
 	}
-	fmt.Printf("chatgpt requestBody :%v", requestBody)
+	fmtf.Printf("chatgpt requestBody :%v", requestBody)
 	requestBodyJSON, _ := json.Marshal(requestBody)
 
 	// 准备HTTP请求
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(requestBodyJSON))
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmtf.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Authorization", fmtf.Sprintf("Bearer %s", token))
 
 	// 发送请求
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error sending request to ChatGPT API: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmtf.Sprintf("Error sending request to ChatGPT API: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
@@ -161,7 +163,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		// 处理响应
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to read response body: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmtf.Sprintf("Failed to read response body: %v", err), http.StatusInternalServerError)
 			return
 		}
 		// 假设已经成功发送请求并获得响应，responseBody是响应体的字节数据
@@ -173,7 +175,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			} `json:"choices"`
 		}
 		if err := json.Unmarshal(responseBody, &apiResponse); err != nil {
-			http.Error(w, fmt.Sprintf("Error unmarshaling API response: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmtf.Sprintf("Error unmarshaling API response: %v", err), http.StatusInternalServerError)
 			return
 		}
 
@@ -214,7 +216,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// 将响应数据编码为JSON并发送
 		if err := json.NewEncoder(w).Encode(responseMap); err != nil {
-			http.Error(w, fmt.Sprintf("Error encoding response: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmtf.Sprintf("Error encoding response: %v", err), http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -240,7 +242,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 						break // 流结束
 					}
 					// 处理错误
-					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("读取流数据时发生错误: %v", err))
+					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("读取流数据时发生错误: %v", err))
 					flusher.Flush()
 					continue
 				}
@@ -251,7 +253,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 					// 解析JSON数据
 					var eventData structs.GPTEventData
 					if err := json.Unmarshal([]byte(eventDataJSON), &eventData); err != nil {
-						fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("解析事件数据出错: %v", err))
+						fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("解析事件数据出错: %v", err))
 						flusher.Flush()
 						continue
 					}
@@ -269,7 +271,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 						// "details" 字段留待进一步处理，如有必要
 					}
 					tempResponseJSON, _ := json.Marshal(tempResponseMap)
-					fmt.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
+					fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
 					flusher.Flush()
 				}
 			}
@@ -280,7 +282,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 					if err == io.EOF {
 						break // 流结束
 					}
-					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("读取流数据时发生错误: %v", err))
+					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("读取流数据时发生错误: %v", err))
 					flusher.Flush()
 					continue
 				}
@@ -288,16 +290,19 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 				if strings.HasPrefix(line, "data: ") {
 					eventDataJSON := line[5:] // 去掉"data: "前缀
 					if eventDataJSON[1] != '{' {
-						fmt.Println("非JSON数据,跳过:", eventDataJSON)
+						fmtf.Println("非JSON数据,跳过:", eventDataJSON)
 						continue
 					}
 
 					var eventData structs.GPTEventData
 					if err := json.Unmarshal([]byte(eventDataJSON), &eventData); err != nil {
-						fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("解析事件数据出错: %v", err))
+						fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("解析事件数据出错: %v", err))
 						flusher.Flush()
 						continue
 					}
+
+					// 在修改共享资源之前锁定Mutex
+					mutexchatgpt.Lock()
 
 					conversationId := eventData.ID // 假设conversationId从事件数据的ID字段获取
 					conversationMap.Store(msg.ConversationID, conversationId)
@@ -328,6 +333,9 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 						lastResponses.Store(conversationId, newContent)
 					}
 
+					// 完成修改后解锁Mutex
+					mutexchatgpt.Unlock()
+
 					// 发送新增的内容
 					if newContent != "" {
 						tempResponseMap := map[string]interface{}{
@@ -335,19 +343,20 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 							"conversationId": conversationId,
 						}
 						tempResponseJSON, _ := json.Marshal(tempResponseMap)
-						fmt.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
+						fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
 						flusher.Flush()
 					}
 				}
 			}
 		}
-
+		//一点点奇怪的转换
+		conversationId, _ := conversationMap.LoadOrStore(msg.ConversationID, "")
+		completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
 		// 在所有事件处理完毕后发送最终响应
-		responseText := responseTextBuilder.String()
 		assistantMessageID, err := app.addMessage(structs.Message{
 			ConversationID:  msg.ConversationID,
 			ParentMessageID: userMessageID,
-			Text:            responseText,
+			Text:            completeResponse.(string),
 			Role:            "assistant",
 		})
 
@@ -369,7 +378,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 					},
 				}
 				finalResponseJSON, _ := json.Marshal(finalResponseMap)
-				fmt.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+				fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
 				flusher.Flush()
 			}
 		}
