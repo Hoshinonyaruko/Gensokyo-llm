@@ -28,6 +28,10 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg.Role = "user"
+	//颠倒用户输入
+	if config.GetReverseUserPrompt() {
+		msg.Text = utils.ReverseString(msg.Text)
+	}
 
 	if msg.ConversationID == "" {
 		msg.ConversationID = utils.GenerateUUID()
