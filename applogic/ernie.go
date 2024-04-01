@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -315,13 +316,12 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 处理完所有事件后，生成并发送包含assistantMessageID的最终响应
-		//一点点奇怪的转换
-		conversationId, _ := conversationMap.LoadOrStore(msg.ConversationID, "")
-		completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
+		//fmt.Printf("处理完所有事件后，生成并发送包含assistantMessageID的最终响应\n")
+		responseText := responseTextBuilder.String()
 		assistantMessageID, err := app.addMessage(structs.Message{
 			ConversationID:  msg.ConversationID,
 			ParentMessageID: userMessageID,
-			Text:            completeResponse.(string),
+			Text:            responseText,
 			Role:            "assistant",
 		})
 
@@ -330,25 +330,19 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		flusher.Flush()
-		// 在所有事件处理完毕后发送最终响应
-		// 首先从 conversationMap 获取真实的 conversationId
-		if actualConversationId, ok := conversationMap.Load(msg.ConversationID); ok {
-			if finalContent, ok := lastCompleteResponses.Load(actualConversationId); ok {
-				finalResponseMap := map[string]interface{}{
-					"response":       finalContent,
-					"conversationId": actualConversationId,
-					"messageId":      assistantMessageID,
-					"details": map[string]interface{}{
-						"usage": totalUsage,
-					},
-				}
-				finalResponseJSON, _ := json.Marshal(finalResponseMap)
-				fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
-				flusher.Flush()
-			}
+		finalResponseMap := map[string]interface{}{
+			"response":       responseText,
+			"conversationId": msg.ConversationID,
+			"messageId":      assistantMessageID,
+			"details": map[string]interface{}{
+				"usage": totalUsage,
+			},
 		}
+		finalResponseJSON, _ := json.Marshal(finalResponseMap)
+		fmt.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+		flusher.Flush()
 	}
+
 }
 
 func truncateHistoryErnie(history []structs.Message, prompt string) []structs.Message {
