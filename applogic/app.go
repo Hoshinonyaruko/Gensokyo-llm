@@ -3,7 +3,6 @@ package applogic
 import (
 	"database/sql"
 
-	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
@@ -116,41 +115,6 @@ func (app *App) updateUserContext(userID int64, parentMessageID string) error {
 		return err
 	}
 	return nil
-}
-
-func truncateHistoryHunYuan(history []structs.Message, prompt string) []structs.Message {
-	MAX_TOKENS := config.GetMaxTokensHunyuan()
-
-	tokenCount := len(prompt)
-	for _, msg := range history {
-		tokenCount += len(msg.Text)
-	}
-
-	if tokenCount <= MAX_TOKENS {
-		return history
-	}
-
-	// 逐个移除消息直到满足令牌数量限制，同时保证成对的消息交替出现
-	for tokenCount > MAX_TOKENS && len(history) > 0 {
-		// 移除最早的消息
-		tokenCount -= len(history[0].Text)
-		history = history[1:]
-
-		// 确保移除后，历史记录仍然以user消息结尾
-		// 如果当前最早的消息是assistant，继续移除下一条（应为user），以保持交替
-		if len(history) > 0 && history[0].Role == "assistant" {
-			tokenCount -= len(history[0].Text)
-			history = history[1:]
-		}
-	}
-
-	// 如果最后一条消息是assistant，尝试移除以保持user消息结尾
-	// 这是一个简化处理，实际情况可能需要更复杂的逻辑来确保消息交替
-	if len(history) > 0 && history[len(history)-1].Role == "assistant" {
-		history = history[:len(history)-1]
-	}
-
-	return history
 }
 
 func (app *App) getHistory(conversationID, parentMessageID string) ([]structs.Message, error) {

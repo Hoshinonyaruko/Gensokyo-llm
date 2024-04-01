@@ -363,28 +363,35 @@ func truncateHistoryErnie(history []structs.Message, prompt string) []structs.Me
 		return history
 	}
 
-	// 第一步：移除所有助手回复
-	truncatedHistory := []structs.Message{}
-	for _, msg := range history {
-		if msg.Role == "user" {
-			truncatedHistory = append(truncatedHistory, msg)
+	// 第一步：逐个移除消息直到满足令牌数量限制
+	for tokenCount > MAX_TOKENS && len(history) > 0 {
+		tokenCount -= len(history[0].Text)
+		history = history[1:]
+
+		// 确保移除后，历史记录仍然以user消息结尾
+		if len(history) > 0 && history[0].Role == "assistant" {
+			tokenCount -= len(history[0].Text)
+			history = history[1:]
 		}
 	}
 
-	tokenCount = len(prompt)
-	for _, msg := range truncatedHistory {
-		tokenCount += len(msg.Text)
+	// 第二步：检查并移除包含空文本的QA对
+	for i := 0; i < len(history)-1; { // 注意这里去掉了自增部分
+		if history[i].Role == "user" && history[i+1].Role == "assistant" &&
+			(len(history[i].Text) == 0 || len(history[i+1].Text) == 0) {
+			fmtf.Println("文心-找到了空的对话: ", history[i].Text, history[i+1].Text)
+			history = append(history[:i], history[i+2:]...) // 移除这对QA
+		} else {
+			i++ // 只有在不删除元素时才增加i
+		}
 	}
 
-	if tokenCount <= MAX_TOKENS {
-		return truncatedHistory
+	// 第三步：确保以user结尾
+	if len(history) > 0 && history[len(history)-1].Role == "assistant" {
+		for len(history) > 0 && history[len(history)-1].Role != "user" {
+			history = history[:len(history)-1]
+		}
 	}
 
-	// 第二步：从开始逐个移除消息，直到满足令牌数量限制
-	for tokenCount > MAX_TOKENS && len(truncatedHistory) > 0 {
-		tokenCount -= len(truncatedHistory[0].Text)
-		truncatedHistory = truncatedHistory[1:]
-	}
-
-	return truncatedHistory
+	return history
 }
