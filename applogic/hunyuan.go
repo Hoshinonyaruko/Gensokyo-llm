@@ -238,7 +238,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			assistantMessageID, err := app.addMessage(structs.Message{
 				ConversationID:  msg.ConversationID,
 				ParentMessageID: userMessageID,
-				Text:            completeResponse.(string),
+				Text:            responseText,
 				Role:            "assistant",
 			})
 
@@ -395,7 +395,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			assistantMessageID, err := app.addMessage(structs.Message{
 				ConversationID:  msg.ConversationID,
 				ParentMessageID: userMessageID,
-				Text:            completeResponse.(string),
+				Text:            responseText,
 				Role:            "assistant",
 			})
 
