@@ -424,3 +424,54 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 	}
 
 }
+
+func truncateHistoryHunYuan(history []structs.Message, prompt string) []structs.Message {
+	MAX_TOKENS := config.GetMaxTokensHunyuan()
+
+	tokenCount := len(prompt)
+	for _, msg := range history {
+		tokenCount += len(msg.Text)
+	}
+
+	if tokenCount <= MAX_TOKENS {
+		return history
+	}
+
+	// 第一步：逐个移除消息直到满足令牌数量限制，同时保证成对的消息交替出现
+	for tokenCount > MAX_TOKENS && len(history) > 0 {
+		tokenCount -= len(history[0].Text)
+		history = history[1:]
+
+		// 确保移除后，历史记录仍然以user消息结尾
+		if len(history) > 0 && history[0].Role == "assistant" {
+			tokenCount -= len(history[0].Text)
+			history = history[1:]
+		}
+	}
+
+	// 第二步：检查并移除包含空文本的QA对
+	i := 0
+	for i < len(history)-1 { // 需要检查成对的消息，所以用len(history)-1
+		// 检查是否成对，且下一条消息的角色正确
+		if history[i].Role == "user" && history[i+1].Role == "assistant" && (len(history[i].Text) == 0 || len(history[i+1].Text) == 0) {
+			// 移除这对QA
+			fmtf.Println("hunyuan-找到了空的对话: ", history[i].Text, history[i+1].Text)
+			history = append(history[:i], history[i+2:]...)
+			continue // 继续检查下一对，不增加i因为切片已经缩短
+		}
+		i++
+	}
+
+	// 第三步：确保以user结尾，如果不是则尝试移除直到满足条件
+	if len(history) > 0 && history[len(history)-1].Role == "assistant" {
+		// 尝试找到最近的"user"消息并截断至该点
+		for i := len(history) - 2; i >= 0; i-- {
+			if history[i].Role == "user" {
+				history = history[:i+1]
+				break
+			}
+		}
+	}
+
+	return history
+}
