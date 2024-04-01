@@ -190,7 +190,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		//审核部分 文本替换规则
 		newmsg := message.Message.(string)
 		if config.GetSensitiveMode() {
-			newmsg = acnode.CheckWord(newmsg)
+			newmsg = acnode.CheckWordIN(newmsg)
 		}
 
 		//提示词安全部分

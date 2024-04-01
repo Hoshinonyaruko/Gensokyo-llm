@@ -118,7 +118,7 @@ func SendGroupMessage(groupID int64, message string) error {
 	url := baseURL + "/send_group_msg"
 
 	if config.GetSensitiveModeType() == 1 {
-		message = acnode.CheckWord(message)
+		message = acnode.CheckWordOUT(message)
 	}
 
 	// 构造请求体
@@ -155,7 +155,7 @@ func SendPrivateMessage(UserID int64, message string) error {
 	url := baseURL + "/send_private_msg"
 
 	if config.GetSensitiveModeType() == 1 {
-		message = acnode.CheckWord(message)
+		message = acnode.CheckWordOUT(message)
 	}
 
 	// 构造请求体
@@ -194,7 +194,7 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 
 	// 检查是否需要启用敏感词过滤
 	if config.GetSensitiveModeType() == 1 && message.Content != "" {
-		message.Content = acnode.CheckWord(message.Content)
+		message.Content = acnode.CheckWordOUT(message.Content)
 	}
 
 	// 构造请求体，包括InterfaceBody

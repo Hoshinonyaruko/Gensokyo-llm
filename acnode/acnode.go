@@ -16,16 +16,24 @@ import (
 
 // 定义包级别的全局变量
 var ac *AhoCorasick
+var acout *AhoCorasick
 var wac *AhoCorasick
 
 // init函数用于初始化操作
 func init() {
 	ac = NewAhoCorasick()
+	acout = NewAhoCorasick()
 	wac = NewAhoCorasick()
 
-	// 载入敏感词库
-	if err := loadWordsIntoAC(ac, "sensitive_words.txt"); err != nil {
-		log.Fatalf("初始化敏感词库失败：%v", err)
+	// 载入敏感词库 入
+	if err := loadWordsIntoAC(ac, "sensitive_words_in.txt"); err != nil {
+		log.Fatalf("初始化敏感入词库失败：%v", err)
+		// 注意，log.Fatalf会调用os.Exit(1)终止程序，因此后面的return不是必须的
+	}
+
+	// 载入敏感词库 出
+	if err := loadWordsIntoAC(acout, "sensitive_words_out.txt"); err != nil {
+		log.Fatalf("初始化敏感出词库失败：%v", err)
 		// 注意，log.Fatalf会调用os.Exit(1)终止程序，因此后面的return不是必须的
 	}
 
@@ -317,7 +325,7 @@ func convertToUnicodeEscape(str string) string {
 }
 
 // 改写后的函数，接受word参数，并返回处理结果
-func CheckWord(word string) string {
+func CheckWordIN(word string) string {
 	if word == "" {
 		log.Println("错误请求：缺少 'word' 参数")
 		return "错误：缺少 'word' 参数"
@@ -338,6 +346,32 @@ func CheckWord(word string) string {
 
 	// 使用全局的ac进行过滤，并结合白名单
 	result := ac.FilterWithWhitelist(word, whiteListedPositions)
+
+	return result
+}
+
+// 改写后的函数，接受word参数，并返回处理结果
+func CheckWordOUT(word string) string {
+	if word == "" {
+		log.Println("错误请求：缺少 'word' 参数")
+		return "错误：缺少 'word' 参数"
+	}
+
+	if len([]rune(word)) > 5000 {
+		if strings.Contains(word, "[CQ:image,file=base64://") {
+			// 当word包含特定字符串时原样返回
+			fmtf.Printf("原样返回的文本：%s", word)
+			return word
+		}
+		log.Printf("错误请求：字符数超过最大限制（5000字符）。内容：%s", word)
+		return "错误：字符数超过最大限制（5000字符）"
+	}
+
+	// 使用全局的wac进行白名单匹配
+	whiteListedPositions := wac.MatchPositions(word)
+
+	// 使用全局的ac进行过滤，并结合白名单
+	result := acout.FilterWithWhitelist(word, whiteListedPositions)
 
 	return result
 }
