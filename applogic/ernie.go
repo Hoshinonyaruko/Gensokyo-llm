@@ -321,7 +321,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		assistantMessageID, err := app.addMessage(structs.Message{
 			ConversationID:  msg.ConversationID,
 			ParentMessageID: userMessageID,
-			Text:            responseText,
+			Text:            completeResponse.(string),
 			Role:            "assistant",
 		})
 
