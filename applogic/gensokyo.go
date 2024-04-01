@@ -331,17 +331,19 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					fmtf.Printf("Error updating user context: %v\n", err)
 				}
-				if config.GetUsePrivateSSE() {
-					//发气泡和按钮
-					promptkeyboard := config.GetPromptkeyboard()
-					//最后一条了
-					messageSSE := structs.InterfaceBody{
-						Content:        " ",
-						State:          20,
-						PromptKeyboard: promptkeyboard,
+				if message.RealMessageType == "group_private" || message.MessageType == "private" {
+					if config.GetUsePrivateSSE() {
+						//发气泡和按钮
+						promptkeyboard := config.GetPromptkeyboard()
+						//最后一条了
+						messageSSE := structs.InterfaceBody{
+							Content:        " ",
+							State:          20,
+							PromptKeyboard: promptkeyboard,
+						}
+						utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+						ResetIndex(newmsg)
 					}
-					utils.SendPrivateMessageSSE(message.UserID, messageSSE)
-					ResetIndex(newmsg)
 				}
 
 			}
