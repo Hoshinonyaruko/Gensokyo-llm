@@ -2,6 +2,8 @@
 config.yml
 *.sqlite
 sensitive_words.txt
+sensitive_words_in.txt
+sensitive_words_out.txt
 white.txt
 
 # Go specific
