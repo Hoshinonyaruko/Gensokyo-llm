@@ -79,15 +79,21 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 
 	// 获取历史信息
 	if msg.ParentMessageID != "" {
-		history, err = app.getHistory(msg.ConversationID, msg.ParentMessageID)
+		userhistory, err := app.getHistory(msg.ConversationID, msg.ParentMessageID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		// 截断历史信息
-		history = truncateHistoryErnie(history, msg.Text)
+		userhistory = truncateHistoryErnie(userhistory, msg.Text)
+
+		// 注意追加的顺序，确保问题在系统提示词之后
+		// 使用...操作符来展开userhistory切片并追加到history切片
+		history = append(history, userhistory...)
 	}
+
+	fmtf.Printf("文心上下文history:%v\n", history)
 
 	// 构建请求负载
 	var payload structs.WXRequestPayload

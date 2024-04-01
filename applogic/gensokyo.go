@@ -131,14 +131,51 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if !config.GetUsePrivateSSE() {
 					utils.SendPrivateMessage(message.UserID, RestoreResponse)
 				} else {
+
+					// 将字符串转换为rune切片，以正确处理多字节字符
+					runes := []rune(RestoreResponse)
+
+					// 计算每部分应该包含的rune数量
+					partLength := len(runes) / 3
+
+					// 初始化用于存储分割结果的切片
+					parts := make([]string, 3)
+
+					// 按字符分割字符串
+					for i := 0; i < 3; i++ {
+						if i < 2 { // 前两部分
+							start := i * partLength
+							end := start + partLength
+							parts[i] = string(runes[start:end])
+						} else { // 最后一部分，包含所有剩余的字符
+							start := i * partLength
+							parts[i] = string(runes[start:])
+						}
+					}
+
+					// 开头
+					messageSSE := structs.InterfaceBody{
+						Content: parts[0],
+						State:   1,
+					}
+
+					utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+
+					//中间
+					messageSSE = structs.InterfaceBody{
+						Content: parts[1],
+						State:   11,
+					}
+					utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+
 					// 从配置中获取promptkeyboard
 					promptkeyboard := config.GetPromptkeyboard()
 
 					// 创建InterfaceBody结构体实例
-					messageSSE := structs.InterfaceBody{
-						Content:        RestoreResponse, // 假设空格字符串是期望的内容
-						State:          20,              // 假设的状态码
-						PromptKeyboard: promptkeyboard,  // 使用更新后的promptkeyboard
+					messageSSE = structs.InterfaceBody{
+						Content:        parts[2],       // 假设空格字符串是期望的内容
+						State:          20,             // 假设的状态码
+						PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
 					}
 
 					// 发送SSE私人消息
@@ -170,6 +207,41 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						if !config.GetUsePrivateSSE() {
 							utils.SendPrivateMessage(message.UserID, saveresponse)
 						} else {
+							// 将字符串转换为rune切片，以正确处理多字节字符
+							runes := []rune(saveresponse)
+
+							// 计算每部分应该包含的rune数量
+							partLength := len(runes) / 3
+
+							// 初始化用于存储分割结果的切片
+							parts := make([]string, 3)
+
+							// 按字符分割字符串
+							for i := 0; i < 3; i++ {
+								if i < 2 { // 前两部分
+									start := i * partLength
+									end := start + partLength
+									parts[i] = string(runes[start:end])
+								} else { // 最后一部分，包含所有剩余的字符
+									start := i * partLength
+									parts[i] = string(runes[start:])
+								}
+							}
+							// 开头
+							messageSSE := structs.InterfaceBody{
+								Content: parts[0],
+								State:   1,
+							}
+
+							utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+
+							//中间
+							messageSSE = structs.InterfaceBody{
+								Content: parts[1],
+								State:   11,
+							}
+							utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+
 							// 从配置中获取恢复响应数组
 							RestoreResponses := config.GetRestoreCommand()
 
@@ -189,8 +261,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							}
 
 							// 创建InterfaceBody结构体实例
-							messageSSE := structs.InterfaceBody{
-								Content:        saveresponse,   // 假设空格字符串是期望的内容
+							messageSSE = structs.InterfaceBody{
+								Content:        parts[2],       // 假设空格字符串是期望的内容
 								State:          20,             // 假设的状态码
 								PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
 							}
