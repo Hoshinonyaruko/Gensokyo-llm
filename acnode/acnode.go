@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"unicode/utf16"
 
@@ -47,6 +48,13 @@ type ACNode struct {
 
 type AhoCorasick struct {
 	root *ACNode
+}
+
+// Replacement结构体来记录替换信息
+type Replacement struct {
+	Start int    // 替换起始位置
+	End   int    // 替换结束位置
+	Text  string // 替换文本
 }
 
 func NewAhoCorasick() *AhoCorasick {
@@ -100,13 +108,6 @@ func (ac *AhoCorasick) FilterWithWhitelist(text string, whiteListedPositions []P
 	runes := []rune(text)
 	changes := false // 标记是否有替换发生
 
-	// 在函数内定义Replacement结构体来记录替换信息
-	type Replacement struct {
-		Start int    // 替换起始位置
-		End   int    // 替换结束位置
-		Text  string // 替换文本
-	}
-
 	// 创建一个替换列表，用于记录所有替换操作
 	var replacements []Replacement
 
@@ -144,23 +145,60 @@ func (ac *AhoCorasick) FilterWithWhitelist(text string, whiteListedPositions []P
 		}
 	}
 
+	// 使用applyReplacements函数替换原有的替换逻辑
 	if changes {
-		// 对文本进行实际替换
-		var result []rune
-		lastIndex := 0
-		for _, r := range replacements {
-			// 添加未被替换的部分
-			result = append(result, runes[lastIndex:r.Start]...)
-			// 添加替换文本
-			result = append(result, []rune(r.Text)...)
-			lastIndex = r.End + 1
-		}
-		// 添加最后一部分未被替换的文本
-		result = append(result, runes[lastIndex:]...)
-		return string(result)
+		newText := applyReplacements(text, replacements)
+		return newText
+	}
+	return text
+}
+
+// 假设Replacement定义如前所述
+
+// Step 1: 合并重叠替换
+func mergeOverlappingReplacements(replacements []Replacement) []Replacement {
+	if len(replacements) == 0 {
+		return replacements
 	}
 
-	return text
+	// 按Start排序
+	sort.Slice(replacements, func(i, j int) bool {
+		if replacements[i].Start == replacements[j].Start {
+			return replacements[i].End > replacements[j].End // 如果Start相同，更长的在前
+		}
+		return replacements[i].Start < replacements[j].Start
+	})
+
+	merged := []Replacement{replacements[0]}
+	for _, current := range replacements[1:] {
+		last := &merged[len(merged)-1]
+		if current.Start <= last.End { // 检查重叠
+			if current.End > last.End {
+				last.End = current.End   // 扩展当前项以包括重叠
+				last.Text = current.Text // 假设新的替换文本更优先
+			}
+		} else {
+			merged = append(merged, current)
+		}
+	}
+	return merged
+}
+
+// Step 2 & 3: 实施替换
+func applyReplacements(text string, replacements []Replacement) string {
+	runes := []rune(text)
+	var result []rune
+	lastIndex := 0
+	for _, r := range mergeOverlappingReplacements(replacements) {
+		// 添加未被替换的部分
+		result = append(result, runes[lastIndex:r.Start]...)
+		// 添加替换文本
+		result = append(result, []rune(r.Text)...)
+		lastIndex = r.End + 1
+	}
+	// 添加最后一部分未被替换的文本
+	result = append(result, runes[lastIndex:]...)
+	return string(result)
 }
 
 type Position struct {
