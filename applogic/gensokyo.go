@@ -187,18 +187,83 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//审核部分 文本替换规则
+		// newmsg 是一个用于缓存和安全判断的临时量
 		newmsg := message.Message.(string)
-		if config.GetSensitiveMode() {
-			newmsg = acnode.CheckWordIN(newmsg)
+		// 去除注入的提示词
+		if config.GetIgnoreExtraTips() {
+			newmsg = utils.RemoveBracketsContent(newmsg)
+		}
+
+		var (
+			vector               []float64
+			lastSelectedVectorID int // 用于存储最后选取的相似文本的ID
+		)
+
+		// 缓存省钱部分
+		if config.GetUseCache() {
+			// 计算文本向量
+			vector, err = app.CalculateTextEmbedding(newmsg)
+			if err != nil {
+				fmtf.Printf("Error calculating text embedding: %v", err)
+				return
+			}
+			//fmtf.Printf("计算向量: %v", vector)
+			cacheThreshold := config.GetCacheThreshold()
+			// 搜索相似文本和对应的ID
+			similarTexts, ids, err := app.searchForSingleVector(vector, cacheThreshold)
+			if err != nil {
+				fmtf.Printf("Error searching for similar texts: %v", err)
+				return
+			}
+
+			if len(similarTexts) > 0 {
+				// 总是获取最相似的文本的ID，不管是否最终使用
+				lastSelectedVectorID = ids[0]
+
+				chance := rand.Intn(100)
+				// 检查是否满足设定的概率
+				if chance < config.GetCacheChance() {
+					// 使用最相似的文本的答案
+					fmtf.Printf("读取表:%v\n", similarTexts[0])
+					responseText, err := app.GetRandomAnswer(similarTexts[0])
+					if err == nil {
+						fmtf.Printf("缓存命中,Q:%v,A:%v\n", newmsg, responseText)
+						// 发送响应消息
+						if message.RealMessageType == "group_private" || message.MessageType == "private" {
+							if !config.GetUsePrivateSSE() {
+								utils.SendPrivateMessage(message.UserID, responseText)
+							} else {
+								SendSSEPrivateMessage(message.UserID, responseText)
+							}
+						} else {
+							utils.SendGroupMessage(message.GroupID, responseText)
+						}
+						return // 成功使用缓存答案，提前退出
+					} else {
+						fmtf.Printf("Error getting random answer: %v", err)
+
+					}
+				} else {
+					fmtf.Printf("缓存命中，但没有符合概率，继续执行后续代码\n")
+					// 注意：这里不需要再生成 lastSelectedVectorID，因为上面已经生成
+				}
+			} else {
+				// 没有找到相似文本，存储新的文本及其向量
+				newVectorID, err := app.insertVectorData(newmsg, vector)
+				if err != nil {
+					fmtf.Printf("Error inserting new vector data: %v", err)
+					return
+				}
+				lastSelectedVectorID = int(newVectorID) // 存储新插入向量的ID
+				fmtf.Printf("没找到缓存,准备储存了lastSelectedVectorID: %v\n", lastSelectedVectorID)
+			}
+
+			// 这里继续执行您的逻辑，比如生成新的答案等
+			// 注意：根据实际情况调整后续逻辑
 		}
 
 		//提示词安全部分
 		if config.GetAntiPromptAttackPath() != "" {
-			if config.GetIgnoreExtraTips() {
-				newmsg = utils.RemoveBracketsContent(newmsg)
-			}
-
 			if checkResponseThreshold(newmsg) {
 				fmtf.Printf("提示词不安全,过滤:%v", message)
 				saveresponse := config.GetRandomSaveResponse()
@@ -235,7 +300,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 							utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 
-							//中间
+							// 中间
 							messageSSE = structs.InterfaceBody{
 								Content: parts[1],
 								State:   11,
@@ -292,8 +357,17 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		portStr := fmtf.Sprintf(":%d", port)
 		url := "http://127.0.0.1" + portStr + "/conversation"
 
+		// 请求模型还是使用原文请求
+		requestmsg := message.Message.(string)
+		// 替换in替换词规则
+		if config.GetSensitiveMode() {
+			requestmsg = acnode.CheckWordIN(requestmsg)
+		}
+
+		fmtf.Printf("实际请求conversation端点内容:%v\n", requestmsg)
+
 		requestBody, err := json.Marshal(map[string]interface{}{
-			"message":         newmsg,
+			"message":         requestmsg,
 			"conversationId":  conversationID,
 			"parentMessageId": parentMessageID,
 			"user_id":         message.UserID,
@@ -352,8 +426,6 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								newPart := response[len(accumulatedMessage):]
 								if newPart != "" {
 									fmtf.Printf("A完整信息: %s,已发送信息:%s 新部分:%s\n", response, accumulatedMessage, newPart)
-									//这里记录完整的信息
-									//RecordStringByNewmsg(newmsg, response)
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 									if message.RealMessageType == "group_private" || message.MessageType == "private" {
 										if !config.GetUsePrivateSSE() {
@@ -377,11 +449,26 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								if accumulatedMessage == "" {
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 									if message.RealMessageType == "group_private" || message.MessageType == "private" {
-										utils.SendPrivateMessage(message.UserID, response)
+										if !config.GetUsePrivateSSE() {
+											utils.SendPrivateMessage(message.UserID, response)
+										} else {
+											//最后一条了
+											messageSSE := structs.InterfaceBody{
+												Content: response,
+												State:   11,
+											}
+											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+										}
 									} else {
 										utils.SendGroupMessage(message.GroupID, response)
 									}
 								}
+							}
+							//清空之前加入缓存
+							// 缓存省钱部分
+							if config.GetUseCache() {
+								fmtf.Printf("缓存了Q:%v,A:%v,向量ID:%v", newmsg, response, lastSelectedVectorID)
+								app.InsertQAEntry(newmsg, response, lastSelectedVectorID)
 							}
 
 							// 清空映射中对应的累积消息
@@ -537,5 +624,62 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 				messageBuilder.Reset() // 重置消息构建器
 			}
 		}
+	}
+}
+
+// SendSSEPrivateMessage 分割并发送消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateMessage(userID int64, content string) {
+	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?'}
+	splitProbability := config.GetSplitByPuntuations()
+
+	var parts []string
+	var currentPart strings.Builder
+
+	for _, runeValue := range content {
+		currentPart.WriteRune(runeValue)
+		if strings.ContainsRune(string(punctuations), runeValue) {
+			// 根据概率决定是否分割
+			if rand.Intn(100) < splitProbability {
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			}
+		}
+	}
+	// 添加最后一部分（如果有的话）
+	if currentPart.Len() > 0 {
+		parts = append(parts, currentPart.String())
+	}
+
+	// 根据parts长度处理状态
+	for i, part := range parts {
+		state := 1
+		if i == len(parts)-2 { // 倒数第二部分
+			state = 11
+		} else if i == len(parts)-1 { // 最后一部分
+			state = 20
+		}
+
+		// 构造消息体并发送
+		messageSSE := structs.InterfaceBody{
+			Content: part,
+			State:   state,
+		}
+
+		if state == 20 { // 对最后一部分特殊处理
+			RestoreResponses := config.GetRestoreCommand()
+			promptKeyboard := config.GetPromptkeyboard()
+
+			if len(RestoreResponses) > 0 {
+				selectedRestoreResponse := RestoreResponses[rand.Intn(len(RestoreResponses))]
+				if len(promptKeyboard) > 0 {
+					promptKeyboard[0] = selectedRestoreResponse
+				}
+			}
+
+			messageSSE.PromptKeyboard = promptKeyboard
+		}
+
+		// 发送SSE消息函数
+		utils.SendPrivateMessageSSE(userID, messageSSE)
 	}
 }

@@ -3,8 +3,10 @@ package applogic
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
@@ -57,9 +59,31 @@ func checkResponseThreshold(msg string) bool {
 	}
 
 	var nestedResponse NestedResponse
-	if err := json.Unmarshal([]byte(responseData.Response), &nestedResponse); err != nil {
-		fmtf.Printf("Error unmarshalling nested response data: %v\n", err)
-		return false
+
+	// 预处理响应数据，移除可能的换行符
+	preprocessedResponse := strings.TrimSpace(responseData.Response)
+
+	// 尝试直接解析JSON
+	err = json.Unmarshal([]byte(preprocessedResponse), &nestedResponse)
+
+	// 如果直接解析失败，尝试容错处理
+	if err != nil {
+		// 检查是否为纯浮点数字符串，尝试解析为浮点数
+		var floatValue float64
+		if err := json.Unmarshal([]byte(preprocessedResponse), &floatValue); err == nil {
+			// 如果是纯浮点数，构造JSON格式字符串并重新尝试解析
+			jsonFloat := fmt.Sprintf("{\"result\":%s}", preprocessedResponse)
+			err = json.Unmarshal([]byte(jsonFloat), &nestedResponse)
+			if err != nil {
+				// 如果仍然失败，则记录错误并返回
+				fmt.Printf("Error unmarshalling adjusted response data: %v\n", err)
+				return false
+			}
+		} else {
+			// 如果不是纯浮点数，也不是正确的JSON格式，则记录原始错误并返回
+			fmt.Printf("Error unmarshalling nested response data: %v\n", err)
+			return false
+		}
 	}
 	fmtf.Printf("大模型agent安全检查结果: %v\n", nestedResponse.Result)
 	return nestedResponse.Result > config.GetAntiPromptLimit()

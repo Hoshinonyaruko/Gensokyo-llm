@@ -2,6 +2,7 @@ package applogic
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
@@ -30,6 +31,7 @@ func (app *App) addMessage(msg structs.Message) (string, error) {
 }
 
 func (app *App) EnsureTablesExist() error {
+	// 创建 messages 表
 	createMessagesTableSQL := `
     CREATE TABLE IF NOT EXISTS messages (
         id VARCHAR(36) PRIMARY KEY,
@@ -42,10 +44,105 @@ func (app *App) EnsureTablesExist() error {
 
 	_, err := app.DB.Exec(createMessagesTableSQL)
 	if err != nil {
-		return fmtf.Errorf("error creating messages table: %w", err)
+		return fmt.Errorf("error creating messages table: %w", err)
+	}
+
+	// 为 conversation_id 创建索引
+	createConvIDIndexSQL := `CREATE INDEX IF NOT EXISTS idx_conversation_id ON messages(conversation_id);`
+
+	_, err = app.DB.Exec(createConvIDIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating index on messages(conversation_id): %w", err)
+	}
+
+	// 为 parent_message_id 创建索引（如果您需要通过 parent_message_id 查询）
+	createParentMsgIDIndexSQL := `CREATE INDEX IF NOT EXISTS idx_parent_message_id ON messages(parent_message_id);`
+
+	_, err = app.DB.Exec(createParentMsgIDIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating index on messages(parent_message_id): %w", err)
+	}
+
+	// 为 created_at 创建索引（如果您需要对消息进行时间排序）
+	createCreatedAtIndexSQL := `CREATE INDEX IF NOT EXISTS idx_created_at ON messages(created_at);`
+
+	_, err = app.DB.Exec(createCreatedAtIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating index on messages(created_at): %w", err)
 	}
 
 	// 其他创建
+
+	return nil
+}
+
+func (app *App) EnsureEmbeddingsTablesExist() error {
+	createMessagesTableSQL := `
+    CREATE TABLE IF NOT EXISTS vector_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        vector BLOB NOT NULL,
+        norm FLOAT NOT NULL,
+        group_id INTEGER NOT NULL
+    );`
+
+	_, err := app.DB.Exec(createMessagesTableSQL)
+	if err != nil {
+		return fmt.Errorf("error creating messages table: %w", err)
+	}
+
+	// 为group_id和norm添加索引
+	createIndexSQL := `
+    CREATE INDEX IF NOT EXISTS idx_group_id ON vector_data(group_id);
+    CREATE INDEX IF NOT EXISTS idx_norm ON vector_data(norm);`
+
+	_, err = app.DB.Exec(createIndexSQL)
+	if err != nil {
+		return fmtf.Errorf("error creating indexes: %w", err)
+	}
+
+	// 其他创建
+
+	return nil
+}
+
+func (app *App) EnsureQATableExist() error {
+	// 创建 questions 表
+	createQuestionsTableSQL := `
+    CREATE TABLE IF NOT EXISTS questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question_text TEXT NOT NULL,
+        vector_data_id INTEGER NOT NULL,
+        UNIQUE(question_text),
+        FOREIGN KEY(vector_data_id) REFERENCES vector_data(id)
+    );`
+
+	_, err := app.DB.Exec(createQuestionsTableSQL)
+	if err != nil {
+		return fmt.Errorf("error creating questions table: %w", err)
+	}
+
+	// 创建 qa_cache 表
+	createQACacheTableSQL := `
+    CREATE TABLE IF NOT EXISTS qa_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        answer_text TEXT NOT NULL,
+        question_id INTEGER NOT NULL,
+        FOREIGN KEY(question_id) REFERENCES questions(id)
+    );`
+
+	_, err = app.DB.Exec(createQACacheTableSQL)
+	if err != nil {
+		return fmt.Errorf("error creating qa_cache table: %w", err)
+	}
+
+	// 为 qa_cache 表的 question_id 字段创建索引
+	createIndexSQL := `CREATE INDEX IF NOT EXISTS idx_question_id ON qa_cache(question_id);`
+
+	_, err = app.DB.Exec(createIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating index on qa_cache(question_id): %w", err)
+	}
 
 	return nil
 }
@@ -60,7 +157,24 @@ func (app *App) EnsureUserContextTableExists() error {
 
 	_, err := app.DB.Exec(createTableSQL)
 	if err != nil {
-		return fmtf.Errorf("error creating user_context table: %w", err)
+		return fmt.Errorf("error creating user_context table: %w", err)
+	}
+
+	// 为 conversation_id 创建索引
+	createConvIDIndexSQL := `CREATE INDEX IF NOT EXISTS idx_user_context_conversation_id ON user_context(conversation_id);`
+
+	_, err = app.DB.Exec(createConvIDIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating index on user_context(conversation_id): %w", err)
+	}
+
+	// 为 parent_message_id 创建索引
+	// 只有当您需要根据 parent_message_id 进行查询时才添加此索引
+	createParentMsgIDIndexSQL := `CREATE INDEX IF NOT EXISTS idx_user_context_parent_message_id ON user_context(parent_message_id);`
+
+	_, err = app.DB.Exec(createParentMsgIDIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating index on user_context(parent_message_id): %w", err)
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"regexp"
@@ -54,7 +55,7 @@ func Contains(slice []string, item string) bool {
 
 // 获取复合键
 func GetKey(groupid int64, userid int64) string {
-	return fmtf.Sprintf("%d.%d", groupid, userid)
+	return fmt.Sprintf("%d.%d", groupid, userid)
 }
 
 // 随机的分布发送
