@@ -187,11 +187,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 审核部分 文本替换规则
+		// newmsg 是一个用于缓存和安全判断的临时量
 		newmsg := message.Message.(string)
-		if config.GetSensitiveMode() {
-			newmsg = acnode.CheckWordIN(newmsg)
-		}
 		// 去除注入的提示词
 		if config.GetIgnoreExtraTips() {
 			newmsg = utils.RemoveBracketsContent(newmsg)
@@ -360,8 +357,17 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		portStr := fmtf.Sprintf(":%d", port)
 		url := "http://127.0.0.1" + portStr + "/conversation"
 
+		// 请求模型还是使用原文请求
+		requestmsg := message.Message.(string)
+		// 替换in替换词规则
+		if config.GetSensitiveMode() {
+			requestmsg = acnode.CheckWordIN(requestmsg)
+		}
+
+		fmtf.Printf("实际请求conversation端点内容:%v\n", requestmsg)
+
 		requestBody, err := json.Marshal(map[string]interface{}{
-			"message":         newmsg,
+			"message":         requestmsg,
 			"conversationId":  conversationID,
 			"parentMessageId": parentMessageID,
 			"user_id":         message.UserID,
@@ -420,8 +426,6 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								newPart := response[len(accumulatedMessage):]
 								if newPart != "" {
 									fmtf.Printf("A完整信息: %s,已发送信息:%s 新部分:%s\n", response, accumulatedMessage, newPart)
-									//这里记录完整的信息
-									//RecordStringByNewmsg(newmsg, response)
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 									if message.RealMessageType == "group_private" || message.MessageType == "private" {
 										if !config.GetUsePrivateSSE() {
