@@ -50,7 +50,7 @@ func LogToFile(level, message string) {
 		}
 	}
 	filename := time.Now().Format("2006-01-02") + ".log"
-	filepath := logPath + "\\" + filename
+	filepath := logPath + "/" + filename
 
 	file, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

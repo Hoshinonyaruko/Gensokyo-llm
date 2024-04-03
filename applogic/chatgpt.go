@@ -135,14 +135,23 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 	//是否安全模式
 	safemode := config.GetGptSafeMode()
 	useSSe := config.GetuseSse()
+	// 腾讯云审核 by api2d
+	gptModeration := config.GetGptModeration()
+	var gptModerationStop bool
+	if gptModeration {
+		gptModerationStop = true
+	}
 
 	// 构建请求体
 	requestBody := map[string]interface{}{
-		"model":     model,
-		"messages":  messages,
-		"safe_mode": safemode,
-		"stream":    useSSe,
+		"model":           model,
+		"messages":        messages,
+		"safe_mode":       safemode,
+		"stream":          useSSe,
+		"moderation":      gptModeration,
+		"moderation_stop": gptModerationStop,
 	}
+
 	fmtf.Printf("chatgpt requestBody :%v", requestBody)
 	requestBodyJSON, _ := json.Marshal(requestBody)
 
@@ -172,6 +181,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmtf.Sprintf("Failed to read response body: %v", err), http.StatusInternalServerError)
 			return
 		}
+		// fmtf.Printf("chatgpt返回:%v", string(responseBody))
 		// 假设已经成功发送请求并获得响应，responseBody是响应体的字节数据
 		var apiResponse struct {
 			Choices []struct {

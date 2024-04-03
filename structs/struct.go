@@ -117,3 +117,17 @@ type InterfaceBody struct {
 	ActionButton   int      `json:"action_button"`
 	CallbackData   string   `json:"callback_data"`
 }
+
+// EmbeddingData 结构体用于解析embedding接口返回的数据
+type EmbeddingDataErnie struct {
+	Object    string    `json:"object"`
+	Embedding []float64 `json:"embedding"`
+	Index     int       `json:"index"`
+}
+
+// EmbeddingResponse 结构体用于解析整个API响应
+type EmbeddingResponseErnie struct {
+	ID     string               `json:"id"`
+	Object string               `json:"object"`
+	Data   []EmbeddingDataErnie `json:"data"`
+}
