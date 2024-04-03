@@ -69,6 +69,18 @@ func main() {
 		log.Fatalf("Failed to ensure user_context table exists: %v", err)
 	}
 
+	// 确保向量表存在
+	err = app.EnsureEmbeddingsTablesExist()
+	if err != nil {
+		log.Fatalf("Failed to ensure EmbeddingsTable table exists: %v", err)
+	}
+
+	// 确保 QA缓存表 存在
+	err = app.EnsureQATableExist()
+	if err != nil {
+		log.Fatalf("Failed to ensure EmbeddingsTable table exists: %v", err)
+	}
+
 	apiType := config.GetApiType() // 调用配置包的函数获取API类型
 
 	switch apiType {

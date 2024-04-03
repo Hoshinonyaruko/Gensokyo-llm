@@ -34,6 +34,18 @@ settings:
   promptkeyboard : [""]                         #临时的promptkeyboard超过3个则随机,后期会增加一个ai生成的方式,也会是ai-agent
   savelogs : false                              #本地落地日志.
 
+  #向量缓存(省钱-酌情调整参数)(进阶!!)需要有一定的调试能力,数据库调优能力,计算和数据测试能力.
+  #不同种类的向量,维度和模型不同,所以请一开始决定好使用的向量,或者自行将数据库备份\对应,不同种类向量没有互相检索的能力。
+
+  embeddingType : 0                             #0=混元向量 1=文心向量,需设置wenxinEmbeddingUrl 2=chatgpt向量,需设置gptEmbeddingUrl
+  useCache : false                              #使用缓存省钱.
+  cacheThreshold : 100                          #阈值,以汉明距离单位. hunyuan建议250-300 文心v1建议80-100,越小越精确.
+  cacheChance : 100                             #使用缓存的概率,前期10,积攒缓存,后期酌情增加,测试时100
+  printHanming : true                           #输出汉明距离,还有分片基数(norm*CacheK)等完全确认下来汉明距离、分片数后，再关闭这个选项。
+  cacheK : 10000000000                          #计算分片基数所用的值,请根据向量的实际情况和公式计算适合的值。默认值效果不错。
+  cacheN : 256                                  #分片数量=256个 计算公式 (norm*CacheK) mod cacheN = 分组id 分组越多,分类越精确,数据库越快,cacheN不能大于(norm*CacheK)否则只分一组。
+  printVector : false                           #直接输出向量的内容,根据经验判断和设置向量二值化阈值.
+  vToBThreshold : 0                             #默认0效果不错,浮点数,向量二值化阈值,这里二值化是为了加速,损失了向量的精度,请根据输出的向量特征,选择具有中间特性的向量二值化阈值.
 
   #混元配置项
   secretId : ""                                 #腾讯云账号(右上角)-访问管理-访问密钥，生成获取
@@ -45,14 +57,22 @@ settings:
   #文心配置项
   wenxinAccessToken : ""                        #请求百度access_token接口获取到的,有效期一个月,需要自己请求获取
   wenxinApiPath : "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/eb-instant"    #在百度文档有，填啥就是啥模型，计费看文档
+  wenxinEmbeddingUrl : "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/embeddings/embedding-v1"                       #百度的几种embedding接口url都可以用
   maxTokenWenxin : 4096
+  wenxinTopp : 0.7                              #影响输出文本的多样性，取值越大，生成文本的多样性越强,默认0.7,范围0.1~1.0
+  wenxinPenaltyScore : 1.0                      #通过对已生成的token增加惩罚,减少重复生成的现象。值越大表示惩罚越大,默认1.0
+  wenxinMaxOutputTokens : 1024                  #指定模型最大输出token数,2~1024
 
   #chatgpt配置项 (这里我适配的是api2d.com的api)
+  #chatgpt类接口仅适用于对接gensokyo-discord、gensokyo-telegram等平台,国内请符合相应的api要求.
+
   gptModel : "gpt-3.5-turbo"
   gptApiPath : ""
+  gptEmbeddingUrl : ""                          #向量地址,和上面一样,基于标准的openai格式.哎哟..api2d这个向量好贵啊..暂不支持。
   ptToken : ""
   maxTokenGpt : 4096
-  gptSafeMode : false                           #额外走腾讯云检查安全,但是会额外消耗P数
+  gptSafeMode : false                           #额外走腾讯云检查安全,但是会额外消耗P数(会给出回复,但可能跑偏)仅api2d支持
+  gptModeration : false                         #额外走腾讯云检查安全,不合规直接拦截.(和上面一样但是会直接拦截.)仅api2d支持
   gptSseType : 0                                #gpt的sse流式有两种形式,0是只返回新的 你 好 呀 , 我 是 一 个,1是递增 你好呀，我是一个人类 你 你好 你好呀 你好呀， 你好呀，我 你好呀，我是
 `
 
