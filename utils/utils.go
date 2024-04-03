@@ -1,11 +1,14 @@
 package utils
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
@@ -243,4 +246,62 @@ func RemoveBracketsContent(input string) string {
 	re := regexp.MustCompile(`\[\[.*?\]\]`)
 	// 使用正则表达式的ReplaceAllString方法删除匹配的部分
 	return re.ReplaceAllString(input, "")
+}
+
+func PostSensitiveMessages() error {
+	port := config.GetPort()                                     // 从config包获取端口号
+	portStr := fmt.Sprintf("http://127.0.0.1:%d/gensokyo", port) // 根据端口号构建URL
+
+	file, err := os.Open("test.txt")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var results []string
+	for scanner.Scan() {
+		text := scanner.Text()
+
+		// 使用读取的文本填充message和raw_message字段
+		data := structs.OnebotGroupMessage{
+			Font:            0,
+			Message:         text,
+			MessageID:       0,
+			MessageSeq:      0,
+			MessageType:     "private",
+			PostType:        "message",
+			RawMessage:      text,
+			RealMessageType: "group_private",
+			SelfID:          100000000,
+			Sender: structs.Sender{
+				Nickname: "测试脚本",
+				UserID:   100000000,
+			},
+			SubType: "friend",
+			Time:    1700000000,
+			UserID:  100000000,
+		}
+
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+
+		response, err := http.Post(portStr, "application/json", bytes.NewBuffer(jsonData))
+		if err != nil {
+			return err
+		}
+		defer response.Body.Close()
+
+		responseBody, err := io.ReadAll(response.Body)
+		if err != nil {
+			return err
+		}
+		fmtf.Printf("测试脚本运行中:%v", results)
+		results = append(results, string(responseBody))
+	}
+
+	// 将HTTP响应结果保存到test_result.txt文件中
+	return os.WriteFile("test_result.txt", []byte(strings.Join(results, "\n")), 0644)
 }

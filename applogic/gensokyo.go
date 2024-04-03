@@ -82,6 +82,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 解析请求体到OnebotGroupMessage结构体
 	var message structs.OnebotGroupMessage
+
+	fmtf.Printf("收到onebotv11信息: %+v\n", string(body))
+
 	err = json.Unmarshal(body, &message)
 	if err != nil {
 		fmtf.Printf("Error parsing request body: %+v\n", string(body))
@@ -199,20 +202,49 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			lastSelectedVectorID int // 用于存储最后选取的相似文本的ID
 		)
 
-		// 缓存省钱部分
-		if config.GetUseCache() {
+		//如果使用向量缓存 或者使用 向量安全词
+		if config.GetUseCache() || config.GetVectorSensitiveFilter() {
 			// 计算文本向量
 			vector, err = app.CalculateTextEmbedding(newmsg)
 			if err != nil {
 				fmtf.Printf("Error calculating text embedding: %v", err)
+				// 发送响应
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("Error calculating text embedding"))
 				return
 			}
+		}
+
+		// 向量安全词部分,机器人大安全向量安全屏障
+		if config.GetVectorSensitiveFilter() {
+			ret, err, retstr := app.InterceptSensitiveContent(vector, message)
+			if err != nil {
+				fmtf.Printf("Error in InterceptSensitiveContent: %v", err)
+				// 发送响应
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("Error in InterceptSensitiveContent"))
+				return
+			}
+			if ret != 0 {
+				fmtf.Printf("sensitive content detected!%v\n", message)
+				// 发送响应
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("sensitive content detected![" + retstr + "]"))
+				return
+			}
+		}
+
+		// 缓存省钱部分
+		if config.GetUseCache() {
 			//fmtf.Printf("计算向量: %v", vector)
 			cacheThreshold := config.GetCacheThreshold()
 			// 搜索相似文本和对应的ID
 			similarTexts, ids, err := app.searchForSingleVector(vector, cacheThreshold)
 			if err != nil {
 				fmtf.Printf("Error searching for similar texts: %v", err)
+				// 发送响应
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("Error searching for similar texts"))
 				return
 			}
 
@@ -238,6 +270,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						} else {
 							utils.SendGroupMessage(message.GroupID, responseText)
 						}
+						// 发送响应
+						w.WriteHeader(http.StatusOK)
+						w.Write([]byte("Request received and use cache"))
 						return // 成功使用缓存答案，提前退出
 					} else {
 						fmtf.Printf("Error getting random answer: %v", err)
@@ -252,6 +287,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				newVectorID, err := app.insertVectorData(newmsg, vector)
 				if err != nil {
 					fmtf.Printf("Error inserting new vector data: %v", err)
+					// 发送响应
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte("Error inserting new vector data"))
 					return
 				}
 				lastSelectedVectorID = int(newVectorID) // 存储新插入向量的ID
@@ -272,73 +310,15 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						if !config.GetUsePrivateSSE() {
 							utils.SendPrivateMessage(message.UserID, saveresponse)
 						} else {
-							// 将字符串转换为rune切片，以正确处理多字节字符
-							runes := []rune(saveresponse)
-
-							// 计算每部分应该包含的rune数量
-							partLength := len(runes) / 3
-
-							// 初始化用于存储分割结果的切片
-							parts := make([]string, 3)
-
-							// 按字符分割字符串
-							for i := 0; i < 3; i++ {
-								if i < 2 { // 前两部分
-									start := i * partLength
-									end := start + partLength
-									parts[i] = string(runes[start:end])
-								} else { // 最后一部分，包含所有剩余的字符
-									start := i * partLength
-									parts[i] = string(runes[start:])
-								}
-							}
-							// 开头
-							messageSSE := structs.InterfaceBody{
-								Content: parts[0],
-								State:   1,
-							}
-
-							utils.SendPrivateMessageSSE(message.UserID, messageSSE)
-
-							// 中间
-							messageSSE = structs.InterfaceBody{
-								Content: parts[1],
-								State:   11,
-							}
-							utils.SendPrivateMessageSSE(message.UserID, messageSSE)
-
-							// 从配置中获取恢复响应数组
-							RestoreResponses := config.GetRestoreCommand()
-
-							var selectedRestoreResponse string
-							// 如果RestoreResponses至少有一个成员，则随机选择一个
-							if len(RestoreResponses) > 0 {
-								selectedRestoreResponse = RestoreResponses[rand.Intn(len(RestoreResponses))]
-							}
-
-							// 从配置中获取promptkeyboard
-							promptkeyboard := config.GetPromptkeyboard()
-
-							// 确保promptkeyboard至少有一个成员
-							if len(promptkeyboard) > 0 {
-								// 使用随机选中的RestoreResponse替换promptkeyboard的第一个成员
-								promptkeyboard[0] = selectedRestoreResponse
-							}
-
-							// 创建InterfaceBody结构体实例
-							messageSSE = structs.InterfaceBody{
-								Content:        parts[2],       // 假设空格字符串是期望的内容
-								State:          20,             // 假设的状态码
-								PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
-							}
-
-							// 发送SSE私人消息
-							utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+							SendSSEPrivateSafeMessage(message.UserID, saveresponse)
 						}
 					} else {
 						utils.SendGroupMessage(message.GroupID, saveresponse)
 					}
 				}
+				// 发送响应
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("Request received and not safe"))
 				return
 			}
 		}
@@ -350,6 +330,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		fmtf.Printf("conversationID: %s,parentMessageID%s\n", conversationID, parentMessageID)
 		if err != nil {
 			fmtf.Printf("Error handling user context: %v\n", err)
+			// 发送响应
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Error handling user context"))
 			return
 		}
 		// 构建并发送请求到conversation接口
@@ -682,4 +665,70 @@ func SendSSEPrivateMessage(userID int64, content string) {
 		// 发送SSE消息函数
 		utils.SendPrivateMessageSSE(userID, messageSSE)
 	}
+}
+
+// SendSSEPrivateSafeMessage 分割并发送安全消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
+	// 将字符串转换为rune切片，以正确处理多字节字符
+	runes := []rune(saveresponse)
+
+	// 计算每部分应该包含的rune数量
+	partLength := len(runes) / 3
+
+	// 初始化用于存储分割结果的切片
+	parts := make([]string, 3)
+
+	// 按字符分割字符串
+	for i := 0; i < 3; i++ {
+		if i < 2 { // 前两部分
+			start := i * partLength
+			end := start + partLength
+			parts[i] = string(runes[start:end])
+		} else { // 最后一部分，包含所有剩余的字符
+			start := i * partLength
+			parts[i] = string(runes[start:])
+		}
+	}
+	// 开头
+	messageSSE := structs.InterfaceBody{
+		Content: parts[0],
+		State:   1,
+	}
+
+	utils.SendPrivateMessageSSE(userID, messageSSE)
+
+	// 中间
+	messageSSE = structs.InterfaceBody{
+		Content: parts[1],
+		State:   11,
+	}
+	utils.SendPrivateMessageSSE(userID, messageSSE)
+
+	// 从配置中获取恢复响应数组
+	RestoreResponses := config.GetRestoreCommand()
+
+	var selectedRestoreResponse string
+	// 如果RestoreResponses至少有一个成员，则随机选择一个
+	if len(RestoreResponses) > 0 {
+		selectedRestoreResponse = RestoreResponses[rand.Intn(len(RestoreResponses))]
+	}
+
+	// 从配置中获取promptkeyboard
+	promptkeyboard := config.GetPromptkeyboard()
+
+	// 确保promptkeyboard至少有一个成员
+	if len(promptkeyboard) > 0 {
+		// 使用随机选中的RestoreResponse替换promptkeyboard的第一个成员
+		promptkeyboard[0] = selectedRestoreResponse
+	}
+
+	// 创建InterfaceBody结构体实例
+	messageSSE = structs.InterfaceBody{
+		Content:        parts[2],       // 假设空格字符串是期望的内容
+		State:          20,             // 假设的状态码
+		PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
+	}
+
+	// 发送SSE私人消息
+	utils.SendPrivateMessageSSE(userID, messageSSE)
 }

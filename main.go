@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"database/sql"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -14,9 +15,13 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/template"
+	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
 
 func main() {
+	testFlag := flag.Bool("test", false, "Run the test script,test.txt中的是虚拟信息,一行一条")
+	flag.Parse()
+
 	if _, err := os.Stat("config.yml"); os.IsNotExist(err) {
 
 		// 将修改后的配置写入 config.yml
@@ -36,9 +41,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-	//日志落地
+	// 日志落地
 	if config.GetSavelogs() {
 		fmtf.SetEnableFileLog(true)
+	}
+
+	// 测试函数
+	if *testFlag {
+		// 如果启动参数包含 -test，则执行脚本
+		err := utils.PostSensitiveMessages()
+		if err != nil {
+			log.Fatalf("Error running PostSensitiveMessages: %v", err)
+		}
+		return // 退出程序
 	}
 	// Deprecated
 	secretId := conf.Settings.SecretId
@@ -79,6 +94,18 @@ func main() {
 	err = app.EnsureQATableExist()
 	if err != nil {
 		log.Fatalf("Failed to ensure EmbeddingsTable table exists: %v", err)
+	}
+
+	// 加载基于向量的拦截词 即使文本不同 也能按阈值精准拦截
+	err = app.EnsureSensitiveWordsTableExists()
+	if err != nil {
+		log.Fatalf("Failed to ensure SensitiveWordsTable table exists: %v", err)
+	}
+
+	// 加载 拦截词
+	err = app.ProcessSensitiveWords()
+	if err != nil {
+		log.Fatalf("Failed to ProcessSensitiveWords: %v", err)
 	}
 
 	apiType := config.GetApiType() // 调用配置包的函数获取API类型

@@ -76,6 +76,7 @@ func (app *App) EnsureTablesExist() error {
 	return nil
 }
 
+// 问题Q 向量表
 func (app *App) EnsureEmbeddingsTablesExist() error {
 	createMessagesTableSQL := `
     CREATE TABLE IF NOT EXISTS vector_data (
@@ -102,6 +103,35 @@ func (app *App) EnsureEmbeddingsTablesExist() error {
 	}
 
 	// 其他创建
+
+	return nil
+}
+
+// 敏感词表
+func (app *App) EnsureSensitiveWordsTableExists() error {
+	createTableSQL := `
+    CREATE TABLE IF NOT EXISTS sensitive_words (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        vector BLOB NOT NULL,
+        norm FLOAT NOT NULL,
+        group_id INTEGER NOT NULL
+    );`
+
+	_, err := app.DB.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("error creating sensitive_words table: %w", err)
+	}
+
+	// 为group_id和norm添加索引
+	createIndexSQL := `
+    CREATE INDEX IF NOT EXISTS idx_sensitive_words_group_id ON sensitive_words(group_id);
+    CREATE INDEX IF NOT EXISTS idx_sensitive_words_norm ON sensitive_words(norm);`
+
+	_, err = app.DB.Exec(createIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating indexes: %w", err)
+	}
 
 	return nil
 }
