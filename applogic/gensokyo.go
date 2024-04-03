@@ -217,7 +217,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 向量安全词部分,机器人大安全向量安全屏障
 		if config.GetVectorSensitiveFilter() {
-			ret, err, retstr := app.InterceptSensitiveContent(vector, message)
+			ret, retstr, err := app.InterceptSensitiveContent(vector, message)
 			if err != nil {
 				fmtf.Printf("Error in InterceptSensitiveContent: %v", err)
 				// 发送响应
@@ -523,6 +523,11 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 					fmtf.Printf("Error updating user context: %v\n", err)
 				}
 			}
+		}
+
+		// OUT规则不仅对实际发送api生效,也对http结果生效
+		if config.GetSensitiveModeType() == 1 {
+			response = acnode.CheckWordOUT(response)
 		}
 
 		// 发送响应
