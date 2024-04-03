@@ -46,6 +46,8 @@ settings:
   cacheN : 256                                  #分片数量=256个 计算公式 (norm*CacheK) mod cacheN = 分组id 分组越多,分类越精确,数据库越快,cacheN不能大于(norm*CacheK)否则只分一组。
   printVector : false                           #直接输出向量的内容,根据经验判断和设置向量二值化阈值.
   vToBThreshold : 0                             #默认0效果不错,浮点数,向量二值化阈值,这里二值化是为了加速,损失了向量的精度,请根据输出的向量特征,选择具有中间特性的向量二值化阈值.
+  vectorSensitiveFilter : false                 #是否开启向量拦截词,请放在同目录下的vector_sensitive.txt中 一行一个，可以是句子。 命令行参数 -test 会用test.exe中的内容跑测试脚本。
+  vertorSensitiveThreshold : 200                #汉明距离,满足距离代表向量含义相近,可给出拦截.
 
   #混元配置项
   secretId : ""                                 #腾讯云账号(右上角)-访问管理-访问密钥，生成获取
