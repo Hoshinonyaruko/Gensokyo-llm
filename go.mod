@@ -8,5 +8,3 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.839
 	gopkg.in/yaml.v3 v3.0.1
 )
-
-require gonum.org/v1/gonum v0.15.0 // indirect
