@@ -369,6 +369,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		defer resp.Body.Close()
 
 		var lastMessageID string
+		var response string
 
 		if config.GetuseSse() {
 			// 处理SSE流式响应
@@ -403,7 +404,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						accumulatedMessage, exists := groupUserMessages[key]
 
 						// 提取response字段
-						if response, ok := responseData["response"].(string); ok {
+						if response, ok = responseData["response"].(string); ok {
 							// 如果accumulatedMessage是response的子串，则提取新的部分并发送
 							if exists && strings.HasPrefix(response, accumulatedMessage) {
 								newPart := response[len(accumulatedMessage):]
@@ -459,7 +460,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						}
 					} else {
 						//发送信息
-						fmtf.Printf("发信息: %s", string(line))
+						fmtf.Printf("收到流数据,切割并发送信息: %s", string(line))
 						splitAndSendMessages(message, string(line), newmsg)
 					}
 				}
@@ -526,7 +527,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 发送响应
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Request received and processed"))
+		w.Write([]byte("Request received and processed Q:" + newmsg + " A:" + response))
 
 	case map[string]interface{}:
 		// message.Message是一个map[string]interface{}
