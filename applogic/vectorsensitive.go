@@ -176,14 +176,14 @@ func (app *App) textExistsInDatabase(text string) (bool, error) {
 	return exists, nil
 }
 
-func (app *App) InterceptSensitiveContent(vector []float64, message structs.OnebotGroupMessage) (int, error, string) {
+func (app *App) InterceptSensitiveContent(vector []float64, message structs.OnebotGroupMessage) (int, string, error) {
 	// 自定义阈值
 	Threshold := config.GetVertorSensitiveThreshold()
 
 	// 进行搜索
 	results, _, err := app.searchForSingleVectorSensitive(vector, Threshold)
 	if err != nil {
-		return 1, fmtf.Errorf("error searching for sensitive content: %w", err), ""
+		return 1, "", fmtf.Errorf("error searching for sensitive content: %w", err)
 	}
 
 	// 输出搜索到的result数组
@@ -208,12 +208,12 @@ func (app *App) InterceptSensitiveContent(vector []float64, message structs.Oneb
 			} else {
 				utils.SendGroupMessage(message.GroupID, saveresponse)
 			}
-			return 1, nil, saveresponse
+			return 1, saveresponse, nil
 		}
 	} else {
 		// 未匹配到敏感内容
 		fmtf.Println("No sensitive content detected.")
 	}
 
-	return 0, nil, ""
+	return 0, "", nil
 }
