@@ -110,9 +110,14 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		Role:    "user",
 	})
 
+	TopP := config.GetWenxinTopp()
+	PenaltyScore := config.GetWnxinPenaltyScore()
+	MaxOutputTokens := config.GetWenxinMaxOutputTokens()
+
 	// 设置其他可选参数
-	payload.TopP = 0.7
-	payload.PenaltyScore = 1.0
+	payload.TopP = TopP
+	payload.PenaltyScore = PenaltyScore
+	payload.MaxOutputTokens = MaxOutputTokens
 
 	// 是否sse
 	if config.GetuseSse() {
