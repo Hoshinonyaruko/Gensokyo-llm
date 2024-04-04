@@ -8,3 +8,5 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.839
 	gopkg.in/yaml.v3 v3.0.1
 )
+
+require github.com/abadojack/whatlanggo v1.0.1

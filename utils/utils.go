@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/abadojack/whatlanggo"
 	"github.com/google/uuid"
 	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
@@ -304,4 +305,218 @@ func PostSensitiveMessages() error {
 
 	// 将HTTP响应结果保存到test_result.txt文件中
 	return os.WriteFile("test_result.txt", []byte(strings.Join(results, "\n")), 0644)
+}
+
+// SendSSEPrivateMessage 分割并发送消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateMessage(userID int64, content string) {
+	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?'}
+	splitProbability := config.GetSplitByPuntuations()
+
+	var parts []string
+	var currentPart strings.Builder
+
+	for _, runeValue := range content {
+		currentPart.WriteRune(runeValue)
+		if strings.ContainsRune(string(punctuations), runeValue) {
+			// 根据概率决定是否分割
+			if rand.Intn(100) < splitProbability {
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			}
+		}
+	}
+	// 添加最后一部分（如果有的话）
+	if currentPart.Len() > 0 {
+		parts = append(parts, currentPart.String())
+	}
+
+	// 根据parts长度处理状态
+	for i, part := range parts {
+		state := 1
+		if i == len(parts)-2 { // 倒数第二部分
+			state = 11
+		} else if i == len(parts)-1 { // 最后一部分
+			state = 20
+		}
+
+		// 构造消息体并发送
+		messageSSE := structs.InterfaceBody{
+			Content: part,
+			State:   state,
+		}
+
+		if state == 20 { // 对最后一部分特殊处理
+			RestoreResponses := config.GetRestoreCommand()
+			promptKeyboard := config.GetPromptkeyboard()
+
+			if len(RestoreResponses) > 0 {
+				selectedRestoreResponse := RestoreResponses[rand.Intn(len(RestoreResponses))]
+				if len(promptKeyboard) > 0 {
+					promptKeyboard[0] = selectedRestoreResponse
+				}
+			}
+
+			messageSSE.PromptKeyboard = promptKeyboard
+		}
+
+		// 发送SSE消息函数
+		SendPrivateMessageSSE(userID, messageSSE)
+	}
+}
+
+// SendSSEPrivateSafeMessage 分割并发送安全消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
+	// 将字符串转换为rune切片，以正确处理多字节字符
+	runes := []rune(saveresponse)
+
+	// 计算每部分应该包含的rune数量
+	partLength := len(runes) / 3
+
+	// 初始化用于存储分割结果的切片
+	parts := make([]string, 3)
+
+	// 按字符分割字符串
+	for i := 0; i < 3; i++ {
+		if i < 2 { // 前两部分
+			start := i * partLength
+			end := start + partLength
+			parts[i] = string(runes[start:end])
+		} else { // 最后一部分，包含所有剩余的字符
+			start := i * partLength
+			parts[i] = string(runes[start:])
+		}
+	}
+	// 开头
+	messageSSE := structs.InterfaceBody{
+		Content: parts[0],
+		State:   1,
+	}
+
+	SendPrivateMessageSSE(userID, messageSSE)
+
+	// 中间
+	messageSSE = structs.InterfaceBody{
+		Content: parts[1],
+		State:   11,
+	}
+	SendPrivateMessageSSE(userID, messageSSE)
+
+	// 从配置中获取恢复响应数组
+	RestoreResponses := config.GetRestoreCommand()
+
+	var selectedRestoreResponse string
+	// 如果RestoreResponses至少有一个成员，则随机选择一个
+	if len(RestoreResponses) > 0 {
+		selectedRestoreResponse = RestoreResponses[rand.Intn(len(RestoreResponses))]
+	}
+
+	// 从配置中获取promptkeyboard
+	promptkeyboard := config.GetPromptkeyboard()
+
+	// 确保promptkeyboard至少有一个成员
+	if len(promptkeyboard) > 0 {
+		// 使用随机选中的RestoreResponse替换promptkeyboard的第一个成员
+		promptkeyboard[0] = selectedRestoreResponse
+	}
+
+	// 创建InterfaceBody结构体实例
+	messageSSE = structs.InterfaceBody{
+		Content:        parts[2],       // 假设空格字符串是期望的内容
+		State:          20,             // 假设的状态码
+		PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
+	}
+
+	// 发送SSE私人消息
+	SendPrivateMessageSSE(userID, messageSSE)
+}
+
+// LanguageIntercept 检查文本语言，如果不在允许列表中，则返回 true 并发送消息
+func LanguageIntercept(text string, message structs.OnebotGroupMessage) bool {
+	info := whatlanggo.Detect(text)
+	lang := whatlanggo.LangToString(info.Lang)
+	fmtf.Printf("LanguageIntercept:%v\n", lang)
+
+	allowedLanguages := config.GetAllowedLanguages()
+	for _, allowed := range allowedLanguages {
+		if strings.Contains(allowed, lang) {
+			return false // 语言允许，不拦截
+		}
+	}
+
+	// 语言不允许，进行拦截
+	responseMessage := config.GetLanguagesResponseMessages()
+	friendlyName := FriendlyLanguageNameCN(info.Lang)
+	responseMessage = strings.Replace(responseMessage, "**", friendlyName, -1)
+
+	// 发送响应消息
+	if message.RealMessageType == "group_private" || message.MessageType == "private" {
+		if !config.GetUsePrivateSSE() {
+			SendPrivateMessage(message.UserID, responseMessage)
+		} else {
+			SendSSEPrivateMessage(message.UserID, responseMessage)
+		}
+	} else {
+		SendGroupMessage(message.GroupID, responseMessage)
+	}
+
+	return true // 拦截
+}
+
+// FriendlyLanguageNameCN 将语言代码映射为中文名称
+func FriendlyLanguageNameCN(lang whatlanggo.Lang) string {
+	langMapCN := map[whatlanggo.Lang]string{
+		whatlanggo.Eng: "英文",
+		whatlanggo.Cmn: "中文",
+		whatlanggo.Spa: "西班牙文",
+		whatlanggo.Por: "葡萄牙文",
+		whatlanggo.Rus: "俄文",
+		whatlanggo.Jpn: "日文",
+		whatlanggo.Deu: "德文",
+		whatlanggo.Kor: "韩文",
+		whatlanggo.Fra: "法文",
+		whatlanggo.Ita: "意大利文",
+		whatlanggo.Tur: "土耳其文",
+		whatlanggo.Pol: "波兰文",
+		whatlanggo.Nld: "荷兰文",
+		whatlanggo.Hin: "印地文",
+		whatlanggo.Ben: "孟加拉文",
+		whatlanggo.Vie: "越南文",
+		whatlanggo.Ukr: "乌克兰文",
+		whatlanggo.Swe: "瑞典文",
+		whatlanggo.Fin: "芬兰文",
+		whatlanggo.Dan: "丹麦文",
+		whatlanggo.Heb: "希伯来文",
+		whatlanggo.Tha: "泰文",
+		// 根据需要添加更多语言
+	}
+
+	// 获取中文的语言名称，如果没有找到，则返回"未知语言"
+	name, ok := langMapCN[lang]
+	if !ok {
+		return "未知语言"
+	}
+	return name
+}
+
+// LengthIntercept 检查文本长度，如果超过最大长度，则返回 true 并发送消息
+func LengthIntercept(text string, message structs.OnebotGroupMessage) bool {
+	maxLen := config.GetQuestionMaxLenth()
+	if len(text) > maxLen {
+		// 长度超出限制，获取并发送响应消息
+		responseMessage := config.GetQmlResponseMessages()
+
+		// 根据消息类型发送响应
+		if message.RealMessageType == "group_private" || message.MessageType == "private" {
+			if !config.GetUsePrivateSSE() {
+				SendPrivateMessage(message.UserID, responseMessage)
+			} else {
+				SendSSEPrivateMessage(message.UserID, responseMessage)
+			}
+		} else {
+			SendGroupMessage(message.GroupID, responseMessage)
+		}
+
+		return true // 拦截
+	}
+	return false // 长度符合要求，不拦截
 }
