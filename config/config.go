@@ -23,7 +23,6 @@ type Config struct {
 }
 
 type Settings struct {
-<<<<<<< HEAD
 	SecretId                  string   `yaml:"secretId"`
 	SecretKey                 string   `yaml:"secretKey"`
 	Region                    string   `yaml:"region"`
@@ -86,66 +85,6 @@ type Settings struct {
 	LanguagesResponseMessages []string `yaml:"langResponseMessages"`
 	QuestionMaxLenth          int      `yaml:"questionMaxLenth"`
 	QmlResponseMessages       []string `yaml:"qmlResponseMessages"`
-=======
-	SecretId                 string   `yaml:"secretId"`
-	SecretKey                string   `yaml:"secretKey"`
-	Region                   string   `yaml:"region"`
-	UseSse                   bool     `yaml:"useSse"`
-	Port                     int      `yaml:"port"`
-	HttpPath                 string   `yaml:"path"`
-	SystemPrompt             []string `yaml:"systemPrompt"`
-	IPWhiteList              []string `yaml:"iPWhiteList"`
-	MaxTokensHunyuan         int      `yaml:"maxTokensHunyuan"`
-	ApiType                  int      `yaml:"apiType"`
-	WenxinAccessToken        string   `yaml:"wenxinAccessToken"`
-	WenxinApiPath            string   `yaml:"wenxinApiPath"`
-	MaxTokenWenxin           int      `yaml:"maxTokenWenxin"`
-	GptModel                 string   `yaml:"gptModel"`
-	GptApiPath               string   `yaml:"gptApiPath"`
-	GptToken                 string   `yaml:"gptToken"`
-	MaxTokenGpt              int      `yaml:"maxTokenGpt"`
-	GptSafeMode              bool     `yaml:"gptSafeMode"`
-	GptSseType               int      `yaml:"gptSseType"`
-	Groupmessage             bool     `yaml:"groupMessage"`
-	SplitByPuntuations       int      `yaml:"splitByPuntuations"`
-	HunyuanType              int      `yaml:"hunyuanType"`
-	FirstQ                   []string `yaml:"firstQ"`
-	FirstA                   []string `yaml:"firstA"`
-	SecondQ                  []string `yaml:"secondQ"`
-	SecondA                  []string `yaml:"secondA"`
-	ThirdQ                   []string `yaml:"thirdQ"`
-	ThirdA                   []string `yaml:"thirdA"`
-	SensitiveMode            bool     `yaml:"sensitiveMode"`
-	SensitiveModeType        int      `yaml:"sensitiveModeType"`
-	DefaultChangeWord        string   `yaml:"defaultChangeWord"`
-	AntiPromptAttackPath     string   `yaml:"antiPromptAttackPath"`
-	ReverseUserPrompt        bool     `yaml:"reverseUserPrompt"`
-	IgnoreExtraTips          bool     `yaml:"ignoreExtraTips"`
-	SaveResponses            []string `yaml:"saveResponses"`
-	RestoreCommand           []string `yaml:"restoreCommand"`
-	RestoreResponses         []string `yaml:"restoreResponses"`
-	UsePrivateSSE            bool     `yaml:"usePrivateSSE"`
-	Promptkeyboard           []string `yaml:"promptkeyboard"`
-	Savelogs                 bool     `yaml:"savelogs"`
-	AntiPromptLimit          float64  `yaml:"antiPromptLimit"`
-	UseCache                 bool     `yaml:"useCache"`
-	CacheThreshold           int      `yaml:"cacheThreshold"`
-	CacheChance              int      `yaml:"cacheChance"`
-	EmbeddingType            int      `yaml:"embeddingType"`
-	WenxinEmbeddingUrl       string   `yaml:"wenxinEmbeddingUrl"`
-	GptEmbeddingUrl          string   `yaml:"gptEmbeddingUrl"`
-	PrintHanming             bool     `yaml:"printHanming"`
-	CacheK                   float64  `yaml:"cacheK"`
-	CacheN                   int      `yaml:"cacheN"`
-	PrintVector              bool     `yaml:"printVector"`
-	VToBThreshold            float64  `yaml:"vToBThreshold"`
-	GptModeration            bool     `yaml:"gptModeration"`
-	WenxinTopp               float64  `yaml:"wenxinTopp"`
-	WnxinPenaltyScore        float64  `yaml:"wenxinPenaltyScore"`
-	WenxinMaxOutputTokens    int      `yaml:"wenxinMaxOutputTokens"`
-	VectorSensitiveFilter    bool     `yaml:"vectorSensitiveFilter"`
-	VertorSensitiveThreshold int      `yaml:"vertorSensitiveThreshold"`
->>>>>>> 4455b14139d2fdfa5a41b46127210bcb8e0a450d
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -859,7 +798,6 @@ func GetVertorSensitiveThreshold() int {
 	}
 	return 0
 }
-<<<<<<< HEAD
 
 // GetAllowedLanguages 返回允许的语言列表
 func GetAllowedLanguages() []string {
@@ -912,5 +850,3 @@ func GetQmlResponseMessages() string {
 	}
 	return "" // 如果列表为空，返回空字符串
 }
-=======
->>>>>>> 4455b14139d2fdfa5a41b46127210bcb8e0a450d
