@@ -202,7 +202,29 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			lastSelectedVectorID int // 用于存储最后选取的相似文本的ID
 		)
 
-		//如果使用向量缓存 或者使用 向量安全词
+		// 进行字数拦截
+		if config.GetQuestionMaxLenth() != 0 {
+			if utils.LengthIntercept(newmsg, message) {
+				fmtf.Printf("字数过长,可在questionMaxLenth配置项修改,Q: %v", newmsg)
+				// 发送响应
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("question too long"))
+				return
+			}
+		}
+
+		// 进行语言判断拦截
+		if len(config.GetAllowedLanguages()) > 0 {
+			if utils.LanguageIntercept(newmsg, message) {
+				fmtf.Printf("不安全!不支持的语言,可在config.yml设置允许的语言,allowedLanguages配置项,Q: %v", newmsg)
+				// 发送响应
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("language not support"))
+				return
+			}
+		}
+
+		// 如果使用向量缓存 或者使用 向量安全词
 		if config.GetUseCache() || config.GetVectorSensitiveFilter() {
 			// 计算文本向量
 			vector, err = app.CalculateTextEmbedding(newmsg)
@@ -265,7 +287,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							if !config.GetUsePrivateSSE() {
 								utils.SendPrivateMessage(message.UserID, responseText)
 							} else {
-								SendSSEPrivateMessage(message.UserID, responseText)
+								utils.SendSSEPrivateMessage(message.UserID, responseText)
 							}
 						} else {
 							utils.SendGroupMessage(message.GroupID, responseText)
@@ -310,7 +332,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						if !config.GetUsePrivateSSE() {
 							utils.SendPrivateMessage(message.UserID, saveresponse)
 						} else {
-							SendSSEPrivateSafeMessage(message.UserID, saveresponse)
+							utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse)
 						}
 					} else {
 						utils.SendGroupMessage(message.GroupID, saveresponse)
@@ -614,127 +636,4 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 			}
 		}
 	}
-}
-
-// SendSSEPrivateMessage 分割并发送消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateMessage(userID int64, content string) {
-	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?'}
-	splitProbability := config.GetSplitByPuntuations()
-
-	var parts []string
-	var currentPart strings.Builder
-
-	for _, runeValue := range content {
-		currentPart.WriteRune(runeValue)
-		if strings.ContainsRune(string(punctuations), runeValue) {
-			// 根据概率决定是否分割
-			if rand.Intn(100) < splitProbability {
-				parts = append(parts, currentPart.String())
-				currentPart.Reset()
-			}
-		}
-	}
-	// 添加最后一部分（如果有的话）
-	if currentPart.Len() > 0 {
-		parts = append(parts, currentPart.String())
-	}
-
-	// 根据parts长度处理状态
-	for i, part := range parts {
-		state := 1
-		if i == len(parts)-2 { // 倒数第二部分
-			state = 11
-		} else if i == len(parts)-1 { // 最后一部分
-			state = 20
-		}
-
-		// 构造消息体并发送
-		messageSSE := structs.InterfaceBody{
-			Content: part,
-			State:   state,
-		}
-
-		if state == 20 { // 对最后一部分特殊处理
-			RestoreResponses := config.GetRestoreCommand()
-			promptKeyboard := config.GetPromptkeyboard()
-
-			if len(RestoreResponses) > 0 {
-				selectedRestoreResponse := RestoreResponses[rand.Intn(len(RestoreResponses))]
-				if len(promptKeyboard) > 0 {
-					promptKeyboard[0] = selectedRestoreResponse
-				}
-			}
-
-			messageSSE.PromptKeyboard = promptKeyboard
-		}
-
-		// 发送SSE消息函数
-		utils.SendPrivateMessageSSE(userID, messageSSE)
-	}
-}
-
-// SendSSEPrivateSafeMessage 分割并发送安全消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
-	// 将字符串转换为rune切片，以正确处理多字节字符
-	runes := []rune(saveresponse)
-
-	// 计算每部分应该包含的rune数量
-	partLength := len(runes) / 3
-
-	// 初始化用于存储分割结果的切片
-	parts := make([]string, 3)
-
-	// 按字符分割字符串
-	for i := 0; i < 3; i++ {
-		if i < 2 { // 前两部分
-			start := i * partLength
-			end := start + partLength
-			parts[i] = string(runes[start:end])
-		} else { // 最后一部分，包含所有剩余的字符
-			start := i * partLength
-			parts[i] = string(runes[start:])
-		}
-	}
-	// 开头
-	messageSSE := structs.InterfaceBody{
-		Content: parts[0],
-		State:   1,
-	}
-
-	utils.SendPrivateMessageSSE(userID, messageSSE)
-
-	// 中间
-	messageSSE = structs.InterfaceBody{
-		Content: parts[1],
-		State:   11,
-	}
-	utils.SendPrivateMessageSSE(userID, messageSSE)
-
-	// 从配置中获取恢复响应数组
-	RestoreResponses := config.GetRestoreCommand()
-
-	var selectedRestoreResponse string
-	// 如果RestoreResponses至少有一个成员，则随机选择一个
-	if len(RestoreResponses) > 0 {
-		selectedRestoreResponse = RestoreResponses[rand.Intn(len(RestoreResponses))]
-	}
-
-	// 从配置中获取promptkeyboard
-	promptkeyboard := config.GetPromptkeyboard()
-
-	// 确保promptkeyboard至少有一个成员
-	if len(promptkeyboard) > 0 {
-		// 使用随机选中的RestoreResponse替换promptkeyboard的第一个成员
-		promptkeyboard[0] = selectedRestoreResponse
-	}
-
-	// 创建InterfaceBody结构体实例
-	messageSSE = structs.InterfaceBody{
-		Content:        parts[2],       // 假设空格字符串是期望的内容
-		State:          20,             // 假设的状态码
-		PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
-	}
-
-	// 发送SSE私人消息
-	utils.SendPrivateMessageSSE(userID, messageSSE)
 }
