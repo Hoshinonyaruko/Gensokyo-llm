@@ -34,10 +34,11 @@ settings:
   promptkeyboard : [""]                         #临时的promptkeyboard超过3个则随机,后期会增加一个ai生成的方式,也会是ai-agent
   savelogs : false                              #本地落地日志.
   #语言过滤
-  allowedLanguages : ["Cmn"]                    #根据自身安全实力,酌情过滤,cmn代表中文,小写字母,[]空数组代表不限制.
+  allowedLanguages : ["cmn"]                    #根据自身安全实力,酌情过滤,cmn代表中文,小写字母,[]空数组代表不限制.
   langResponseMessages : ["抱歉，我不会**这个语言呢","我不会**这门语言,请使用中文和我对话吧"]   #定型文,**会自动替换为检测到的语言
   questionMaxLenth : 100                        #最大问题字数. 0代表不限制
   qmlResponseMessages : ["问题太长了,缩短问题试试吧"]  #最大问题长度回复.
+  blacklistResponseMessages : ["目前正在维护中...请稍候再试吧"]   #黑名单回复,将userid丢入blacklist.txt 一行一个
 
   #向量缓存(省钱-酌情调整参数)(进阶!!)需要有一定的调试能力,数据库调优能力,计算和数据测试能力.
   #不同种类的向量,维度和模型不同,所以请一开始决定好使用的向量,或者自行将数据库备份\对应,不同种类向量没有互相检索的能力。

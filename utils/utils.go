@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/abadojack/whatlanggo"
 	"github.com/google/uuid"
@@ -303,8 +304,12 @@ func PostSensitiveMessages() error {
 		results = append(results, string(responseBody))
 	}
 
-	// 将HTTP响应结果保存到test_result.txt文件中
-	return os.WriteFile("test_result.txt", []byte(strings.Join(results, "\n")), 0644)
+	// 使用当前时间戳生成文件名
+	currentTime := time.Now()
+	fileName := "test_result_" + currentTime.Format("20060102_150405") + ".txt"
+
+	// 将HTTP响应结果保存到指定的文件中
+	return os.WriteFile(fileName, []byte(strings.Join(results, "\n")), 0644)
 }
 
 // SendSSEPrivateMessage 分割并发送消息的核心逻辑，直接遍历字符串
@@ -418,6 +423,58 @@ func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
 		// 使用随机选中的RestoreResponse替换promptkeyboard的第一个成员
 		promptkeyboard[0] = selectedRestoreResponse
 	}
+
+	// 创建InterfaceBody结构体实例
+	messageSSE = structs.InterfaceBody{
+		Content:        parts[2],       // 假设空格字符串是期望的内容
+		State:          20,             // 假设的状态码
+		PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
+	}
+
+	// 发送SSE私人消息
+	SendPrivateMessageSSE(userID, messageSSE)
+}
+
+// SendSSEPrivateRestoreMessage 分割并发送重置消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
+	// 将字符串转换为rune切片，以正确处理多字节字符
+	runes := []rune(RestoreResponse)
+
+	// 计算每部分应该包含的rune数量
+	partLength := len(runes) / 3
+
+	// 初始化用于存储分割结果的切片
+	parts := make([]string, 3)
+
+	// 按字符分割字符串
+	for i := 0; i < 3; i++ {
+		if i < 2 { // 前两部分
+			start := i * partLength
+			end := start + partLength
+			parts[i] = string(runes[start:end])
+		} else { // 最后一部分，包含所有剩余的字符
+			start := i * partLength
+			parts[i] = string(runes[start:])
+		}
+	}
+
+	// 开头
+	messageSSE := structs.InterfaceBody{
+		Content: parts[0],
+		State:   1,
+	}
+
+	SendPrivateMessageSSE(userID, messageSSE)
+
+	//中间
+	messageSSE = structs.InterfaceBody{
+		Content: parts[1],
+		State:   11,
+	}
+	SendPrivateMessageSSE(userID, messageSSE)
+
+	// 从配置中获取promptkeyboard
+	promptkeyboard := config.GetPromptkeyboard()
 
 	// 创建InterfaceBody结构体实例
 	messageSSE = structs.InterfaceBody{
