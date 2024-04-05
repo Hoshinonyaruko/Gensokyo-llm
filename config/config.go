@@ -85,6 +85,7 @@ type Settings struct {
 	LanguagesResponseMessages []string `yaml:"langResponseMessages"`
 	QuestionMaxLenth          int      `yaml:"questionMaxLenth"`
 	QmlResponseMessages       []string `yaml:"qmlResponseMessages"`
+	BlacklistResponseMessages []string `yaml:"blacklistResponseMessages"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -847,6 +848,22 @@ func GetQmlResponseMessages() string {
 		// 如果有多个消息，随机选择一个返回
 		index := rand.Intn(len(instance.Settings.QmlResponseMessages))
 		return instance.Settings.QmlResponseMessages[index]
+	}
+	return "" // 如果列表为空，返回空字符串
+}
+
+// BlacklistResponseMessages 返回语言拦截响应消息列表
+func GetBlacklistResponseMessages() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil && len(instance.Settings.BlacklistResponseMessages) > 0 {
+		// 如果列表中只有一个消息，直接返回这个消息
+		if len(instance.Settings.BlacklistResponseMessages) == 1 {
+			return instance.Settings.BlacklistResponseMessages[0]
+		}
+		// 如果有多个消息，随机选择一个返回
+		index := rand.Intn(len(instance.Settings.BlacklistResponseMessages))
+		return instance.Settings.BlacklistResponseMessages[index]
 	}
 	return "" // 如果列表为空，返回空字符串
 }
