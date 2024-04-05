@@ -1,5 +1,5 @@
 # specific
-config.yml
+*.yml
 *.sqlite
 *.txt
 

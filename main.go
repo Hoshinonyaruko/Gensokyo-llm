@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3" // 只导入，作为驱动
 
@@ -19,25 +20,41 @@ import (
 )
 
 func main() {
-	testFlag := flag.Bool("test", false, "Run the test script,test.txt中的是虚拟信息,一行一条")
+	testFlag := flag.Bool("test", false, "Run the test script, test.txt中的是虚拟信息,一行一条")
+	ymlPath := flag.String("yml", "", "指定config.yml的路径")
 	flag.Parse()
 
-	if _, err := os.Stat("config.yml"); os.IsNotExist(err) {
+	// 如果用户指定了-yml参数
+	configFilePath := "config.yml" // 默认配置文件路径
+	if *ymlPath != "" {
+		configFilePath = *ymlPath
+	}
 
-		// 将修改后的配置写入 config.yml
-		err = os.WriteFile("config.yml", []byte(template.ConfigTemplate), 0644)
-		if err != nil {
-			fmtf.Println("Error writing config.yml:", err)
+	// 检查配置文件是否存在
+	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+		if *ymlPath == "" {
+			// 用户没有指定-yml参数，按照默认行为处理
+			err = os.WriteFile(configFilePath, []byte(template.ConfigTemplate), 0644)
+			if err != nil {
+				fmtf.Println("Error writing config.yml:", err)
+				return
+			}
+			fmtf.Println("请配置config.yml然后再次运行.")
+			fmtf.Print("按下 Enter 继续...")
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+			os.Exit(0)
+		} else {
+			// 用户指定了-yml参数，但指定的文件不存在
+			fmtf.Println("指定的配置文件不存在:", *ymlPath)
 			return
 		}
-
-		fmtf.Println("请配置config.yml然后再次运行.")
-		fmtf.Print("按下 Enter 继续...")
-		bufio.NewReader(os.Stdin).ReadBytes('\n')
-		os.Exit(0)
+	} else {
+		if *ymlPath != "" {
+			fmtf.Println("载入成功:", *ymlPath)
+		}
 	}
 	// 加载配置
-	conf, err := config.LoadConfig("config.yml")
+	conf, err := config.LoadConfig(configFilePath)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -124,6 +141,21 @@ func main() {
 		// 如果是其他值，可以选择一个默认的处理器或者记录一个错误
 		log.Printf("Unknown API type: %d", apiType)
 	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
+	}
+	exeDir := filepath.Dir(exePath)
+	blacklistPath := filepath.Join(exeDir, "blacklist.txt")
+
+	// 载入黑名单
+	if err := utils.LoadBlacklist(blacklistPath); err != nil {
+		log.Fatalf("Failed to load blacklist: %v", err)
+	}
+
+	// 启动黑名单文件变动监听
+	go utils.WatchBlacklist(blacklistPath)
 
 	http.HandleFunc("/gensokyo", app.GensokyoHandler)
 	port := config.GetPort()
