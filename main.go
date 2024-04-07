@@ -22,6 +22,7 @@ import (
 func main() {
 	testFlag := flag.Bool("test", false, "Run the test script, test.txt中的是虚拟信息,一行一条")
 	ymlPath := flag.String("yml", "", "指定config.yml的路径")
+	vFlag := flag.Bool("v", false, "Run ProcessSensitiveWordsV2")
 	flag.Parse()
 
 	// 如果用户指定了-yml参数
@@ -156,6 +157,15 @@ func main() {
 
 	// 启动黑名单文件变动监听
 	go utils.WatchBlacklist(blacklistPath)
+
+	// 根据-v参数决定是否运行ProcessSensitiveWordsV2
+	if *vFlag {
+		err := app.ProcessSensitiveWordsV2()
+		if err != nil {
+			fmtf.Println("Error running ProcessSensitiveWordsV2:", err)
+			return
+		}
+	}
 
 	http.HandleFunc("/gensokyo", app.GensokyoHandler)
 	port := config.GetPort()
