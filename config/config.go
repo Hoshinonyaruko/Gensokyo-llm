@@ -72,7 +72,7 @@ type Settings struct {
 	GptEmbeddingUrl           string   `yaml:"gptEmbeddingUrl"`
 	PrintHanming              bool     `yaml:"printHanming"`
 	CacheK                    float64  `yaml:"cacheK"`
-	CacheN                    int      `yaml:"cacheN"`
+	CacheN                    int64    `yaml:"cacheN"`
 	PrintVector               bool     `yaml:"printVector"`
 	VToBThreshold             float64  `yaml:"vToBThreshold"`
 	GptModeration             bool     `yaml:"gptModeration"`
@@ -86,6 +86,7 @@ type Settings struct {
 	QuestionMaxLenth          int      `yaml:"questionMaxLenth"`
 	QmlResponseMessages       []string `yaml:"qmlResponseMessages"`
 	BlacklistResponseMessages []string `yaml:"blacklistResponseMessages"`
+	NoContext                 bool     `yaml:"noContext"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -711,7 +712,7 @@ func GetCacheK() float64 {
 }
 
 // 获取CacheN
-func GetCacheN() int {
+func GetCacheN() int64 {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
@@ -866,4 +867,14 @@ func GetBlacklistResponseMessages() string {
 		return instance.Settings.BlacklistResponseMessages[index]
 	}
 	return "" // 如果列表为空，返回空字符串
+}
+
+// 获取NoContext
+func GetNoContext() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.NoContext
+	}
+	return false
 }

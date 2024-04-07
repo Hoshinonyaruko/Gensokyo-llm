@@ -183,6 +183,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 如果使用向量缓存 或者使用 向量安全词
 		if config.GetUseCache() || config.GetVectorSensitiveFilter() {
+			if config.GetPrintHanming() {
+				fmtf.Printf("计算向量的文本: %v", newmsg)
+			}
 			// 计算文本向量
 			vector, err = app.CalculateTextEmbedding(newmsg)
 			if err != nil {
@@ -194,7 +197,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 向量安全词部分,机器人大安全向量安全屏障
+		// 向量安全词部分,机器人向量安全屏障
 		if config.GetVectorSensitiveFilter() {
 			ret, retstr, err := app.InterceptSensitiveContent(vector, message)
 			if err != nil {

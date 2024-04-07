@@ -112,7 +112,7 @@ func (app *App) CalculateTextEmbeddingHunyuan(text string) ([]float64, error) {
 	}
 
 	if config.GetPrintVector() {
-		fmt.Printf("混元返回的向量:%v\n", embedding)
+		fmtf.Printf("混元返回的向量:%v\n", embedding)
 	}
 
 	return embedding, nil
@@ -229,8 +229,15 @@ func (app *App) insertVectorData(text string, vector []float64) (int64, error) {
 	norm := math.Sqrt(sum)
 	n := config.GetCacheN()
 	k := config.GetCacheK()
-	l := int(norm * k)
+	// 先进行四舍五入，然后转换为int64
+	l := int64(math.Round(norm * k))
 	groupID := l % n
+
+	if config.GetPrintHanming() {
+		fmtf.Printf("(norm*k): %v\n", norm*k)
+		fmtf.Printf("(norm*k) mod n ==== (%v) mod %v\n", l, n)
+		fmtf.Printf("groupid : %v\n", groupID)
+	}
 
 	result, err := app.DB.Exec("INSERT INTO vector_data (text, vector, norm, group_id) VALUES (?, ?, ?, ?)", text, binaryVector, norm, groupID)
 	if err != nil {
@@ -246,7 +253,7 @@ func (app *App) insertVectorData(text string, vector []float64) (int64, error) {
 }
 
 // searchSimilarText函数根据汉明距离搜索数据库中与给定向量相似的文本
-func (app *App) searchSimilarText(vector []float64, threshold int, targetGroupID int) ([]TextDistance, []int, error) {
+func (app *App) searchSimilarText(vector []float64, threshold int, targetGroupID int64) ([]TextDistance, []int, error) {
 	binaryVector := vectorToBinaryConcurrent(vector) // 二值化查询向量
 	var results []TextDistance
 	var ids []int
@@ -289,7 +296,7 @@ func (app *App) searchSimilarText(vector []float64, threshold int, targetGroupID
 	return results, sortedIds, nil
 }
 
-func calculateGroupID(vector []float64) int {
+func calculateGroupID(vector []float64) int64 {
 	var sum float64
 	for _, v := range vector {
 		sum += v * v
@@ -297,9 +304,11 @@ func calculateGroupID(vector []float64) int {
 	norm := math.Sqrt(sum)
 	k := config.GetCacheK()
 	n := config.GetCacheN()
-	l := int(norm * k)
+	// 先进行四舍五入，然后转换为int64
+	l := int64(math.Round(norm * k))
 	groupid := l % n // 通过范数计算出一个整数，并将其模n来分配到一个组
 	if config.GetPrintHanming() {
+		fmtf.Printf("(norm*k): %v\n", norm*k)
 		fmtf.Printf("(norm*k) mod n ==== (%v) mod %v\n", l, n)
 		fmtf.Printf("groupid : %v\n", groupid)
 	}
