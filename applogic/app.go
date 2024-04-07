@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
@@ -262,6 +263,10 @@ func (app *App) updateUserContext(userID int64, parentMessageID string) error {
 }
 
 func (app *App) getHistory(conversationID, parentMessageID string) ([]structs.Message, error) {
+	// 如果不开启上下文
+	if config.GetNoContext() {
+		return nil, nil
+	}
 	var history []structs.Message
 
 	// SQL 查询获取历史信息

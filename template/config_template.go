@@ -33,6 +33,7 @@ settings:
   usePrivateSSE : false                         #不知道是啥的话就不用开
   promptkeyboard : [""]                         #临时的promptkeyboard超过3个则随机,后期会增加一个ai生成的方式,也会是ai-agent
   savelogs : false                              #本地落地日志.
+  noContext : false                             #不开启上下文     
   #语言过滤
   allowedLanguages : ["cmn"]                    #根据自身安全实力,酌情过滤,cmn代表中文,小写字母,[]空数组代表不限制.
   langResponseMessages : ["抱歉，我不会**这个语言呢","我不会**这门语言,请使用中文和我对话吧"]   #定型文,**会自动替换为检测到的语言
