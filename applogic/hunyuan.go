@@ -460,11 +460,11 @@ func truncateHistoryHunYuan(history []structs.Message, prompt string) []structs.
 		i++
 	}
 
-	// 第三步：确保以user结尾，如果不是则尝试移除直到满足条件
-	if len(history) > 0 && history[len(history)-1].Role == "assistant" {
-		// 尝试找到最近的"user"消息并截断至该点
+	// 第三步：确保以assistant结尾，如果不是则尝试移除直到满足条件
+	if len(history) > 0 && history[len(history)-1].Role == "user" {
+		// 尝试找到最近的"assistant"消息并截断至该点
 		for i := len(history) - 2; i >= 0; i-- {
-			if history[i].Role == "user" {
+			if history[i].Role == "assistant" {
 				history = history[:i+1]
 				break
 			}
