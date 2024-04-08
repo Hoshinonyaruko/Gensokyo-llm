@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/abadojack/whatlanggo"
@@ -21,6 +23,23 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 )
+
+// ResponseData 是用于解析HTTP响应的结构体
+type ResponseData struct {
+	Data struct {
+		MessageID int64 `json:"message_id"`
+	} `json:"data"`
+}
+
+// MessageIDInfo 代表消息ID及其到期时间
+type MessageIDInfo struct {
+	MessageID int64     // 消息ID
+	Expires   time.Time // 到期时间
+}
+
+// UserIDMessageIDs 存储每个用户ID对应的消息ID数组及其有效期
+var UserIDMessageIDs = make(map[int64][]MessageIDInfo)
+var muUserIDMessageIDs sync.RWMutex // 用于UserIDMessageIDs的读写锁
 
 func GenerateUUID() string {
 	return uuid.New().String()
@@ -116,7 +135,7 @@ func ExtractEventDetails(eventData map[string]interface{}) (string, structs.Usag
 	return responseTextBuilder.String(), totalUsage
 }
 
-func SendGroupMessage(groupID int64, message string) error {
+func SendGroupMessage(groupID int64, userID int64, message string) error {
 	// 获取基础URL
 	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
 
@@ -130,6 +149,7 @@ func SendGroupMessage(groupID int64, message string) error {
 	// 构造请求体
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"group_id": groupID,
+		"user_id":  userID,
 		"message":  message,
 	})
 	if err != nil {
@@ -148,7 +168,24 @@ func SendGroupMessage(groupID int64, message string) error {
 		return fmtf.Errorf("received non-OK response status: %s", resp.Status)
 	}
 
-	// TODO: 处理响应体（如果需要）
+	// 读取响应体
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 解析响应体以获取message_id
+	var responseData ResponseData
+	if err := json.Unmarshal(bodyBytes, &responseData); err != nil {
+		return fmt.Errorf("failed to unmarshal response data: %w", err)
+	}
+	messageID := responseData.Data.MessageID
+
+	// 添加messageID到全局变量
+	AddMessageID(userID, messageID)
+
+	// 输出响应体，这一步是可选的
+	fmt.Println("Response Body:", string(bodyBytes))
 
 	return nil
 }
@@ -186,7 +223,24 @@ func SendPrivateMessage(UserID int64, message string) error {
 		return fmtf.Errorf("received non-OK response status: %s", resp.Status)
 	}
 
-	// TODO: 处理响应体（如果需要）
+	// 读取响应体
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 解析响应体以获取message_id
+	var responseData ResponseData
+	if err := json.Unmarshal(bodyBytes, &responseData); err != nil {
+		return fmt.Errorf("failed to unmarshal response data: %w", err)
+	}
+	messageID := responseData.Data.MessageID
+
+	// 添加messageID到全局变量
+	AddMessageID(UserID, messageID)
+
+	// 输出响应体，这一步是可选的
+	fmt.Println("Response Body:", string(bodyBytes))
 
 	return nil
 }
@@ -224,7 +278,24 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 		return fmtf.Errorf("received non-OK response status: %s", resp.Status)
 	}
 
-	// TODO: 处理响应体（如果需要）
+	// 读取响应体
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 解析响应体以获取message_id
+	var responseData ResponseData
+	if err := json.Unmarshal(bodyBytes, &responseData); err != nil {
+		return fmt.Errorf("failed to unmarshal response data: %w", err)
+	}
+	messageID := responseData.Data.MessageID
+
+	// 添加messageID到全局变量
+	AddMessageID(UserID, messageID)
+
+	// 输出响应体，这一步是可选的
+	fmt.Println("Response Body:", string(bodyBytes))
 
 	return nil
 }
@@ -513,7 +584,7 @@ func LanguageIntercept(text string, message structs.OnebotGroupMessage) bool {
 			SendSSEPrivateMessage(message.UserID, responseMessage)
 		}
 	} else {
-		SendGroupMessage(message.GroupID, responseMessage)
+		SendGroupMessage(message.GroupID, message.UserID, responseMessage)
 	}
 
 	return true // 拦截
@@ -570,10 +641,121 @@ func LengthIntercept(text string, message structs.OnebotGroupMessage) bool {
 				SendSSEPrivateMessage(message.UserID, responseMessage)
 			}
 		} else {
-			SendGroupMessage(message.GroupID, responseMessage)
+			SendGroupMessage(message.GroupID, message.UserID, responseMessage)
 		}
 
 		return true // 拦截
 	}
 	return false // 长度符合要求，不拦截
+}
+
+// AddMessageID 为指定user_id添加新的消息ID
+func AddMessageID(userID int64, messageID int64) {
+	muUserIDMessageIDs.Lock()
+	defer muUserIDMessageIDs.Unlock()
+
+	// 消息ID的有效期是120秒
+	expiration := time.Now().Add(120 * time.Second)
+	messageInfo := MessageIDInfo{MessageID: messageID, Expires: expiration}
+
+	// 清理已过期的消息ID
+	cleanExpiredMessageIDs(userID)
+
+	// 添加新的消息ID
+	UserIDMessageIDs[userID] = append(UserIDMessageIDs[userID], messageInfo)
+}
+
+// cleanExpiredMessageIDs 清理指定user_id的已过期消息ID
+func cleanExpiredMessageIDs(userID int64) {
+	validMessageIDs := []MessageIDInfo{}
+	for _, messageInfo := range UserIDMessageIDs[userID] {
+		if messageInfo.Expires.After(time.Now()) {
+			validMessageIDs = append(validMessageIDs, messageInfo)
+		}
+	}
+	UserIDMessageIDs[userID] = validMessageIDs
+}
+
+// GetLatestValidMessageID 获取指定user_id当前有效的最新消息ID
+func GetLatestValidMessageID(userID int64) (int64, bool) {
+	muUserIDMessageIDs.RLock()
+	defer muUserIDMessageIDs.RUnlock()
+
+	// 确保已过期的消息ID被清理
+	cleanExpiredMessageIDs(userID)
+
+	// 获取最新的消息ID
+	if len(UserIDMessageIDs[userID]) > 0 {
+		latestMessageInfo := UserIDMessageIDs[userID][len(UserIDMessageIDs[userID])-1]
+		return latestMessageInfo.MessageID, true
+	}
+	return 0, false
+}
+
+// sendDeleteRequest 发送删除消息的请求，并输出响应内容
+func sendDeleteRequest(url string, requestBody []byte) error {
+	// 发送POST请求
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmt.Errorf("failed to send POST request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("received non-OK response status: %s", resp.Status)
+	}
+
+	// 读取响应体
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 将响应体转换为字符串，并输出
+	bodyString := string(bodyBytes)
+	fmt.Println("Response Body:", bodyString)
+
+	return nil
+}
+
+func DeleteLatestMessage(messageType string, id int64, userid int64) error {
+	// 获取基础URL
+	baseURL := config.GetHttpPath() // 假设config.GetHttpPath()返回基础URL
+
+	// 构建完整的URL
+	url := baseURL + "/delete_msg"
+
+	// 获取最新的有效消息ID
+	messageID, valid := GetLatestValidMessageID(userid)
+	if !valid {
+		return fmt.Errorf("no valid message ID found for user/group/guild ID: %d", id)
+	}
+
+	// 构造请求体
+	requestBody := make(map[string]interface{})
+	requestBody["message_id"] = strconv.FormatInt(messageID, 10)
+
+	// 根据type填充相应的ID字段
+	switch messageType {
+	case "group_private":
+		requestBody["user_id"] = id
+	case "group":
+		requestBody["group_id"] = id
+	case "guild":
+		requestBody["channel_id"] = id
+	case "guild_private":
+		requestBody["guild_id"] = id
+	default:
+		return fmt.Errorf("unsupported message type: %s", messageType)
+	}
+
+	requestBodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	fmtf.Printf("发送撤回请求:%v", string(requestBodyBytes))
+
+	// 发送删除消息请求
+	return sendDeleteRequest(url, requestBodyBytes)
 }
