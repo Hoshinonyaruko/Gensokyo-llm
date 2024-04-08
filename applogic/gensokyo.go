@@ -339,6 +339,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Error handling user context"))
 			return
 		}
+
 		// 构建并发送请求到conversation接口
 		port := config.GetPort()
 		portStr := fmtf.Sprintf(":%d", port)
@@ -346,6 +347,11 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 请求模型还是使用原文请求
 		requestmsg := message.Message.(string)
+
+		if config.GetPrintHanming() {
+			fmtf.Printf("消息进入替换前:%v", requestmsg)
+		}
+
 		// 替换in替换词规则
 		if config.GetSensitiveMode() {
 			requestmsg = acnode.CheckWordIN(requestmsg)
@@ -359,6 +365,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			"parentMessageId": parentMessageID,
 			"user_id":         message.UserID,
 		})
+
 		if err != nil {
 			fmtf.Printf("Error marshalling request: %v\n", err)
 			return
@@ -421,7 +428,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											//最后一条了
 											messageSSE := structs.InterfaceBody{
-												Content: newPart,
+												Content: newPart + "\n",
 												State:   11,
 											}
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
@@ -442,7 +449,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											//最后一条了
 											messageSSE := structs.InterfaceBody{
-												Content: response,
+												Content: response + "\n",
 												State:   11,
 											}
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
@@ -484,7 +491,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						promptkeyboard := config.GetPromptkeyboard()
 						//最后一条了
 						messageSSE := structs.InterfaceBody{
-							Content:        " ",
+							Content:        " " + "\n",
 							State:          20,
 							PromptKeyboard: promptkeyboard,
 						}
@@ -595,7 +602,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 							//CallbackData := GetStringById(lastMessageID)
 							uerid := strconv.FormatInt(msg.UserID, 10)
 							messageSSE := structs.InterfaceBody{
-								Content:      accumulatedMessage,
+								Content:      accumulatedMessage + "\n",
 								State:        1,
 								ActionButton: 10,
 								CallbackData: uerid,
@@ -604,7 +611,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 						} else {
 							//SSE的前半部分
 							messageSSE := structs.InterfaceBody{
-								Content: accumulatedMessage,
+								Content: accumulatedMessage + "\n",
 								State:   1,
 							}
 							utils.SendPrivateMessageSSE(msg.UserID, messageSSE)

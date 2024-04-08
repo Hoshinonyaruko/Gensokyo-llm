@@ -2,6 +2,7 @@
 *.yml
 *.sqlite
 *.txt
+*.7z
 
 # Go specific
 *.exe

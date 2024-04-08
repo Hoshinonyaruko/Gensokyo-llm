@@ -251,10 +251,19 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 
 	// 构建完整的URL
 	url := baseURL + "/send_private_msg_sse"
+	// 调试用的
+	if config.GetPrintHanming() {
+		fmtf.Printf("流式信息替换前:%v", message.Content)
+	}
 
 	// 检查是否需要启用敏感词过滤
 	if config.GetSensitiveModeType() == 1 && message.Content != "" {
 		message.Content = acnode.CheckWordOUT(message.Content)
+	}
+
+	// 调试用的
+	if config.GetPrintHanming() {
+		fmtf.Printf("流式信息替换后:%v", message.Content)
 	}
 
 	// 构造请求体，包括InterfaceBody
@@ -433,6 +442,7 @@ func SendSSEPrivateMessage(userID int64, content string) {
 			}
 
 			messageSSE.PromptKeyboard = promptKeyboard
+			messageSSE.Content = messageSSE.Content + "\n"
 		}
 
 		// 发送SSE消息函数
@@ -497,9 +507,9 @@ func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
 
 	// 创建InterfaceBody结构体实例
 	messageSSE = structs.InterfaceBody{
-		Content:        parts[2],       // 假设空格字符串是期望的内容
-		State:          20,             // 假设的状态码
-		PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
+		Content:        parts[2] + "\n", // 假设空格字符串是期望的内容
+		State:          20,              // 假设的状态码
+		PromptKeyboard: promptkeyboard,  // 使用更新后的promptkeyboard
 	}
 
 	// 发送SSE私人消息
@@ -549,9 +559,9 @@ func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
 
 	// 创建InterfaceBody结构体实例
 	messageSSE = structs.InterfaceBody{
-		Content:        parts[2],       // 假设空格字符串是期望的内容
-		State:          20,             // 假设的状态码
-		PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
+		Content:        parts[2] + "\n", // 假设空格字符串是期望的内容
+		State:          20,              // 假设的状态码
+		PromptKeyboard: promptkeyboard,  // 使用更新后的promptkeyboard
 	}
 
 	// 发送SSE私人消息
