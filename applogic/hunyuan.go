@@ -433,19 +433,17 @@ func truncateHistoryHunYuan(history []structs.Message, prompt string) []structs.
 		tokenCount += len(msg.Text)
 	}
 
-	if tokenCount <= MAX_TOKENS {
-		return history
-	}
-
-	// 第一步：逐个移除消息直到满足令牌数量限制，同时保证成对的消息交替出现
-	for tokenCount > MAX_TOKENS && len(history) > 0 {
-		tokenCount -= len(history[0].Text)
-		history = history[1:]
-
-		// 确保移除后，历史记录仍然以user消息结尾
-		if len(history) > 0 && history[0].Role == "assistant" {
+	if tokenCount >= MAX_TOKENS {
+		// 第一步：逐个移除消息直到满足令牌数量限制，同时保证成对的消息交替出现
+		for tokenCount > MAX_TOKENS && len(history) > 0 {
 			tokenCount -= len(history[0].Text)
 			history = history[1:]
+
+			// 确保移除后，历史记录仍然以user消息结尾
+			if len(history) > 0 && history[0].Role == "assistant" {
+				tokenCount -= len(history[0].Text)
+				history = history[1:]
+			}
 		}
 	}
 
