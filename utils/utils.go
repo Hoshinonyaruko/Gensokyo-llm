@@ -251,10 +251,19 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 
 	// 构建完整的URL
 	url := baseURL + "/send_private_msg_sse"
+	// 调试用的
+	if config.GetPrintHanming() {
+		fmtf.Printf("流式信息替换前:%v", message.Content)
+	}
 
 	// 检查是否需要启用敏感词过滤
 	if config.GetSensitiveModeType() == 1 && message.Content != "" {
 		message.Content = acnode.CheckWordOUT(message.Content)
+	}
+
+	// 调试用的
+	if config.GetPrintHanming() {
+		fmtf.Printf("流式信息替换后:%v", message.Content)
 	}
 
 	// 构造请求体，包括InterfaceBody
@@ -433,6 +442,7 @@ func SendSSEPrivateMessage(userID int64, content string) {
 			}
 
 			messageSSE.PromptKeyboard = promptKeyboard
+			messageSSE.Content = messageSSE.Content + "\n"
 		}
 
 		// 发送SSE消息函数
@@ -497,9 +507,61 @@ func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
 
 	// 创建InterfaceBody结构体实例
 	messageSSE = structs.InterfaceBody{
-		Content:        parts[2],       // 假设空格字符串是期望的内容
-		State:          20,             // 假设的状态码
-		PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
+		Content:        parts[2] + "\n", // 假设空格字符串是期望的内容
+		State:          20,              // 假设的状态码
+		PromptKeyboard: promptkeyboard,  // 使用更新后的promptkeyboard
+	}
+
+	// 发送SSE私人消息
+	SendPrivateMessageSSE(userID, messageSSE)
+}
+
+// SendSSEPrivateRestoreMessage 分割并发送重置消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
+	// 将字符串转换为rune切片，以正确处理多字节字符
+	runes := []rune(RestoreResponse)
+
+	// 计算每部分应该包含的rune数量
+	partLength := len(runes) / 3
+
+	// 初始化用于存储分割结果的切片
+	parts := make([]string, 3)
+
+	// 按字符分割字符串
+	for i := 0; i < 3; i++ {
+		if i < 2 { // 前两部分
+			start := i * partLength
+			end := start + partLength
+			parts[i] = string(runes[start:end])
+		} else { // 最后一部分，包含所有剩余的字符
+			start := i * partLength
+			parts[i] = string(runes[start:])
+		}
+	}
+
+	// 开头
+	messageSSE := structs.InterfaceBody{
+		Content: parts[0],
+		State:   1,
+	}
+
+	SendPrivateMessageSSE(userID, messageSSE)
+
+	//中间
+	messageSSE = structs.InterfaceBody{
+		Content: parts[1],
+		State:   11,
+	}
+	SendPrivateMessageSSE(userID, messageSSE)
+
+	// 从配置中获取promptkeyboard
+	promptkeyboard := config.GetPromptkeyboard()
+
+	// 创建InterfaceBody结构体实例
+	messageSSE = structs.InterfaceBody{
+		Content:        parts[2] + "\n", // 假设空格字符串是期望的内容
+		State:          20,              // 假设的状态码
+		PromptKeyboard: promptkeyboard,  // 使用更新后的promptkeyboard
 	}
 
 	// 发送SSE私人消息
