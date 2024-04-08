@@ -602,7 +602,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 							//CallbackData := GetStringById(lastMessageID)
 							uerid := strconv.FormatInt(msg.UserID, 10)
 							messageSSE := structs.InterfaceBody{
-								Content:      accumulatedMessage,
+								Content:      accumulatedMessage + "\n",
 								State:        1,
 								ActionButton: 10,
 								CallbackData: uerid,
@@ -611,7 +611,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 						} else {
 							//SSE的前半部分
 							messageSSE := structs.InterfaceBody{
-								Content: accumulatedMessage,
+								Content: accumulatedMessage + "\n",
 								State:   1,
 							}
 							utils.SendPrivateMessageSSE(msg.UserID, messageSSE)
