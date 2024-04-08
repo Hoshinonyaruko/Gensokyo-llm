@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
@@ -142,8 +143,25 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 					utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse)
 				}
 			} else {
-				utils.SendGroupMessage(message.GroupID, RestoreResponse)
+				utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse)
 			}
+			return
+		}
+
+		withdrawCommand := config.GetWithdrawCommand()
+
+		// 检查checkResetCommand是否在WithdrawCommand列表中
+		iswithdrawCommand := false
+		for _, command := range withdrawCommand {
+			if checkResetCommand == command {
+				iswithdrawCommand = true
+				break
+			}
+		}
+
+		// 处理撤回信息
+		if iswithdrawCommand {
+			handleWithdrawMessage(message)
 			return
 		}
 
@@ -254,7 +272,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								utils.SendSSEPrivateMessage(message.UserID, responseText)
 							}
 						} else {
-							utils.SendGroupMessage(message.GroupID, responseText)
+							utils.SendGroupMessage(message.GroupID, message.UserID, responseText)
 						}
 						// 发送响应
 						w.WriteHeader(http.StatusOK)
@@ -299,7 +317,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse)
 						}
 					} else {
-						utils.SendGroupMessage(message.GroupID, saveresponse)
+						utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse)
 					}
 				}
 				// 发送响应
@@ -409,7 +427,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 										}
 									} else {
-										utils.SendGroupMessage(message.GroupID, newPart)
+										utils.SendGroupMessage(message.GroupID, message.UserID, newPart)
 									}
 								}
 
@@ -430,7 +448,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 										}
 									} else {
-										utils.SendGroupMessage(message.GroupID, response)
+										utils.SendGroupMessage(message.GroupID, message.UserID, response)
 									}
 								}
 							}
@@ -498,7 +516,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if message.RealMessageType == "group_private" || message.MessageType == "private" {
 					utils.SendPrivateMessage(message.UserID, response)
 				} else {
-					utils.SendGroupMessage(message.GroupID, response)
+					utils.SendGroupMessage(message.GroupID, message.UserID, response)
 				}
 			}
 
@@ -593,11 +611,35 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 						}
 					}
 				} else {
-					utils.SendGroupMessage(msg.GroupID, accumulatedMessage)
+					utils.SendGroupMessage(msg.GroupID, msg.UserID, accumulatedMessage)
 				}
 
 				messageBuilder.Reset() // 重置消息构建器
 			}
 		}
+	}
+}
+
+// 处理撤回信息的函数
+func handleWithdrawMessage(message structs.OnebotGroupMessage) {
+	fmt.Println("处理撤回操作")
+	var id int64
+
+	// 根据消息类型决定使用哪个ID
+	switch message.RealMessageType {
+	case "group_private", "guild_private":
+		id = message.UserID
+	case "group", "guild":
+		id = message.GroupID
+	default:
+		fmt.Println("Unsupported message type for withdrawal:", message.RealMessageType)
+		return
+	}
+
+	// 调用DeleteLatestMessage函数
+	err := utils.DeleteLatestMessage(message.RealMessageType, id, message.UserID)
+	if err != nil {
+		fmt.Println("Error deleting latest message:", err)
+		return
 	}
 }

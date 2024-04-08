@@ -107,7 +107,7 @@ func BlacklistIntercept(message structs.OnebotGroupMessage) bool {
 				SendSSEPrivateMessage(message.UserID, responseMessage)
 			}
 		} else {
-			SendGroupMessage(message.GroupID, responseMessage)
+			SendGroupMessage(message.GroupID, message.UserID, responseMessage)
 		}
 
 		fmt.Printf("userid:[%v]这位用户在黑名单中,被拦截\n", message.UserID)

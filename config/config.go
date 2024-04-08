@@ -87,6 +87,7 @@ type Settings struct {
 	QmlResponseMessages       []string `yaml:"qmlResponseMessages"`
 	BlacklistResponseMessages []string `yaml:"blacklistResponseMessages"`
 	NoContext                 bool     `yaml:"noContext"`
+	WithdrawCommand           []string `yaml:"withdrawCommand"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -877,4 +878,14 @@ func GetNoContext() bool {
 		return instance.Settings.NoContext
 	}
 	return false
+}
+
+// 获取WithdrawCommand
+func GetWithdrawCommand() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.WithdrawCommand
+	}
+	return nil
 }
