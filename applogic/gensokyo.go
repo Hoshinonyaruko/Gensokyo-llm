@@ -509,9 +509,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				fmtf.Printf("Error unmarshalling response data: %v\n", err)
 				return
 			}
-
+			var ok bool
 			// 使用提取的response内容发送消息
-			if response, ok := responseData["response"].(string); ok && response != "" {
+			if response, ok = responseData["response"].(string); ok && response != "" {
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 				if message.RealMessageType == "group_private" || message.MessageType == "private" {
 					utils.SendPrivateMessage(message.UserID, response)
