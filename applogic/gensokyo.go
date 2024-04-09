@@ -428,7 +428,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											//最后一条了
 											messageSSE := structs.InterfaceBody{
-												Content: newPart + "\n",
+												Content: newPart,
 												State:   11,
 											}
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
@@ -449,7 +449,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											//最后一条了
 											messageSSE := structs.InterfaceBody{
-												Content: response + "\n",
+												Content: response,
 												State:   11,
 											}
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
