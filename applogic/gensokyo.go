@@ -428,7 +428,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											//最后一条了
 											messageSSE := structs.InterfaceBody{
-												Content: newPart + "\n",
+												Content: newPart,
 												State:   11,
 											}
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
@@ -449,7 +449,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											//最后一条了
 											messageSSE := structs.InterfaceBody{
-												Content: response + "\n",
+												Content: response,
 												State:   11,
 											}
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
@@ -499,7 +499,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 						//最后一条了
 						messageSSE := structs.InterfaceBody{
-							Content:        " " + "\n",
+							Content:        " ",
 							State:          20,
 							PromptKeyboard: promptkeyboard,
 						}
@@ -610,7 +610,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 							//CallbackData := GetStringById(lastMessageID)
 							uerid := strconv.FormatInt(msg.UserID, 10)
 							messageSSE := structs.InterfaceBody{
-								Content:      accumulatedMessage + "\n",
+								Content:      accumulatedMessage,
 								State:        1,
 								ActionButton: 10,
 								CallbackData: uerid,
@@ -619,7 +619,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 						} else {
 							//SSE的前半部分
 							messageSSE := structs.InterfaceBody{
-								Content: accumulatedMessage + "\n",
+								Content: accumulatedMessage,
 								State:   1,
 							}
 							utils.SendPrivateMessageSSE(msg.UserID, messageSSE)
