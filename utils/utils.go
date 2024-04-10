@@ -568,6 +568,58 @@ func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
 	SendPrivateMessageSSE(userID, messageSSE)
 }
 
+// SendSSEPrivateRestoreMessage 分割并发送重置消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
+	// 将字符串转换为rune切片，以正确处理多字节字符
+	runes := []rune(RestoreResponse)
+
+	// 计算每部分应该包含的rune数量
+	partLength := len(runes) / 3
+
+	// 初始化用于存储分割结果的切片
+	parts := make([]string, 3)
+
+	// 按字符分割字符串
+	for i := 0; i < 3; i++ {
+		if i < 2 { // 前两部分
+			start := i * partLength
+			end := start + partLength
+			parts[i] = string(runes[start:end])
+		} else { // 最后一部分，包含所有剩余的字符
+			start := i * partLength
+			parts[i] = string(runes[start:])
+		}
+	}
+
+	// 开头
+	messageSSE := structs.InterfaceBody{
+		Content: parts[0],
+		State:   1,
+	}
+
+	SendPrivateMessageSSE(userID, messageSSE)
+
+	//中间
+	messageSSE = structs.InterfaceBody{
+		Content: parts[1],
+		State:   11,
+	}
+	SendPrivateMessageSSE(userID, messageSSE)
+
+	// 从配置中获取promptkeyboard
+	promptkeyboard := config.GetPromptkeyboard()
+
+	// 创建InterfaceBody结构体实例
+	messageSSE = structs.InterfaceBody{
+		Content:        parts[2],       // 假设空格字符串是期望的内容
+		State:          20,             // 假设的状态码
+		PromptKeyboard: promptkeyboard, // 使用更新后的promptkeyboard
+	}
+
+	// 发送SSE私人消息
+	SendPrivateMessageSSE(userID, messageSSE)
+}
+
 // LanguageIntercept 检查文本语言，如果不在允许列表中，则返回 true 并发送消息
 func LanguageIntercept(text string, message structs.OnebotGroupMessage) bool {
 	info := whatlanggo.Detect(text)
