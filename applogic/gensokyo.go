@@ -487,8 +487,16 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				}
 				if message.RealMessageType == "group_private" || message.MessageType == "private" {
 					if config.GetUsePrivateSSE() {
+
 						//发气泡和按钮
-						promptkeyboard := config.GetPromptkeyboard()
+						var promptkeyboard []string
+						if !config.GetUseAIPromptkeyboard() {
+							promptkeyboard = config.GetPromptkeyboard()
+						} else {
+							fmtf.Printf("ai生成气泡:%v", "Q"+newmsg+"A"+response)
+							promptkeyboard = GetPromptKeyboardAI("Q" + newmsg + "A" + response)
+						}
+
 						//最后一条了
 						messageSSE := structs.InterfaceBody{
 							Content:        " " + "\n",

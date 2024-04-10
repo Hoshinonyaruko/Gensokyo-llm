@@ -88,6 +88,11 @@ type Settings struct {
 	BlacklistResponseMessages []string `yaml:"blacklistResponseMessages"`
 	NoContext                 bool     `yaml:"noContext"`
 	WithdrawCommand           []string `yaml:"withdrawCommand"`
+	FunctionMode              bool     `yaml:"functionMode"`
+	FunctionPath              string   `yaml:"functionPath"`
+	UseFunctionPromptkeyboard bool     `yaml:"useFunctionPromptkeyboard"`
+	AIPromptkeyboardPath      string   `yaml:"AIPromptkeyboardPath"`
+	UseAIPromptkeyboard       bool     `yaml:"useAIPromptkeyboard"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -585,7 +590,6 @@ func GetUsePrivateSSE() bool {
 }
 
 // GetPromptkeyboard 获取Promptkeyboard，如果超过3个成员则随机选择3个
-
 func GetPromptkeyboard() []string {
 	mu.Lock()
 	defer mu.Unlock()
@@ -888,4 +892,54 @@ func GetWithdrawCommand() []string {
 		return instance.Settings.WithdrawCommand
 	}
 	return nil
+}
+
+// 获取FunctionMode
+func GetFunctionMode() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.FunctionMode
+	}
+	return false
+}
+
+// 获取FunctionPath
+func GetFunctionPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.FunctionPath
+	}
+	return ""
+}
+
+// 获取UseFunctionPromptkeyboard
+func GetUseFunctionPromptkeyboard() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.UseFunctionPromptkeyboard
+	}
+	return false
+}
+
+// 获取UseAIPromptkeyboard
+func GetUseAIPromptkeyboard() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.UseAIPromptkeyboard
+	}
+	return false
+}
+
+// 获取AIPromptkeyboardPath
+func GetAIPromptkeyboardPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.AIPromptkeyboardPath
+	}
+	return ""
 }
