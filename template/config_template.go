@@ -35,6 +35,17 @@ settings:
   savelogs : false                              #本地落地日志.
   noContext : false                             #不开启上下文     
   withdrawCommand : ["撤回"]                     #撤回指令
+
+  functionMode : false                          #是否指定本agent使用func模式(目前仅支持千帆平台),效果不好,暂时不用.
+  functionPath : ""                             #调用另一个启用了func模式的gsk-llm联合工作的/conversation地址,效果不好,暂时不用.
+  useFunctionPromptkeyboard : false             #使用func生成气泡,效果不好,暂时不用.
+
+  AIPromptkeyboardPath : ""                     #调用另一个设置系统提示词的gsk-llm联合工作的/conversation地址,约定系统提示词需返回文本json数组(3个).
+  useAIPromptkeyboard : false                   #使用ai生成气泡.
+  #systemPrompt: [
+  #  "你要扮演一个json生成器,根据我下一句提交的QA内容,推断我可能会继续问的问题,生成json数组格式的结果,如:输入Q我好累啊A要休息一下吗,返回[\"嗯，我想要休息\",\"我想喝杯咖啡\",\"你平时怎么休息呢\"]，返回需要是[\"\",\"\",\"\"]需要2-3个结果"
+  #]
+
   #语言过滤
   allowedLanguages : ["cmn"]                    #根据自身安全实力,酌情过滤,cmn代表中文,小写字母,[]空数组代表不限制.
   langResponseMessages : ["抱歉，我不会**这个语言呢","我不会**这门语言,请使用中文和我对话吧"]   #定型文,**会自动替换为检测到的语言

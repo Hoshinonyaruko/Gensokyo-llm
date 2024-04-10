@@ -8,6 +8,23 @@ type Message struct {
 	CreatedAt       string `json:"created_at"`
 }
 
+type WXRequestMessage struct {
+	ConversationID  string `json:"conversationId"`
+	ParentMessageID string `json:"parentMessageId"`
+	Text            string `json:"message"`
+	Role            string `json:"role"`
+	CreatedAt       string `json:"created_at"`
+}
+
+type WXRequestMessageF struct {
+	ConversationID  string     `json:"conversationId"`
+	ParentMessageID string     `json:"parentMessageId"`
+	Text            string     `json:"message"`
+	Role            string     `json:"role"`
+	CreatedAt       string     `json:"created_at"`
+	WXFunction      WXFunction `json:"functions,omitempty"`
+}
+
 type UsageInfo struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
@@ -54,6 +71,13 @@ type WXMessage struct {
 	Role    string `json:"role"`
 }
 
+// 定义请求消息的结构体
+type WXMessageF struct {
+	Content      string         `json:"content"`
+	Role         string         `json:"role"`
+	FunctionCall WXFunctionCall `json:"function_call,omitempty"`
+}
+
 // 定义请求负载的结构体
 type WXRequestPayload struct {
 	Messages        []WXMessage `json:"messages"`
@@ -65,6 +89,33 @@ type WXRequestPayload struct {
 	Stop            []string    `json:"stop,omitempty"`
 	MaxOutputTokens int         `json:"max_output_tokens,omitempty"`
 	UserID          string      `json:"user_id,omitempty"`
+}
+
+// 定义请求负载的结构体
+type WXRequestPayloadF struct {
+	Messages        []WXMessage  `json:"messages"`
+	Functions       []WXFunction `json:"functions,omitempty"`
+	Stream          bool         `json:"stream,omitempty"`
+	Temperature     float64      `json:"temperature,omitempty"`
+	TopP            float64      `json:"top_p,omitempty"`
+	PenaltyScore    float64      `json:"penalty_score,omitempty"`
+	System          string       `json:"system,omitempty"`
+	Stop            []string     `json:"stop,omitempty"`
+	MaxOutputTokens int          `json:"max_output_tokens,omitempty"`
+	UserID          string       `json:"user_id,omitempty"`
+	ResponseFormat  string       `json:"response_format,omitempty"`
+	ToolChoice      ToolChoice   `json:"tool_choice,omitempty"`
+}
+
+// Function 描述了一个可调用的函数的细节
+type Function struct {
+	Name string `json:"name"` // 函数名
+}
+
+// ToolChoice 描述了要使用的工具和具体的函数选择
+type ToolChoice struct {
+	Type     string   `json:"type"`     // 工具类型，这里固定为"function"
+	Function Function `json:"function"` // 指定要使用的函数
 }
 
 type ChatGPTMessage struct {
@@ -130,4 +181,28 @@ type EmbeddingResponseErnie struct {
 	ID     string               `json:"id"`
 	Object string               `json:"object"`
 	Data   []EmbeddingDataErnie `json:"data"`
+}
+
+// Function 描述了一个可调用的函数的结构
+type WXFunction struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
+	Responses   map[string]interface{} `json:"responses,omitempty"`
+	Examples    [][]WXExample          `json:"examples,omitempty"`
+}
+
+// Example 描述了函数调用的一个示例
+type WXExample struct {
+	Role         string          `json:"role"`
+	Content      string          `json:"content"`
+	Name         string          `json:"name,omitempty"`
+	FunctionCall *WXFunctionCall `json:"function_call,omitempty"`
+}
+
+// FunctionCall 描述了一个函数调用
+type WXFunctionCall struct {
+	Name      string                 `json:"name,omitempty"`
+	Arguments map[string]interface{} `json:"arguments,omitempty"`
+	Thought   string                 `json:"thought,omitempty"`
 }

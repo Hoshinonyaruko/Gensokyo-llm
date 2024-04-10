@@ -134,7 +134,13 @@ func main() {
 		http.HandleFunc("/conversation", app.ChatHandlerHunyuan)
 	case 1:
 		// 如果API类型是1，使用app.chatHandlerErnie
-		http.HandleFunc("/conversation", app.ChatHandlerErnie)
+		// 如果开启function模式 切换function端点
+		if !config.GetFunctionMode() {
+			http.HandleFunc("/conversation", app.ChatHandlerErnie)
+		} else {
+			http.HandleFunc("/conversation", app.ChatHandlerErnieFunction)
+		}
+
 	case 2:
 		// 如果API类型是2，使用app.chatHandlerChatGpt
 		http.HandleFunc("/conversation", app.ChatHandlerChatgpt)
