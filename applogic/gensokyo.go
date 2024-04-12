@@ -352,6 +352,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			fmtf.Printf("消息进入替换前:%v", requestmsg)
 		}
 
+		// 繁体转换简体 安全策略
+		requestmsg, err = utils.ConvertTraditionalToSimplified(requestmsg)
+		if err != nil {
+			fmtf.Printf("繁体转换简体失败:%v", err)
+		}
+
 		// 替换in替换词规则
 		if config.GetSensitiveMode() {
 			requestmsg = acnode.CheckWordIN(requestmsg)
@@ -495,6 +501,11 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						} else {
 							fmtf.Printf("ai生成气泡:%v", "Q"+newmsg+"A"+response)
 							promptkeyboard = GetPromptKeyboardAI("Q" + newmsg + "A" + response)
+						}
+
+						// 使用acnode.CheckWordOUT()过滤promptkeyboard中的每个字符串
+						for i, item := range promptkeyboard {
+							promptkeyboard[i] = acnode.CheckWordOUT(item)
 						}
 
 						//最后一条了
