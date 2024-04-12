@@ -93,6 +93,7 @@ type Settings struct {
 	UseFunctionPromptkeyboard bool     `yaml:"useFunctionPromptkeyboard"`
 	AIPromptkeyboardPath      string   `yaml:"AIPromptkeyboardPath"`
 	UseAIPromptkeyboard       bool     `yaml:"useAIPromptkeyboard"`
+	SplitByPuntuationsGroup   int      `yaml:"splitByPuntuationsGroup"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -337,6 +338,16 @@ func GetSplitByPuntuations() int {
 	defer mu.Unlock()
 	if instance != nil {
 		return instance.Settings.SplitByPuntuations
+	}
+	return 0
+}
+
+// 获取SplitByPuntuationsGroup
+func GetSplitByPuntuationsGroup() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.SplitByPuntuationsGroup
 	}
 	return 0
 }

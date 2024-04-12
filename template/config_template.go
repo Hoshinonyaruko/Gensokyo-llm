@@ -19,6 +19,7 @@ settings:
   thirdA : [""]                                 #可空
   groupMessage : true                         	#是否响应群信息
   splitByPuntuations : 40                       #截断率,仅在sse时有效,100则代表每句截断
+  splitByPuntuationsGroup : 10                  #截断率(群),仅在sse时有效,100则代表每句截断
   sensitiveMode : false                         #是否开启敏感词替换
   sensitiveModeType : 0                         #0=只过滤用户输入 1=输出也进行过滤
   defaultChangeWord : "*"                       #默认的屏蔽词替换,你可以在sensitive_words.txt的####后修改为自己需要,可以用记事本批量替换
