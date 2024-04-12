@@ -12,6 +12,12 @@ require (
 require github.com/abadojack/whatlanggo v1.0.1
 
 require (
-	github.com/fsnotify/fsnotify v1.7.0 
+	github.com/liuzl/cedar-go v0.0.0-20170805034717-80a9c64b256d // indirect
+	github.com/liuzl/da v0.0.0-20180704015230-14771aad5b1d // indirect
+	github.com/longbridgeapp/opencc v0.3.11 // indirect
+)
+
+require (
+	github.com/fsnotify/fsnotify v1.7.0
 	golang.org/x/sys v0.4.0 // indirect
 )
