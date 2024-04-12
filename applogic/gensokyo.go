@@ -593,7 +593,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 
 	for _, char := range response {
 		messageBuilder.WriteRune(char)
-		if utils.ContainsRune(punctuations, char) {
+		if utils.ContainsRune(punctuations, char, msg.GroupID) {
 			// 达到标点符号，发送累积的整个消息
 			if messageBuilder.Len() > 0 {
 				accumulatedMessage := messageBuilder.String()

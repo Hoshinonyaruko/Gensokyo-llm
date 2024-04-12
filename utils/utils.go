@@ -83,11 +83,18 @@ func GetKey(groupid int64, userid int64) string {
 }
 
 // 随机的分布发送
-func ContainsRune(slice []rune, value rune) bool {
+func ContainsRune(slice []rune, value rune, groupid int64) bool {
+	var probability int
+	if groupid == 0 {
+		// 获取概率百分比
+		probability = config.GetSplitByPuntuations()
+	} else {
+		// 获取概率百分比
+		probability = config.GetSplitByPuntuationsGroup()
+	}
+
 	for _, item := range slice {
 		if item == value {
-			// 获取概率百分比
-			probability := config.GetSplitByPuntuations()
 			// 将概率转换为0到1之间的浮点数
 			probabilityPercentage := float64(probability) / 100.0
 			// 生成一个0到1之间的随机浮点数
@@ -152,6 +159,7 @@ func SendGroupMessage(groupID int64, userID int64, message string) error {
 		"user_id":  userID,
 		"message":  message,
 	})
+	fmtf.Printf("发群信息请求:%v", string(requestBody))
 	if err != nil {
 		return fmtf.Errorf("failed to marshal request body: %w", err)
 	}
