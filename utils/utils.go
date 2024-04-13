@@ -435,7 +435,7 @@ func PostSensitiveMessages() error {
 
 // SendSSEPrivateMessage 分割并发送消息的核心逻辑，直接遍历字符串
 func SendSSEPrivateMessage(userID int64, content string) {
-	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?'}
+	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?', '~'}
 	splitProbability := config.GetSplitByPuntuations()
 
 	var parts []string
