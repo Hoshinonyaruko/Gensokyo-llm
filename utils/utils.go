@@ -274,6 +274,14 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 		fmtf.Printf("流式信息替换后:%v", message.Content)
 	}
 
+	// 去除末尾的换行符 不去除会导致sse接口始终等待
+	message.Content = removeTrailingCRLFs(message.Content)
+
+	if message.Content == "" {
+		message.Content = " "
+		fmtf.Printf("过滤空SendPrivateMessageSSE,可能是llm api只发了换行符.")
+	}
+
 	// 构造请求体，包括InterfaceBody
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"user_id": UserID,
@@ -315,6 +323,31 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 	fmt.Println("Response Body:", string(bodyBytes))
 
 	return nil
+}
+
+// removeTrailingCRLFs 移除字符串末尾的所有CRLF换行符
+func removeTrailingCRLFs(input string) string {
+	// 将字符串转换为字节切片
+	byteMessage := []byte(input)
+
+	// CRLF的字节表示
+	crlf := []byte{'\r', '\n'}
+
+	// 循环移除末尾的CRLF
+	for bytes.HasSuffix(byteMessage, crlf) {
+		byteMessage = bytes.TrimSuffix(byteMessage, crlf)
+	}
+
+	// LFLF的字节表示
+	lflf := []byte{'\n', '\n'}
+
+	// 循环移除末尾的LFLF
+	for bytes.HasSuffix(byteMessage, lflf) {
+		byteMessage = bytes.TrimSuffix(byteMessage, lflf)
+	}
+
+	// 将处理后的字节切片转换回字符串
+	return string(byteMessage)
 }
 
 // ReverseString 颠倒给定字符串中的字符顺序

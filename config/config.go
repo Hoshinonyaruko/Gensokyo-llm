@@ -94,6 +94,22 @@ type Settings struct {
 	AIPromptkeyboardPath      string   `yaml:"AIPromptkeyboardPath"`
 	UseAIPromptkeyboard       bool     `yaml:"useAIPromptkeyboard"`
 	SplitByPuntuationsGroup   int      `yaml:"splitByPuntuationsGroup"`
+	RwkvApiPath               string   `yaml:"rwkvApiPath"`
+	RwkvMaxTokens             int      `yaml:"rwkvMaxTokens"`
+	RwkvTemperature           float64  `yaml:"rwkvTemperature"`
+	RwkvTopP                  float64  `yaml:"rwkvTopP"`
+	RwkvPresencePenalty       float64  `yaml:"rwkvPresencePenalty"`
+	RwkvFrequencyPenalty      float64  `yaml:"rwkvFrequencyPenalty"`
+	RwkvPenaltyDecay          float64  `yaml:"rwkvPenaltyDecay"`
+	RwkvTopK                  int      `yaml:"rwkvTopK"`
+	RwkvGlobalPenalty         bool     `yaml:"rwkvGlobalPenalty"`
+	RwkvStream                bool     `yaml:"rwkvStream"`
+	RwkvStop                  []string `yaml:"rwkvStop"`
+	RwkvUserName              string   `yaml:"rwkvUserName"`
+	RwkvAssistantName         string   `yaml:"rwkvAssistantName"`
+	RwkvSystemName            string   `yaml:"rwkvSystemName"`
+	RwkvPreSystem             bool     `yaml:"rwkvPreSystem"`
+	RwkvSseType               int      `yaml:"rwkvSseType"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -953,4 +969,164 @@ func GetAIPromptkeyboardPath() string {
 		return instance.Settings.AIPromptkeyboardPath
 	}
 	return ""
+}
+
+// 获取RWKV API路径
+func GetRwkvApiPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvApiPath
+	}
+	return ""
+}
+
+// 获取RWKV最大令牌数
+func GetRwkvMaxTokens() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvMaxTokens
+	}
+	return 0
+}
+
+// 获取RwkvSseType
+func GetRwkvSseType() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvSseType
+	}
+	return 0
+}
+
+// 获取RWKV温度
+func GetRwkvTemperature() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvTemperature
+	}
+	return 0.0
+}
+
+// 获取RWKV Top P
+func GetRwkvTopP() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvTopP
+	}
+	return 0.0
+}
+
+// 获取RWKV存在惩罚
+func GetRwkvPresencePenalty() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvPresencePenalty
+	}
+	return 0.0
+}
+
+// 获取RWKV频率惩罚
+func GetRwkvFrequencyPenalty() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvFrequencyPenalty
+	}
+	return 0.0
+}
+
+// 获取RWKV惩罚衰减
+func GetRwkvPenaltyDecay() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvPenaltyDecay
+	}
+	return 0.0
+}
+
+// 获取RWKV Top K
+func GetRwkvTopK() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvTopK
+	}
+	return 0
+}
+
+// 获取RWKV是否全局惩罚
+func GetRwkvGlobalPenalty() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvGlobalPenalty
+	}
+	return false
+}
+
+// 获取RWKV是否流模式
+func GetRwkvStream() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvStream
+	}
+	return false
+}
+
+// 获取RWKV停止列表
+func GetRwkvStop() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvStop
+	}
+	return nil
+}
+
+// 获取RWKV用户名
+func GetRwkvUserName() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvUserName
+	}
+	return ""
+}
+
+// 获取RWKV助手名
+func GetRwkvAssistantName() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvAssistantName
+	}
+	return ""
+}
+
+// 获取RWKV系统名称
+func GetRwkvSystemName() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvSystemName
+	}
+	return ""
+}
+
+// 获取RWKV是否预处理
+func GetRwkvPreSystem() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.RwkvPreSystem
+	}
+	return false
 }
