@@ -468,8 +468,13 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							//清空之前加入缓存
 							// 缓存省钱部分
 							if config.GetUseCache() {
-								fmtf.Printf("缓存了Q:%v,A:%v,向量ID:%v", newmsg, response, lastSelectedVectorID)
-								app.InsertQAEntry(newmsg, response, lastSelectedVectorID)
+								if response != "" {
+									fmtf.Printf("缓存了Q:%v,A:%v,向量ID:%v", newmsg, response, lastSelectedVectorID)
+									app.InsertQAEntry(newmsg, response, lastSelectedVectorID)
+								} else {
+									fmtf.Printf("缓存Q:%v时遇到问题,A为空,检查api是否存在问题", newmsg)
+								}
+
 							}
 
 							// 清空映射中对应的累积消息
@@ -510,7 +515,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 						//最后一条了
 						messageSSE := structs.InterfaceBody{
-							Content:        " ",
+							Content:        " ",
 							State:          20,
 							PromptKeyboard: promptkeyboard,
 						}
@@ -592,15 +597,19 @@ func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newme
 		return
 	}
 
-	// 处理提取出的信息
-	processMessage(sseData.Response, message, newmesssage)
+	if sseData.Response != "\n\n" {
+		// 处理提取出的信息
+		processMessage(sseData.Response, message, newmesssage)
+	} else {
+		fmtf.Printf("忽略llm末尾的换行符")
+	}
 }
 
 func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage string) {
 	key := utils.GetKey(msg.GroupID, msg.UserID)
 
 	// 定义中文全角和英文标点符号
-	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?'}
+	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?', '~'}
 
 	for _, char := range response {
 		messageBuilder.WriteRune(char)
