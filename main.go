@@ -144,6 +144,9 @@ func main() {
 	case 2:
 		// 如果API类型是2，使用app.chatHandlerChatGpt
 		http.HandleFunc("/conversation", app.ChatHandlerChatgpt)
+	case 3:
+		// 如果API类型是3，使用app.chatHandlerRwkv
+		http.HandleFunc("/conversation", app.ChatHandlerRwkv)
 	default:
 		// 如果是其他值，可以选择一个默认的处理器或者记录一个错误
 		log.Printf("Unknown API type: %d", apiType)

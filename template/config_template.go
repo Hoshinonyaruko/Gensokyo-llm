@@ -96,6 +96,24 @@ settings:
   gptSafeMode : false                           #额外走腾讯云检查安全,但是会额外消耗P数(会给出回复,但可能跑偏)仅api2d支持
   gptModeration : false                         #额外走腾讯云检查安全,不合规直接拦截.(和上面一样但是会直接拦截.)仅api2d支持
   gptSseType : 0                                #gpt的sse流式有两种形式,0是只返回新的 你 好 呀 , 我 是 一 个,1是递增 你好呀，我是一个人类 你 你好 你好呀 你好呀， 你好呀，我 你好呀，我是
+
+  # RWKV 模型配置文件 仅适用于对接gensokyo-discord、gensokyo-telegram等平台,国内请遵守并符合相应的api资质要求.
+  rwkvApiPath: "https://api.example.com/rwkv"       # 符合 RWKV 标准的 API 地址 是否以流形式取决于UseSSE配置
+  rwkvMaxTokens: 1024                              # 最大的输出 Token 数量
+  rwkvTemperature: 0.7                             # 生成的随机性控制
+  rwkvTopP: 0.9                                    # 累积概率最高的令牌进行采样的界限
+  rwkvPresencePenalty: 0.0                         # 当前上下文中令牌出现的频率惩罚
+  rwkvFrequencyPenalty: 0.0                        # 全局令牌出现的频率惩罚
+  rwkvPenaltyDecay: 0.99                           # 惩罚值的衰减率
+  rwkvTopK: 25                                     # 从概率最高的K个令牌中采样
+  rwkvSseType : 0                                  # 同gptSseType
+  rwkvGlobalPenalty: false                         # 是否在全局上应用频率惩罚
+  rwkvStop:                                        # 停止生成的标记列表
+    - "\n\nUser"
+  rwkvUserName: "User"                             # 用户名称
+  rwkvAssistantName: "Assistant"                   # 助手名称
+  rwkvSystemName: "System"                         # 系统名称
+  rwkvPreSystem: false                             # 是否在系统层面进行预处理
 `
 
 const Logo = `
