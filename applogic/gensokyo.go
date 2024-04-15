@@ -363,7 +363,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			requestmsg = acnode.CheckWordIN(requestmsg)
 		}
 
-		fmtf.Printf("实际请求conversation端点内容:%v\n", requestmsg)
+		fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID, requestmsg)
 
 		requestBody, err := json.Marshal(map[string]interface{}{
 			"message":         requestmsg,
@@ -442,6 +442,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 									} else {
 										utils.SendGroupMessage(message.GroupID, message.UserID, newPart)
 									}
+								} else {
+									//流的最后一次是完整结束的
+									fmtf.Printf("A完整信息: %s(sse完整结束)\n", response)
 								}
 
 							} else if response != "" {

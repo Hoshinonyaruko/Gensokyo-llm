@@ -23,6 +23,7 @@ func main() {
 	testFlag := flag.Bool("test", false, "Run the test script, test.txt中的是虚拟信息,一行一条")
 	ymlPath := flag.String("yml", "", "指定config.yml的路径")
 	vFlag := flag.Bool("v", false, "Run ProcessSensitiveWordsV2")
+	tidyFlag := flag.Bool("tidy", false, "Run tidylog")
 	flag.Parse()
 
 	// 如果用户指定了-yml参数
@@ -174,6 +175,13 @@ func main() {
 			fmtf.Println("Error running ProcessSensitiveWordsV2:", err)
 			return
 		}
+	}
+
+	// 根据-tidy参数决定是否运行utils.Tidylogs()
+	if *tidyFlag {
+		utils.Tidylogs()
+		fmtf.Println("日志整理完毕")
+		return
 	}
 
 	http.HandleFunc("/gensokyo", app.GensokyoHandler)
