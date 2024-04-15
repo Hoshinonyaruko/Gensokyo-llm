@@ -280,6 +280,7 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 	if message.Content == "" {
 		message.Content = " "
 		fmtf.Printf("过滤空SendPrivateMessageSSE,可能是llm api只发了换行符.")
+		return nil
 	}
 
 	// 构造请求体，包括InterfaceBody
