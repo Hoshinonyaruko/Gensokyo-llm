@@ -35,7 +35,8 @@ settings:
   promptkeyboard : [""]                         #临时的promptkeyboard超过3个则随机,后期会增加一个ai生成的方式,也会是ai-agent
   savelogs : false                              #本地落地日志.
   noContext : false                             #不开启上下文     
-  withdrawCommand : ["撤回"]                     #撤回指令
+  withdrawCommand : ["撤回"]                    #撤回指令
+  hideExtraLogs : false                         #忽略流信息的log,提高性能
 
   functionMode : false                          #是否指定本agent使用func模式(目前仅支持千帆平台),效果不好,暂时不用.
   functionPath : ""                             #调用另一个启用了func模式的gsk-llm联合工作的/conversation地址,效果不好,暂时不用.

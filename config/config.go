@@ -110,6 +110,7 @@ type Settings struct {
 	RwkvSystemName            string   `yaml:"rwkvSystemName"`
 	RwkvPreSystem             bool     `yaml:"rwkvPreSystem"`
 	RwkvSseType               int      `yaml:"rwkvSseType"`
+	HideExtraLogs             bool     `yaml:"hideExtraLogs"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -1127,6 +1128,16 @@ func GetRwkvPreSystem() bool {
 	defer mu.Unlock()
 	if instance != nil {
 		return instance.Settings.RwkvPreSystem
+	}
+	return false
+}
+
+// 获取隐藏日志
+func GetHideExtraLogs() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.HideExtraLogs
 	}
 	return false
 }
