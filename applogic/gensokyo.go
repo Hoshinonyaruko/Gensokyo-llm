@@ -407,7 +407,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// 处理接收到的数据
-				fmtf.Printf("Received SSE data: %s", string(line))
+				if !config.GetHideExtraLogs() {
+					fmtf.Printf("Received SSE data: %s", string(line))
+				}
 
 				// 去除"data: "前缀后进行JSON解析
 				jsonData := strings.TrimPrefix(string(line), "data: ")
@@ -485,7 +487,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						}
 					} else {
 						//发送信息
-						fmtf.Printf("收到流数据,切割并发送信息: %s", string(line))
+						if !config.GetHideExtraLogs() {
+							fmtf.Printf("收到流数据,切割并发送信息: %s", string(line))
+						}
 						splitAndSendMessages(message, string(line), newmsg)
 					}
 				}
