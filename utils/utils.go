@@ -21,6 +21,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
+	"github.com/hoshinonyaruko/gensokyo-llm/server"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 )
 
@@ -142,7 +143,23 @@ func ExtractEventDetails(eventData map[string]interface{}) (string, structs.Usag
 	return responseTextBuilder.String(), totalUsage
 }
 
-func SendGroupMessage(groupID int64, userID int64, message string) error {
+func SendGroupMessage(groupID int64, userID int64, message string, selfid string) error {
+	//TODO: 用userid作为了echo,在ws收到回调信息的时候,加入到全局撤回数组,AddMessageID,实现撤回
+	if selfid != "" {
+		// 创建消息结构体
+		msg := map[string]interface{}{
+			"action": "send_group_msg",
+			"params": map[string]interface{}{
+				"group_id": groupID,
+				"user_id":  userID,
+				"message":  message,
+			},
+			"echo": userID,
+		}
+
+		// 发送消息
+		return server.SendMessageBySelfID(selfid, msg)
+	}
 	// 获取基础URL
 	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
 
@@ -198,7 +215,21 @@ func SendGroupMessage(groupID int64, userID int64, message string) error {
 	return nil
 }
 
-func SendPrivateMessage(UserID int64, message string) error {
+func SendPrivateMessage(UserID int64, message string, selfid string) error {
+	if selfid != "" {
+		// 创建消息结构体
+		msg := map[string]interface{}{
+			"action": "send_private_msg",
+			"params": map[string]interface{}{
+				"user_id": UserID,
+				"message": message,
+			},
+			"echo": UserID,
+		}
+
+		// 发送消息
+		return server.SendMessageBySelfID(selfid, msg)
+	}
 	// 获取基础URL
 	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
 
@@ -610,7 +641,7 @@ func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
 }
 
 // LanguageIntercept 检查文本语言，如果不在允许列表中，则返回 true 并发送消息
-func LanguageIntercept(text string, message structs.OnebotGroupMessage) bool {
+func LanguageIntercept(text string, message structs.OnebotGroupMessage, selfid string) bool {
 	info := whatlanggo.Detect(text)
 	lang := whatlanggo.LangToString(info.Lang)
 	fmtf.Printf("LanguageIntercept:%v\n", lang)
@@ -630,12 +661,12 @@ func LanguageIntercept(text string, message structs.OnebotGroupMessage) bool {
 	// 发送响应消息
 	if message.RealMessageType == "group_private" || message.MessageType == "private" {
 		if !config.GetUsePrivateSSE() {
-			SendPrivateMessage(message.UserID, responseMessage)
+			SendPrivateMessage(message.UserID, responseMessage, selfid)
 		} else {
 			SendSSEPrivateMessage(message.UserID, responseMessage)
 		}
 	} else {
-		SendGroupMessage(message.GroupID, message.UserID, responseMessage)
+		SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid)
 	}
 
 	return true // 拦截
@@ -678,7 +709,7 @@ func FriendlyLanguageNameCN(lang whatlanggo.Lang) string {
 }
 
 // LengthIntercept 检查文本长度，如果超过最大长度，则返回 true 并发送消息
-func LengthIntercept(text string, message structs.OnebotGroupMessage) bool {
+func LengthIntercept(text string, message structs.OnebotGroupMessage, selfid string) bool {
 	maxLen := config.GetQuestionMaxLenth()
 	if len(text) > maxLen {
 		// 长度超出限制，获取并发送响应消息
@@ -687,12 +718,12 @@ func LengthIntercept(text string, message structs.OnebotGroupMessage) bool {
 		// 根据消息类型发送响应
 		if message.RealMessageType == "group_private" || message.MessageType == "private" {
 			if !config.GetUsePrivateSSE() {
-				SendPrivateMessage(message.UserID, responseMessage)
+				SendPrivateMessage(message.UserID, responseMessage, selfid)
 			} else {
 				SendSSEPrivateMessage(message.UserID, responseMessage)
 			}
 		} else {
-			SendGroupMessage(message.GroupID, message.UserID, responseMessage)
+			SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid)
 		}
 
 		return true // 拦截
