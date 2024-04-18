@@ -250,7 +250,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 缓存省钱部分
-		if config.GetUseCache() {
+		if config.GetUseCache(promptstr) {
 			//fmtf.Printf("计算向量: %v", vector)
 			cacheThreshold := config.GetCacheThreshold()
 			// 搜索相似文本和对应的ID
