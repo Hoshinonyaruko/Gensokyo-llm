@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -176,14 +177,15 @@ func GetWenxinApiPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if len(options) == 0 {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
 			return instance.Settings.WenxinApiPath
 		}
 		return "0"
 	}
 
-	// 处理传入的 basename
+	// 使用传入的 basename
 	basename := options[0]
 	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "WenxinApiPath")
 	if err != nil {
@@ -215,14 +217,15 @@ func GetGptModel(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if len(options) == 0 {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
 			return instance.Settings.GptModel
 		}
 		return "0"
 	}
 
-	// 处理传入的 basename
+	// 使用传入的 basename
 	basename := options[0]
 	gptModelInterface, err := prompt.GetSettingFromFilename(basename, "GptModel")
 	if err != nil {
@@ -232,7 +235,7 @@ func GetGptModel(options ...string) string {
 
 	gptModel, ok := gptModelInterface.(string)
 	if !ok {
-		fmtf.Println("Type assertion failed for GptModel")
+		fmt.Println("Type assertion failed for GptModel")
 		return "0"
 	}
 
@@ -615,13 +618,33 @@ func GetAntiPromptLimit() float64 {
 }
 
 // 获取UseCache
-func GetUseCache() bool {
+func GetUseCache(options ...string) bool {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.UseCache
+
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.UseCache
+		}
+		return false
 	}
-	return false
+
+	// 使用传入的 basename
+	basename := options[0]
+	useCacheInterface, err := prompt.GetSettingFromFilename(basename, "UseCache")
+	if err != nil {
+		log.Println("Error retrieving UseCache:", err)
+		return false
+	}
+
+	useCache, ok := useCacheInterface.(bool)
+	if !ok {
+		log.Println("Type assertion failed for UseCache")
+		return false
+	}
+
+	return useCache
 }
 
 // 获取CacheThreshold

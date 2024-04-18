@@ -25,6 +25,19 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 获取访问者的IP地址
+	ip := r.RemoteAddr             // 注意：这可能包含端口号
+	ip = strings.Split(ip, ":")[0] // 去除端口号，仅保留IP地址
+
+	// 获取IP白名单
+	whiteList := config.IPWhiteList()
+
+	// 检查IP是否在白名单中
+	if !utils.Contains(whiteList, ip) {
+		http.Error(w, "Access denied", http.StatusInternalServerError)
+		return
+	}
+
 	var msg structs.Message
 	err := json.NewDecoder(r.Body).Decode(&msg)
 	if err != nil {
@@ -162,7 +175,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 
 	// 获取访问凭证和API路径
 	accessToken := config.GetWenxinAccessToken()
-	apiPath := config.GetWenxinApiPath()
+	apiPath := config.GetWenxinApiPath(promptstr)
 
 	// 构建请求URL
 	url := fmtf.Sprintf("%s?access_token=%s", apiPath, accessToken)
