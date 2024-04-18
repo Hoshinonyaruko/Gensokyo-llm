@@ -176,8 +176,12 @@ func GetWenxinAccessToken() string {
 func GetWenxinApiPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
+	return getWenxinApiPathInternal(options...)
+}
 
-	// Check if any parameters have been passed, and if the first one is an empty string
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getWenxinApiPathInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
 			return instance.Settings.WenxinApiPath
@@ -185,7 +189,7 @@ func GetWenxinApiPath(options ...string) string {
 		return "0"
 	}
 
-	// Use the provided basename
+	// 使用传入的 basename
 	basename := options[0]
 	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "WenxinApiPath")
 	if err != nil {
@@ -194,9 +198,9 @@ func GetWenxinApiPath(options ...string) string {
 	}
 
 	apiPath, ok := apiPathInterface.(string)
-	if !ok || apiPath == "" { // Check if type assertion failed or the result is an empty string
+	if !ok || apiPath == "" { // 检查是否断言失败或结果为空字符串
 		log.Println("Type assertion failed or empty string for WenxinApiPath, fetching default")
-		return GetWenxinApiPath() // Recursively call itself without any parameters
+		return getWenxinApiPathInternal() // 递归调用内部函数，不传递任何参数
 	}
 
 	return apiPath
@@ -213,11 +217,14 @@ func GetMaxTokenWenxin() int {
 }
 
 // 获取GptModel
-
 func GetGptModel(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
+	return getGptModelInternal(options...)
+}
 
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGptModelInternal(options ...string) string {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -237,7 +244,7 @@ func GetGptModel(options ...string) string {
 	gptModel, ok := gptModelInterface.(string)
 	if !ok || gptModel == "" { // 检查是否断言失败或结果为空字符串
 		fmt.Println("Type assertion failed or empty string for GptModel, fetching default")
-		return GetGptModel() // 递归调用自身，不传递任何参数
+		return getGptModelInternal() // 递归调用内部函数，不传递任何参数
 	}
 
 	return gptModel
