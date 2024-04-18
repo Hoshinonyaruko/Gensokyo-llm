@@ -176,6 +176,7 @@ func GetWenxinAccessToken() string {
 func GetWenxinApiPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
+
 	return getWenxinApiPathInternal(options...)
 }
 
