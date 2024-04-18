@@ -4,10 +4,13 @@ import (
 	"bufio"
 	"database/sql"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	_ "github.com/mattn/go-sqlite3" // 只导入，作为驱动
 
@@ -15,6 +18,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
+	"github.com/hoshinonyaruko/gensokyo-llm/server"
 	"github.com/hoshinonyaruko/gensokyo-llm/template"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
@@ -184,10 +188,32 @@ func main() {
 		return
 	}
 
+	// 设置路由
 	http.HandleFunc("/gensokyo", app.GensokyoHandler)
+	var wspath string
+	if conf.Settings.WSPath == "nil" {
+		wspath = "/"
+	} else {
+		wspath = "/" + conf.Settings.WSPath
+	}
+	http.HandleFunc(wspath, func(w http.ResponseWriter, r *http.Request) {
+		server.WsHandler(w, r, conf)
+	})
 	port := config.GetPort()
 	portStr := fmtf.Sprintf(":%d", port)
 	fmtf.Printf("listening on %v\n", portStr)
-	// 这里阻塞等待并处理请求
+
+	// 设置信号处理
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+
+		fmt.Println("Shutting down server...")
+		server.CloseAllConnections()
+		os.Exit(0)
+	}()
+
+	// 启动HTTP服务器
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }

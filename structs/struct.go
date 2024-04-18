@@ -206,3 +206,162 @@ type WXFunctionCall struct {
 	Arguments map[string]interface{} `json:"arguments,omitempty"`
 	Thought   string                 `json:"thought,omitempty"`
 }
+
+type Settings struct {
+	SecretId     string   `yaml:"secretId"`
+	SecretKey    string   `yaml:"secretKey"`
+	Region       string   `yaml:"region"`
+	UseSse       bool     `yaml:"useSse"`
+	Port         int      `yaml:"port"`
+	HttpPath     string   `yaml:"path"`
+	SystemPrompt []string `yaml:"systemPrompt"`
+	IPWhiteList  []string `yaml:"iPWhiteList"`
+	ApiType      int      `yaml:"apiType"`
+
+	HunyuanType      int `yaml:"hunyuanType"`
+	MaxTokensHunyuan int `yaml:"maxTokensHunyuan"`
+
+	WenxinAccessToken     string  `yaml:"wenxinAccessToken"`
+	WenxinApiPath         string  `yaml:"wenxinApiPath"`
+	MaxTokenWenxin        int     `yaml:"maxTokenWenxin"`
+	WenxinTopp            float64 `yaml:"wenxinTopp"`
+	WnxinPenaltyScore     float64 `yaml:"wenxinPenaltyScore"`
+	WenxinMaxOutputTokens int     `yaml:"wenxinMaxOutputTokens"`
+	WenxinEmbeddingUrl    string  `yaml:"wenxinEmbeddingUrl"`
+
+	GptModel        string `yaml:"gptModel"`
+	GptApiPath      string `yaml:"gptApiPath"`
+	GptToken        string `yaml:"gptToken"`
+	MaxTokenGpt     int    `yaml:"maxTokenGpt"`
+	GptSafeMode     bool   `yaml:"gptSafeMode"`
+	GptSseType      int    `yaml:"gptSseType"`
+	GptEmbeddingUrl string `yaml:"gptEmbeddingUrl"`
+
+	Groupmessage       bool `yaml:"groupMessage"`
+	SplitByPuntuations int  `yaml:"splitByPuntuations"`
+
+	FirstQ  []string `yaml:"firstQ"`
+	FirstA  []string `yaml:"firstA"`
+	SecondQ []string `yaml:"secondQ"`
+	SecondA []string `yaml:"secondA"`
+	ThirdQ  []string `yaml:"thirdQ"`
+	ThirdA  []string `yaml:"thirdA"`
+
+	SensitiveMode        bool     `yaml:"sensitiveMode"`
+	SensitiveModeType    int      `yaml:"sensitiveModeType"`
+	DefaultChangeWord    string   `yaml:"defaultChangeWord"`
+	AntiPromptAttackPath string   `yaml:"antiPromptAttackPath"`
+	ReverseUserPrompt    bool     `yaml:"reverseUserPrompt"`
+	IgnoreExtraTips      bool     `yaml:"ignoreExtraTips"`
+	SaveResponses        []string `yaml:"saveResponses"`
+	RestoreCommand       []string `yaml:"restoreCommand"`
+	RestoreResponses     []string `yaml:"restoreResponses"`
+	UsePrivateSSE        bool     `yaml:"usePrivateSSE"`
+	Promptkeyboard       []string `yaml:"promptkeyboard"`
+	Savelogs             bool     `yaml:"savelogs"`
+	AntiPromptLimit      float64  `yaml:"antiPromptLimit"`
+
+	UseCache       bool `yaml:"useCache"`
+	CacheThreshold int  `yaml:"cacheThreshold"`
+	CacheChance    int  `yaml:"cacheChance"`
+	EmbeddingType  int  `yaml:"embeddingType"`
+
+	PrintHanming  bool    `yaml:"printHanming"`
+	CacheK        float64 `yaml:"cacheK"`
+	CacheN        int64   `yaml:"cacheN"`
+	PrintVector   bool    `yaml:"printVector"`
+	VToBThreshold float64 `yaml:"vToBThreshold"`
+	GptModeration bool    `yaml:"gptModeration"`
+
+	VectorSensitiveFilter     bool     `yaml:"vectorSensitiveFilter"`
+	VertorSensitiveThreshold  int      `yaml:"vertorSensitiveThreshold"`
+	AllowedLanguages          []string `yaml:"allowedLanguages"`
+	LanguagesResponseMessages []string `yaml:"langResponseMessages"`
+	QuestionMaxLenth          int      `yaml:"questionMaxLenth"`
+	QmlResponseMessages       []string `yaml:"qmlResponseMessages"`
+	BlacklistResponseMessages []string `yaml:"blacklistResponseMessages"`
+	NoContext                 bool     `yaml:"noContext"`
+	WithdrawCommand           []string `yaml:"withdrawCommand"`
+	FunctionMode              bool     `yaml:"functionMode"`
+	FunctionPath              string   `yaml:"functionPath"`
+	UseFunctionPromptkeyboard bool     `yaml:"useFunctionPromptkeyboard"`
+	AIPromptkeyboardPath      string   `yaml:"AIPromptkeyboardPath"`
+	UseAIPromptkeyboard       bool     `yaml:"useAIPromptkeyboard"`
+	SplitByPuntuationsGroup   int      `yaml:"splitByPuntuationsGroup"`
+
+	RwkvApiPath          string   `yaml:"rwkvApiPath"`
+	RwkvMaxTokens        int      `yaml:"rwkvMaxTokens"`
+	RwkvTemperature      float64  `yaml:"rwkvTemperature"`
+	RwkvTopP             float64  `yaml:"rwkvTopP"`
+	RwkvPresencePenalty  float64  `yaml:"rwkvPresencePenalty"`
+	RwkvFrequencyPenalty float64  `yaml:"rwkvFrequencyPenalty"`
+	RwkvPenaltyDecay     float64  `yaml:"rwkvPenaltyDecay"`
+	RwkvTopK             int      `yaml:"rwkvTopK"`
+	RwkvGlobalPenalty    bool     `yaml:"rwkvGlobalPenalty"`
+	RwkvStream           bool     `yaml:"rwkvStream"`
+	RwkvStop             []string `yaml:"rwkvStop"`
+	RwkvUserName         string   `yaml:"rwkvUserName"`
+	RwkvAssistantName    string   `yaml:"rwkvAssistantName"`
+	RwkvSystemName       string   `yaml:"rwkvSystemName"`
+	RwkvPreSystem        bool     `yaml:"rwkvPreSystem"`
+	RwkvSseType          int      `yaml:"rwkvSseType"`
+	HideExtraLogs        bool     `yaml:"hideExtraLogs"`
+
+	WSServerToken string `yaml:"wsServerToken"`
+	WSPath        string `yaml:"wsPath"`
+}
+
+type MetaEvent struct {
+	PostType      string `json:"post_type"`
+	MetaEventType string `json:"meta_event_type"`
+	Time          int64  `json:"time"`
+	SelfID        int64  `json:"self_id"`
+	Interval      int    `json:"interval"`
+	Status        struct {
+		AppEnabled     bool  `json:"app_enabled"`
+		AppGood        bool  `json:"app_good"`
+		AppInitialized bool  `json:"app_initialized"`
+		Good           bool  `json:"good"`
+		Online         bool  `json:"online"`
+		PluginsGood    *bool `json:"plugins_good"`
+		Stat           struct {
+			PacketReceived  int   `json:"packet_received"`
+			PacketSent      int   `json:"packet_sent"`
+			PacketLost      int   `json:"packet_lost"`
+			MessageReceived int   `json:"message_received"`
+			MessageSent     int   `json:"message_sent"`
+			DisconnectTimes int   `json:"disconnect_times"`
+			LostTimes       int   `json:"lost_times"`
+			LastMessageTime int64 `json:"last_message_time"`
+		} `json:"stat"`
+	} `json:"status"`
+}
+
+type NoticeEvent struct {
+	GroupID    int64  `json:"group_id"`
+	NoticeType string `json:"notice_type"`
+	OperatorID int64  `json:"operator_id"`
+	PostType   string `json:"post_type"`
+	SelfID     int64  `json:"self_id"`
+	SubType    string `json:"sub_type"`
+	Time       int64  `json:"time"`
+	UserID     int64  `json:"user_id"`
+}
+
+type RobotStatus struct {
+	SelfID          int64  `json:"self_id"`
+	Date            string `json:"date"`
+	Online          bool   `json:"online"`
+	MessageReceived int    `json:"message_received"`
+	MessageSent     int    `json:"message_sent"`
+	LastMessageTime int64  `json:"last_message_time"`
+	InvitesReceived int    `json:"invites_received"`
+	KicksReceived   int    `json:"kicks_received"`
+	DailyDAU        int    `json:"daily_dau"`
+}
+
+type OnebotActionMessage struct {
+	Action string                 `json:"action"`
+	Params map[string]interface{} `json:"params"`
+	Echo   interface{}            `json:"echo,omitempty"`
+}
