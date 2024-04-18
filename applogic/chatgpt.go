@@ -11,6 +11,7 @@ import (
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
+	"github.com/hoshinonyaruko/gensokyo-llm/prompt"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
@@ -37,6 +38,14 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// 读取URL参数 "prompt"
+	promptstr := r.URL.Query().Get("prompt")
+	if promptstr != "" {
+		// prompt 参数存在，可以根据需要进一步处理或记录
+		fmtf.Printf("Received prompt parameter: %s\n", promptstr)
+	}
+
 	msg.Role = "user"
 	//颠倒用户输入
 	if config.GetReverseUserPrompt() {
@@ -56,43 +65,51 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 
 	var history []structs.Message
 
-	// 获取系统提示词
-	systemPromptContent := config.SystemPrompt()
-	if systemPromptContent != "0" {
-		systemPrompt := structs.Message{
-			Text: systemPromptContent,
-			Role: "system",
+	//根据是否有prompt参数 选择是否载入config.yml的prompt还是prompts文件夹的
+	if promptstr == "" {
+		// 获取系统提示词
+		systemPromptContent := config.SystemPrompt()
+		if systemPromptContent != "0" {
+			systemPrompt := structs.Message{
+				Text: systemPromptContent,
+				Role: "system",
+			}
+			// 将系统提示词添加到历史信息的开始
+			history = append([]structs.Message{systemPrompt}, history...)
 		}
-		// 将系统提示词添加到历史信息的开始
-		history = append([]structs.Message{systemPrompt}, history...)
-	}
 
-	// 分别获取FirstQ&A, SecondQ&A, ThirdQ&A
-	pairs := []struct {
-		Q     string
-		A     string
-		RoleQ string // 问题的角色
-		RoleA string // 答案的角色
-	}{
-		{config.GetFirstQ(), config.GetFirstA(), "user", "assistant"},
-		{config.GetSecondQ(), config.GetSecondA(), "user", "assistant"},
-		{config.GetThirdQ(), config.GetThirdA(), "user", "assistant"},
-	}
+		// 分别获取FirstQ&A, SecondQ&A, ThirdQ&A
+		pairs := []struct {
+			Q     string
+			A     string
+			RoleQ string // 问题的角色
+			RoleA string // 答案的角色
+		}{
+			{config.GetFirstQ(), config.GetFirstA(), "user", "assistant"},
+			{config.GetSecondQ(), config.GetSecondA(), "user", "assistant"},
+			{config.GetThirdQ(), config.GetThirdA(), "user", "assistant"},
+		}
 
-	// 检查每一对Q&A是否均不为空，并追加到历史信息中
-	for _, pair := range pairs {
-		if pair.Q != "" && pair.A != "" {
-			qMessage := structs.Message{
-				Text: pair.Q,
-				Role: pair.RoleQ,
+		// 检查每一对Q&A是否均不为空，并追加到历史信息中
+		for _, pair := range pairs {
+			if pair.Q != "" && pair.A != "" {
+				qMessage := structs.Message{
+					Text: pair.Q,
+					Role: pair.RoleQ,
+				}
+				aMessage := structs.Message{
+					Text: pair.A,
+					Role: pair.RoleA,
+				}
+
+				// 注意追加的顺序，确保问题在答案之前
+				history = append(history, qMessage, aMessage)
 			}
-			aMessage := structs.Message{
-				Text: pair.A,
-				Role: pair.RoleA,
-			}
-
-			// 注意追加的顺序，确保问题在答案之前
-			history = append(history, qMessage, aMessage)
+		}
+	} else {
+		history, err = prompt.GetMessagesFromFilename(promptstr)
+		if err != nil {
+			fmtf.Printf("prompt.GetMessagesFromFilename error: %v\n", err)
 		}
 	}
 

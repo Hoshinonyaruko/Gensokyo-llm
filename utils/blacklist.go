@@ -93,7 +93,7 @@ func WatchBlacklist(filePath string) {
 }
 
 // BlacklistIntercept 检查用户ID是否在黑名单中，如果在，则发送预设消息
-func BlacklistIntercept(message structs.OnebotGroupMessage) bool {
+func BlacklistIntercept(message structs.OnebotGroupMessage, selfid string) bool {
 	// 检查用户ID是否在黑名单中
 	if IsInBlacklist(strconv.FormatInt(message.UserID, 10)) {
 		// 获取黑名单响应消息
@@ -102,12 +102,12 @@ func BlacklistIntercept(message structs.OnebotGroupMessage) bool {
 		// 根据消息类型发送响应
 		if message.RealMessageType == "group_private" || message.MessageType == "private" {
 			if !config.GetUsePrivateSSE() {
-				SendPrivateMessage(message.UserID, responseMessage)
+				SendPrivateMessage(message.UserID, responseMessage, selfid)
 			} else {
 				SendSSEPrivateMessage(message.UserID, responseMessage)
 			}
 		} else {
-			SendGroupMessage(message.GroupID, message.UserID, responseMessage)
+			SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid)
 		}
 
 		fmt.Printf("userid:[%v]这位用户在黑名单中,被拦截\n", message.UserID)

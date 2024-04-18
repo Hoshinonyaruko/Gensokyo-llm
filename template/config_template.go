@@ -5,7 +5,7 @@ version: 1
 settings:
 
   #通用配置项
-  useSse : true
+  useSse : false                                 #智能体场景开启,其他场景,比如普通onebotv11不开启
   port : 46233                                  #本程序监听端口,支持gensokyo http上报,   请在gensokyo的反向http配置加入 post_url: ["http://127.0.0.1:port/gensokyo"] 
   path : "http://123.123.123.123:11111"         #调用gensokyo api的地址,填入 gensokyo 的 正向http地址   http_address: "0.0.0.0:46231"  对应填入 "http://127.0.0.1:46231"
   apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt
@@ -37,6 +37,10 @@ settings:
   noContext : false                             #不开启上下文     
   withdrawCommand : ["撤回"]                    #撤回指令
   hideExtraLogs : false                         #忽略流信息的log,提高性能
+
+  #Ws服务器配置
+  wsServerToken : ""                            #ws密钥 可以由onebotv11反向ws接入
+  wsPath : "nil"                                #设置了ws就不用设置path了,可以连接多个机器人.
 
   functionMode : false                          #是否指定本agent使用func模式(目前仅支持千帆平台),效果不好,暂时不用.
   functionPath : ""                             #调用另一个启用了func模式的gsk-llm联合工作的/conversation地址,效果不好,暂时不用.

@@ -84,14 +84,29 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	// 解析请求体到OnebotGroupMessage结构体
 	var message structs.OnebotGroupMessage
 
-	fmtf.Printf("收到onebotv11信息: %+v\n", string(body))
-
 	err = json.Unmarshal(body, &message)
 	if err != nil {
 		fmtf.Printf("Error parsing request body: %+v\n", string(body))
 		http.Error(w, "Error parsing request body", http.StatusInternalServerError)
 		return
 	}
+
+	// 读取URL参数 "prompt"
+	promptstr := r.URL.Query().Get("prompt")
+	if promptstr != "" {
+		// 使用 prompt 变量进行后续处理
+		fmt.Printf("收到prompt参数: %s\n", promptstr)
+	}
+
+	// 读取URL参数 "prompt"
+	selfid := r.URL.Query().Get("selfid")
+	if selfid != "" {
+		// 使用 prompt 变量进行后续处理
+		fmt.Printf("收到selfid参数: %s\n", selfid)
+	}
+
+	// 打印日志信息，包括prompt参数
+	fmtf.Printf("收到onebotv11信息: %+v\n", string(body))
 
 	// 打印消息和其他相关信息
 	fmtf.Printf("Received message: %v\n", message.Message)
@@ -126,7 +141,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if utils.BlacklistIntercept(message) {
+		if utils.BlacklistIntercept(message, selfid) {
 			fmtf.Printf("userid:[%v]这位用户在黑名单中,被拦截", message.UserID)
 			return
 		}
@@ -138,12 +153,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			RestoreResponse := config.GetRandomRestoreResponses()
 			if message.RealMessageType == "group_private" || message.MessageType == "private" {
 				if !config.GetUsePrivateSSE() {
-					utils.SendPrivateMessage(message.UserID, RestoreResponse)
+					utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid)
 				} else {
 					utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse)
 				}
 			} else {
-				utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse)
+				utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
 			}
 			return
 		}
@@ -179,7 +194,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 进行字数拦截
 		if config.GetQuestionMaxLenth() != 0 {
-			if utils.LengthIntercept(newmsg, message) {
+			if utils.LengthIntercept(newmsg, message, selfid) {
 				fmtf.Printf("字数过长,可在questionMaxLenth配置项修改,Q: %v", newmsg)
 				// 发送响应
 				w.WriteHeader(http.StatusOK)
@@ -190,7 +205,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 进行语言判断拦截
 		if len(config.GetAllowedLanguages()) > 0 {
-			if utils.LanguageIntercept(newmsg, message) {
+			if utils.LanguageIntercept(newmsg, message, selfid) {
 				fmtf.Printf("不安全!不支持的语言,可在config.yml设置允许的语言,allowedLanguages配置项,Q: %v", newmsg)
 				// 发送响应
 				w.WriteHeader(http.StatusOK)
@@ -217,7 +232,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 向量安全词部分,机器人向量安全屏障
 		if config.GetVectorSensitiveFilter() {
-			ret, retstr, err := app.InterceptSensitiveContent(vector, message)
+			ret, retstr, err := app.InterceptSensitiveContent(vector, message, selfid)
 			if err != nil {
 				fmtf.Printf("Error in InterceptSensitiveContent: %v", err)
 				// 发送响应
@@ -267,12 +282,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						// 发送响应消息
 						if message.RealMessageType == "group_private" || message.MessageType == "private" {
 							if !config.GetUsePrivateSSE() {
-								utils.SendPrivateMessage(message.UserID, responseText)
+								utils.SendPrivateMessage(message.UserID, responseText, selfid)
 							} else {
 								utils.SendSSEPrivateMessage(message.UserID, responseText)
 							}
 						} else {
-							utils.SendGroupMessage(message.GroupID, message.UserID, responseText)
+							utils.SendGroupMessage(message.GroupID, message.UserID, responseText, selfid)
 						}
 						// 发送响应
 						w.WriteHeader(http.StatusOK)
@@ -312,12 +327,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if saveresponse != "" {
 					if message.RealMessageType == "group_private" || message.MessageType == "private" {
 						if !config.GetUsePrivateSSE() {
-							utils.SendPrivateMessage(message.UserID, saveresponse)
+							utils.SendPrivateMessage(message.UserID, saveresponse, selfid)
 						} else {
 							utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse)
 						}
 					} else {
-						utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse)
+						utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse, selfid)
 					}
 				}
 				// 发送响应
@@ -343,7 +358,14 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// 构建并发送请求到conversation接口
 		port := config.GetPort()
 		portStr := fmtf.Sprintf(":%d", port)
-		url := "http://127.0.0.1" + portStr + "/conversation"
+
+		var url string
+		//如果promptstr不等于空,添加到参数中
+		if promptstr != "" {
+			url = "http://127.0.0.1" + portStr + "/conversation?prompt=" + promptstr
+		} else {
+			url = "http://127.0.0.1" + portStr + "/conversation"
+		}
 
 		// 请求模型还是使用原文请求
 		requestmsg := message.Message.(string)
@@ -432,7 +454,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 									if message.RealMessageType == "group_private" || message.MessageType == "private" {
 										if !config.GetUsePrivateSSE() {
-											utils.SendPrivateMessage(message.UserID, newPart)
+											utils.SendPrivateMessage(message.UserID, newPart, selfid)
 										} else {
 											//最后一条了
 											messageSSE := structs.InterfaceBody{
@@ -442,7 +464,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 										}
 									} else {
-										utils.SendGroupMessage(message.GroupID, message.UserID, newPart)
+										utils.SendGroupMessage(message.GroupID, message.UserID, newPart, selfid)
 									}
 								} else {
 									//流的最后一次是完整结束的
@@ -456,7 +478,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 									if message.RealMessageType == "group_private" || message.MessageType == "private" {
 										if !config.GetUsePrivateSSE() {
-											utils.SendPrivateMessage(message.UserID, response)
+											utils.SendPrivateMessage(message.UserID, response, selfid)
 										} else {
 											//最后一条了
 											messageSSE := structs.InterfaceBody{
@@ -466,7 +488,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 										}
 									} else {
-										utils.SendGroupMessage(message.GroupID, message.UserID, response)
+										utils.SendGroupMessage(message.GroupID, message.UserID, response, selfid)
 									}
 								}
 							}
@@ -490,7 +512,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						if !config.GetHideExtraLogs() {
 							fmtf.Printf("收到流数据,切割并发送信息: %s", string(line))
 						}
-						splitAndSendMessages(message, string(line), newmsg)
+						splitAndSendMessages(message, string(line), newmsg, selfid)
 					}
 				}
 
@@ -552,9 +574,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			if response, ok = responseData["response"].(string); ok && response != "" {
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 				if message.RealMessageType == "group_private" || message.MessageType == "private" {
-					utils.SendPrivateMessage(message.UserID, response)
+					utils.SendPrivateMessage(message.UserID, response, selfid)
 				} else {
-					utils.SendGroupMessage(message.GroupID, message.UserID, response)
+					utils.SendGroupMessage(message.GroupID, message.UserID, response, selfid)
 				}
 			}
 
@@ -589,7 +611,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newmesssage string) {
+func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newmesssage string, selfid string) {
 	// 提取JSON部分
 	dataPrefix := "data: "
 	jsonStr := strings.TrimPrefix(line, dataPrefix)
@@ -606,13 +628,13 @@ func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newme
 
 	if sseData.Response != "\n\n" {
 		// 处理提取出的信息
-		processMessage(sseData.Response, message, newmesssage)
+		processMessage(sseData.Response, message, newmesssage, selfid)
 	} else {
 		fmtf.Printf("忽略llm末尾的换行符")
 	}
 }
 
-func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage string) {
+func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage string, selfid string) {
 	key := utils.GetKey(msg.GroupID, msg.UserID)
 
 	// 定义中文全角和英文标点符号
@@ -629,7 +651,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 				if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
 					if !config.GetUsePrivateSSE() {
-						utils.SendPrivateMessage(msg.UserID, accumulatedMessage)
+						utils.SendPrivateMessage(msg.UserID, accumulatedMessage, selfid)
 					} else {
 						if IncrementIndex(newmesssage) == 1 {
 							//第一条信息
@@ -653,7 +675,7 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 						}
 					}
 				} else {
-					utils.SendGroupMessage(msg.GroupID, msg.UserID, accumulatedMessage)
+					utils.SendGroupMessage(msg.GroupID, msg.UserID, accumulatedMessage, selfid)
 				}
 
 				messageBuilder.Reset() // 重置消息构建器

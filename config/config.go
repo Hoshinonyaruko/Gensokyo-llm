@@ -1,12 +1,15 @@
 package config
 
 import (
+	"log"
 	"math/rand"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
+	"github.com/hoshinonyaruko/gensokyo-llm/prompt"
+	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"gopkg.in/yaml.v3"
 )
 
@@ -18,99 +21,8 @@ var (
 var r = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 type Config struct {
-	Version  int      `yaml:"version"`
-	Settings Settings `yaml:"settings"`
-}
-
-type Settings struct {
-	SecretId                  string   `yaml:"secretId"`
-	SecretKey                 string   `yaml:"secretKey"`
-	Region                    string   `yaml:"region"`
-	UseSse                    bool     `yaml:"useSse"`
-	Port                      int      `yaml:"port"`
-	HttpPath                  string   `yaml:"path"`
-	SystemPrompt              []string `yaml:"systemPrompt"`
-	IPWhiteList               []string `yaml:"iPWhiteList"`
-	MaxTokensHunyuan          int      `yaml:"maxTokensHunyuan"`
-	ApiType                   int      `yaml:"apiType"`
-	WenxinAccessToken         string   `yaml:"wenxinAccessToken"`
-	WenxinApiPath             string   `yaml:"wenxinApiPath"`
-	MaxTokenWenxin            int      `yaml:"maxTokenWenxin"`
-	GptModel                  string   `yaml:"gptModel"`
-	GptApiPath                string   `yaml:"gptApiPath"`
-	GptToken                  string   `yaml:"gptToken"`
-	MaxTokenGpt               int      `yaml:"maxTokenGpt"`
-	GptSafeMode               bool     `yaml:"gptSafeMode"`
-	GptSseType                int      `yaml:"gptSseType"`
-	Groupmessage              bool     `yaml:"groupMessage"`
-	SplitByPuntuations        int      `yaml:"splitByPuntuations"`
-	HunyuanType               int      `yaml:"hunyuanType"`
-	FirstQ                    []string `yaml:"firstQ"`
-	FirstA                    []string `yaml:"firstA"`
-	SecondQ                   []string `yaml:"secondQ"`
-	SecondA                   []string `yaml:"secondA"`
-	ThirdQ                    []string `yaml:"thirdQ"`
-	ThirdA                    []string `yaml:"thirdA"`
-	SensitiveMode             bool     `yaml:"sensitiveMode"`
-	SensitiveModeType         int      `yaml:"sensitiveModeType"`
-	DefaultChangeWord         string   `yaml:"defaultChangeWord"`
-	AntiPromptAttackPath      string   `yaml:"antiPromptAttackPath"`
-	ReverseUserPrompt         bool     `yaml:"reverseUserPrompt"`
-	IgnoreExtraTips           bool     `yaml:"ignoreExtraTips"`
-	SaveResponses             []string `yaml:"saveResponses"`
-	RestoreCommand            []string `yaml:"restoreCommand"`
-	RestoreResponses          []string `yaml:"restoreResponses"`
-	UsePrivateSSE             bool     `yaml:"usePrivateSSE"`
-	Promptkeyboard            []string `yaml:"promptkeyboard"`
-	Savelogs                  bool     `yaml:"savelogs"`
-	AntiPromptLimit           float64  `yaml:"antiPromptLimit"`
-	UseCache                  bool     `yaml:"useCache"`
-	CacheThreshold            int      `yaml:"cacheThreshold"`
-	CacheChance               int      `yaml:"cacheChance"`
-	EmbeddingType             int      `yaml:"embeddingType"`
-	WenxinEmbeddingUrl        string   `yaml:"wenxinEmbeddingUrl"`
-	GptEmbeddingUrl           string   `yaml:"gptEmbeddingUrl"`
-	PrintHanming              bool     `yaml:"printHanming"`
-	CacheK                    float64  `yaml:"cacheK"`
-	CacheN                    int64    `yaml:"cacheN"`
-	PrintVector               bool     `yaml:"printVector"`
-	VToBThreshold             float64  `yaml:"vToBThreshold"`
-	GptModeration             bool     `yaml:"gptModeration"`
-	WenxinTopp                float64  `yaml:"wenxinTopp"`
-	WnxinPenaltyScore         float64  `yaml:"wenxinPenaltyScore"`
-	WenxinMaxOutputTokens     int      `yaml:"wenxinMaxOutputTokens"`
-	VectorSensitiveFilter     bool     `yaml:"vectorSensitiveFilter"`
-	VertorSensitiveThreshold  int      `yaml:"vertorSensitiveThreshold"`
-	AllowedLanguages          []string `yaml:"allowedLanguages"`
-	LanguagesResponseMessages []string `yaml:"langResponseMessages"`
-	QuestionMaxLenth          int      `yaml:"questionMaxLenth"`
-	QmlResponseMessages       []string `yaml:"qmlResponseMessages"`
-	BlacklistResponseMessages []string `yaml:"blacklistResponseMessages"`
-	NoContext                 bool     `yaml:"noContext"`
-	WithdrawCommand           []string `yaml:"withdrawCommand"`
-	FunctionMode              bool     `yaml:"functionMode"`
-	FunctionPath              string   `yaml:"functionPath"`
-	UseFunctionPromptkeyboard bool     `yaml:"useFunctionPromptkeyboard"`
-	AIPromptkeyboardPath      string   `yaml:"AIPromptkeyboardPath"`
-	UseAIPromptkeyboard       bool     `yaml:"useAIPromptkeyboard"`
-	SplitByPuntuationsGroup   int      `yaml:"splitByPuntuationsGroup"`
-	RwkvApiPath               string   `yaml:"rwkvApiPath"`
-	RwkvMaxTokens             int      `yaml:"rwkvMaxTokens"`
-	RwkvTemperature           float64  `yaml:"rwkvTemperature"`
-	RwkvTopP                  float64  `yaml:"rwkvTopP"`
-	RwkvPresencePenalty       float64  `yaml:"rwkvPresencePenalty"`
-	RwkvFrequencyPenalty      float64  `yaml:"rwkvFrequencyPenalty"`
-	RwkvPenaltyDecay          float64  `yaml:"rwkvPenaltyDecay"`
-	RwkvTopK                  int      `yaml:"rwkvTopK"`
-	RwkvGlobalPenalty         bool     `yaml:"rwkvGlobalPenalty"`
-	RwkvStream                bool     `yaml:"rwkvStream"`
-	RwkvStop                  []string `yaml:"rwkvStop"`
-	RwkvUserName              string   `yaml:"rwkvUserName"`
-	RwkvAssistantName         string   `yaml:"rwkvAssistantName"`
-	RwkvSystemName            string   `yaml:"rwkvSystemName"`
-	RwkvPreSystem             bool     `yaml:"rwkvPreSystem"`
-	RwkvSseType               int      `yaml:"rwkvSseType"`
-	HideExtraLogs             bool     `yaml:"hideExtraLogs"`
+	Version  int              `yaml:"version"`
+	Settings structs.Settings `yaml:"settings"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -260,13 +172,32 @@ func GetWenxinAccessToken() string {
 }
 
 // 获取WenxinApiPath
-func GetWenxinApiPath() string {
+func GetWenxinApiPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.WenxinApiPath
+
+	if len(options) == 0 {
+		if instance != nil {
+			return instance.Settings.WenxinApiPath
+		}
+		return "0"
 	}
-	return "0"
+
+	// 处理传入的 basename
+	basename := options[0]
+	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "WenxinApiPath")
+	if err != nil {
+		log.Println("Error retrieving WenxinApiPath:", err)
+		return "0"
+	}
+
+	apiPath, ok := apiPathInterface.(string)
+	if !ok {
+		log.Println("Type assertion failed for WenxinApiPath")
+		return "0"
+	}
+
+	return apiPath
 }
 
 // 获取GetMaxTokenWenxin
@@ -280,13 +211,32 @@ func GetMaxTokenWenxin() int {
 }
 
 // 获取GptModel
-func GetGptModel() string {
+func GetGptModel(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GptModel
+
+	if len(options) == 0 {
+		if instance != nil {
+			return instance.Settings.GptModel
+		}
+		return "0"
 	}
-	return "0"
+
+	// 处理传入的 basename
+	basename := options[0]
+	gptModelInterface, err := prompt.GetSettingFromFilename(basename, "GptModel")
+	if err != nil {
+		log.Println("Error retrieving GptModel:", err)
+		return "0"
+	}
+
+	gptModel, ok := gptModelInterface.(string)
+	if !ok {
+		fmtf.Println("Type assertion failed for GptModel")
+		return "0"
+	}
+
+	return gptModel
 }
 
 // 获取GptApiPath
@@ -1140,4 +1090,14 @@ func GetHideExtraLogs() bool {
 		return instance.Settings.HideExtraLogs
 	}
 	return false
+}
+
+// 获取wsServerToken
+func GetWSServerToken() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.WSServerToken
+	}
+	return ""
 }

@@ -65,7 +65,37 @@ AhoCorasick算法实现的超高效文本IN-Out替换规则，可大量替换n�
 
 支持中间件开发,在gensokyo框架层到gensokyo-llm的http请求之间,可开发中间件实现向量拓展,数据库拓展,动态修改用户问题.
 
-## 接口调用说明
+# API接口调用说明
+
+本文档提供了关于API接口的调用方法和配置文件的格式说明，帮助用户正确使用和配置。
+
+## 接口支持的查询参数
+
+本系统的 `conversation` 和 `gensokyo` 端点支持通过查询参数 `?prompt=xxx` 来指定特定的配置。
+
+- `prompt` 参数允许用户指定位于执行文件（exe）的 `prompts` 文件夹下的配置YAML文件。使用该参数可以动态地调整API行为和返回内容。
+
+## YAML配置文件格式
+
+配置文件应遵循以下YAML格式。这里提供了一个示例配置文件，展示了如何定义不同角色的对话内容：
+
+```yaml
+Prompt:
+  - role: "system"
+    content: "Welcome to the system. How can I assist you today?"
+  - role: "user"
+    content: "I need help with my account."
+  - role: "assistant"
+    content: "I can help you with that. What seems to be the problem?"
+  - role: "user"
+    content: "aaaaaaaaaa!"
+  - role: "assistant"
+    content: "ooooooooo?"
+settings:
+  # 以下是通用配置项 和config.yml相同
+  useSse: true
+  port: 46233
+```
 
 ### 终结点
 
