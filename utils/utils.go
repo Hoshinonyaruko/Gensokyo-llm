@@ -193,6 +193,7 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 		"message":  message,
 	})
 	fmtf.Printf("发群信息请求:%v", string(requestBody))
+	fmtf.Printf("实际发送信息:%v", message)
 	if err != nil {
 		return fmtf.Errorf("failed to marshal request body: %w", err)
 	}
@@ -280,6 +281,7 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 	if err != nil {
 		return fmtf.Errorf("failed to marshal request body: %w", err)
 	}
+	fmtf.Printf("实际发送信息:%v", message)
 
 	// 发送POST请求
 	resp, err := http.Post(u.String(), "application/json", bytes.NewBuffer(requestBody))
@@ -360,6 +362,8 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 		fmtf.Printf("过滤空SendPrivateMessageSSE,可能是llm api只发了换行符.")
 		return nil
 	}
+
+	fmtf.Printf("实际发送信息:%v", message.Content)
 
 	// 构造请求体，包括InterfaceBody
 	requestBody, err := json.Marshal(map[string]interface{}{
