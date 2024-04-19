@@ -176,7 +176,6 @@ func GetWenxinAccessToken() string {
 func GetWenxinApiPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-
 	return getWenxinApiPathInternal(options...)
 }
 
@@ -1130,6 +1129,16 @@ func GetWSServerToken() string {
 	defer mu.Unlock()
 	if instance != nil {
 		return instance.Settings.WSServerToken
+	}
+	return ""
+}
+
+// 获取PathToken
+func GetPathToken() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.PathToken
 	}
 	return ""
 }
