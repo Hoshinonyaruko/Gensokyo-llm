@@ -82,6 +82,9 @@ func processLogFile(filePath string) {
 		if strings.Contains(line, "A完整信息:") {
 			formatAndWriteAnswerLine(line, outputFile)
 		}
+		if strings.Contains(line, "实际发送信息:") {
+			formatAndWriteAnswerLineV2(line, outputFile)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -121,5 +124,38 @@ func formatAndWriteAnswerLine(line string, outputFile *os.File) {
 		if err != nil {
 			fmt.Println("Error writing to output file:", err)
 		}
+	}
+}
+
+func formatAndWriteAnswerLineV2(line string, outputFile *os.File) {
+	prefix := "实际发送信息:"
+	infoSuffix := "INFO:" // 设置截止字符串
+
+	currentIndex := 0 // 当前搜索的起始位置
+	for {
+		// 从当前索引开始查找"实际发送信息:"的开始位置
+		startIndex := strings.Index(line[currentIndex:], prefix)
+		if startIndex == -1 {
+			break // 如果没有找到，退出循环
+		}
+		startIndex += currentIndex // 调整到全局索引
+
+		messageStart := startIndex + len(prefix)
+		endIndex := strings.Index(line[messageStart:], infoSuffix) // 查找"INFO:"的开始位置
+		if endIndex == -1 {
+			break // 如果没有找到，退出循环
+		}
+		endIndex += messageStart // 调整到全局索引
+
+		message := line[messageStart:endIndex]                                // 截取从"实际发送信息:"到"INFO:"之前的内容
+		formattedLine := fmt.Sprintf("实际发送：%s\n", strings.TrimSpace(message)) // 格式化并去除前后空白字符
+
+		// 写入到输出文件
+		_, err := outputFile.WriteString(formattedLine)
+		if err != nil {
+			fmt.Println("Error writing to output file:", err)
+		}
+
+		currentIndex = endIndex // 更新currentIndex为当前endIndex，为下一次搜索做准备
 	}
 }
