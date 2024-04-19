@@ -214,6 +214,7 @@ type Settings struct {
 	UseSse       bool     `yaml:"useSse"`
 	Port         int      `yaml:"port"`
 	HttpPath     string   `yaml:"path"`
+	PathToken    string   `yaml:"pathToken"`
 	SystemPrompt []string `yaml:"systemPrompt"`
 	IPWhiteList  []string `yaml:"iPWhiteList"`
 	ApiType      int      `yaml:"apiType"`

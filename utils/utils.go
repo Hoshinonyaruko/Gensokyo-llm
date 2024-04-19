@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -164,7 +165,22 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
 
 	// 构建完整的URL
-	url := baseURL + "/send_group_msg"
+	baseURL = baseURL + "/send_group_msg"
+
+	// 获取PathToken并检查其是否为空
+	pathToken := config.GetPathToken()
+	// 使用net/url包构建URL
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		panic("URL parsing failed: " + err.Error())
+	}
+
+	// 添加access_token参数
+	query := u.Query()
+	if pathToken != "" {
+		query.Set("access_token", pathToken)
+	}
+	u.RawQuery = query.Encode()
 
 	if config.GetSensitiveModeType() == 1 {
 		message = acnode.CheckWordOUT(message)
@@ -182,7 +198,7 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 	}
 
 	// 发送POST请求
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	resp, err := http.Post(u.String(), "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return fmtf.Errorf("failed to send POST request: %w", err)
 	}
@@ -234,7 +250,22 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
 
 	// 构建完整的URL
-	url := baseURL + "/send_private_msg"
+	baseURL = baseURL + "/send_private_msg"
+
+	// 获取PathToken并检查其是否为空
+	pathToken := config.GetPathToken()
+	// 使用net/url包构建URL
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		panic("URL parsing failed: " + err.Error())
+	}
+
+	// 添加access_token参数
+	query := u.Query()
+	if pathToken != "" {
+		query.Set("access_token", pathToken)
+	}
+	u.RawQuery = query.Encode()
 
 	if config.GetSensitiveModeType() == 1 {
 		message = acnode.CheckWordOUT(message)
@@ -251,7 +282,7 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 	}
 
 	// 发送POST请求
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	resp, err := http.Post(u.String(), "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return fmtf.Errorf("failed to send POST request: %w", err)
 	}
@@ -289,7 +320,23 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 	baseURL := config.GetHttpPath() // 假设config.GetHttpPath()返回基础URL
 
 	// 构建完整的URL
-	url := baseURL + "/send_private_msg_sse"
+	baseURL = baseURL + "/send_private_msg_sse"
+
+	// 获取PathToken并检查其是否为空
+	pathToken := config.GetPathToken()
+	// 使用net/url包构建URL
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		panic("URL parsing failed: " + err.Error())
+	}
+
+	// 添加access_token参数
+	query := u.Query()
+	if pathToken != "" {
+		query.Set("access_token", pathToken)
+	}
+	u.RawQuery = query.Encode()
+
 	// 调试用的
 	if config.GetPrintHanming() {
 		fmtf.Printf("流式信息替换前:%v", message.Content)
@@ -324,7 +371,7 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 	}
 
 	// 发送POST请求
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	resp, err := http.Post(u.String(), "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return fmtf.Errorf("failed to send POST request: %w", err)
 	}
@@ -806,7 +853,22 @@ func DeleteLatestMessage(messageType string, id int64, userid int64) error {
 	baseURL := config.GetHttpPath() // 假设config.GetHttpPath()返回基础URL
 
 	// 构建完整的URL
-	url := baseURL + "/delete_msg"
+	baseURL = baseURL + "/delete_msg"
+
+	// 获取PathToken并检查其是否为空
+	pathToken := config.GetPathToken()
+	// 使用net/url包构建URL
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		panic("URL parsing failed: " + err.Error())
+	}
+
+	// 添加access_token参数
+	query := u.Query()
+	if pathToken != "" {
+		query.Set("access_token", pathToken)
+	}
+	u.RawQuery = query.Encode()
 
 	// 获取最新的有效消息ID
 	messageID, valid := GetLatestValidMessageID(userid)
@@ -839,5 +901,5 @@ func DeleteLatestMessage(messageType string, id int64, userid int64) error {
 	fmtf.Printf("发送撤回请求:%v", string(requestBodyBytes))
 
 	// 发送删除消息请求
-	return sendDeleteRequest(url, requestBodyBytes)
+	return sendDeleteRequest(u.String(), requestBodyBytes)
 }

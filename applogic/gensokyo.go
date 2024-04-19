@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -359,13 +360,22 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		port := config.GetPort()
 		portStr := fmtf.Sprintf(":%d", port)
 
-		var url string
-		//如果promptstr不等于空,添加到参数中
+		// 初始化URL
+		baseURL := "http://127.0.0.1" + portStr + "/conversation"
+
+		// 使用net/url包来构建和编码URL
+		urlParams := url.Values{}
 		if promptstr != "" {
-			url = "http://127.0.0.1" + portStr + "/conversation?prompt=" + promptstr
-		} else {
-			url = "http://127.0.0.1" + portStr + "/conversation"
+			urlParams.Add("prompt", promptstr)
 		}
+
+		// 将查询参数编码后附加到基本URL上
+		fullURL := baseURL
+		if len(urlParams) > 0 {
+			fullURL += "?" + urlParams.Encode()
+		}
+
+		fmtf.Printf("Generated URL:%v", fullURL)
 
 		// 请求模型还是使用原文请求
 		requestmsg := message.Message.(string)
@@ -399,7 +409,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+		resp, err := http.Post(fullURL, "application/json", bytes.NewBuffer(requestBody))
 		if err != nil {
 			fmtf.Printf("Error sending request to conversation interface: %v\n", err)
 			return

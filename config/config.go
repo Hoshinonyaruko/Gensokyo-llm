@@ -1132,3 +1132,13 @@ func GetWSServerToken() string {
 	}
 	return ""
 }
+
+// 获取PathToken
+func GetPathToken() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.PathToken
+	}
+	return ""
+}
