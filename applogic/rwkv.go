@@ -365,9 +365,15 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 
 					newContent := ""
 					for _, choice := range eventData.Choices {
+						// 如果新内容以旧内容开头
 						if strings.HasPrefix(choice.Delta.Content, lastResponseText) {
-							// 如果新内容以旧内容开头，剔除旧内容部分，只保留新增的部分
-							newContent += choice.Delta.Content[len(lastResponseText):]
+							// 特殊情况：当新内容和旧内容完全相同时，处理逻辑应当与新内容不以旧内容开头时相同
+							if choice.Delta.Content == lastResponseText {
+								newContent += choice.Delta.Content
+							} else {
+								// 剔除旧内容部分，只保留新增的部分
+								newContent += choice.Delta.Content[len(lastResponseText):]
+							}
 						} else {
 							// 如果新内容不以旧内容开头，可能是并发情况下的新消息，直接使用新内容
 							newContent += choice.Delta.Content

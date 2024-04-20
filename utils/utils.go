@@ -186,6 +186,9 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 		message = acnode.CheckWordOUT(message)
 	}
 
+	// 去除末尾的换行符 不去除会导致不好看
+	message = removeTrailingCRLFs(message)
+
 	// 构造请求体
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"group_id": groupID,
@@ -271,6 +274,9 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 	if config.GetSensitiveModeType() == 1 {
 		message = acnode.CheckWordOUT(message)
 	}
+
+	// 去除末尾的换行符 不去除会导致不好看
+	message = removeTrailingCRLFs(message)
 
 	// 构造请求体
 	requestBody, err := json.Marshal(map[string]interface{}{
