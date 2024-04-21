@@ -157,6 +157,13 @@ func main() {
 		log.Printf("Unknown API type: %d", apiType)
 	}
 
+	if config.GetAllApi() {
+		http.HandleFunc("/conversation_gpt", app.ChatHandlerChatgpt)
+		http.HandleFunc("/conversation_hunyuan", app.ChatHandlerHunyuan)
+		http.HandleFunc("/conversation_ernie", app.ChatHandlerErnie)
+		http.HandleFunc("/conversation_rwkv", app.ChatHandlerRwkv)
+	}
+
 	exePath, err := os.Executable()
 	if err != nil {
 		log.Fatal(err)
