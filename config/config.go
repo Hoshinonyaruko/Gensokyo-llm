@@ -1142,3 +1142,13 @@ func GetPathToken() string {
 	}
 	return ""
 }
+
+// 获取开启全部api
+func GetAllApi() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.AllApi
+	}
+	return false
+}

@@ -208,6 +208,7 @@ type WXFunctionCall struct {
 }
 
 type Settings struct {
+	AllApi       bool     `yaml:"allApi"`
 	SecretId     string   `yaml:"secretId"`
 	SecretKey    string   `yaml:"secretKey"`
 	Region       string   `yaml:"region"`
