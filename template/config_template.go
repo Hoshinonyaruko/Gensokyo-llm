@@ -5,7 +5,8 @@ version: 1
 settings:
 
   #通用配置项
-  useSse : false                                 #智能体场景开启,其他场景,比如普通onebotv11不开启
+  allApi : false                                #以conversation_ernie conversation_hunyuan形式同时开启全部api,请设置好iPWhiteList避免被盗用.
+  useSse : false                                #智能体场景开启,其他场景,比如普通onebotv11不开启
   port : 46233                                  #本程序监听端口,支持gensokyo http上报,   请在gensokyo的反向http配置加入 post_url: ["http://127.0.0.1:port/gensokyo"] 
   path : "http://123.123.123.123:11111"         #调用gensokyo api的地址,填入 gensokyo 的 正向http地址   http_address: "0.0.0.0:46231"  对应填入 "http://127.0.0.1:46231"
   apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt

@@ -99,11 +99,18 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("收到prompt参数: %s\n", promptstr)
 	}
 
-	// 读取URL参数 "prompt"
+	// 读取URL参数 "selfid"
 	selfid := r.URL.Query().Get("selfid")
 	if selfid != "" {
 		// 使用 prompt 变量进行后续处理
 		fmt.Printf("收到selfid参数: %s\n", selfid)
+	}
+
+	// 读取URL参数 "api"
+	api := r.URL.Query().Get("api")
+	if selfid != "" {
+		// 使用 prompt 变量进行后续处理
+		fmt.Printf("收到api参数: %s\n", selfid)
 	}
 
 	// 打印日志信息，包括prompt参数
@@ -358,10 +365,15 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 构建并发送请求到conversation接口
 		port := config.GetPort()
-		portStr := fmtf.Sprintf(":%d", port)
+		portStr := fmt.Sprintf(":%d", port)
 
-		// 初始化URL
-		baseURL := "http://127.0.0.1" + portStr + "/conversation"
+		// 初始化URL，根据api参数动态调整路径
+		basePath := "/conversation"
+		if api != "" {
+			fmtf.Printf("收到api参数: %s\n", api)
+			basePath = "/" + api // 动态替换conversation部分为api参数值
+		}
+		baseURL := "http://127.0.0.1" + portStr + basePath
 
 		// 使用net/url包来构建和编码URL
 		urlParams := url.Values{}
@@ -375,7 +387,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			fullURL += "?" + urlParams.Encode()
 		}
 
-		fmtf.Printf("Generated URL:%v", fullURL)
+		fmtf.Printf("Generated URL:%v\n", fullURL)
 
 		// 请求模型还是使用原文请求
 		requestmsg := message.Message.(string)
