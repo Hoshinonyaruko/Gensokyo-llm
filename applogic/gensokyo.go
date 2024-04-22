@@ -564,6 +564,11 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							promptkeyboard[i] = acnode.CheckWordOUT(item)
 						}
 
+						// 使用acnode.CheckWordOUT()过滤promptkeyboard中的每个字符串
+						for i, item := range promptkeyboard {
+							promptkeyboard[i] = acnode.CheckWordOUT(item)
+						}
+
 						//最后一条了
 						messageSSE := structs.InterfaceBody{
 							Content:        " ",
