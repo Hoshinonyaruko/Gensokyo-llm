@@ -5,14 +5,18 @@
 </p>
 
 <div align="center">
-
 # gensokyo-llm
 
-_✨ 适用于Gensokyo以及Onebot的大模型数字人一键端 ✨_  
+_✨ 适用于Gensokyo以及Onebotv11的大模型一键端 ✨_  
+</div> 
 
-## 特点
+---
 
-支持所有Onebotv11标准框架.
+## 特性
+
+支持所有Onebotv11标准框架.支持http-api和反向ws,支持流式发送,多配置文件(多提示词)
+
+超小体积,内置sqlite维护上下文,支持proxy,
 
 可一键对接[Gensokyo框架](https://gensokyo.bot) 仅需配置反向http地址用于接收信息，正向http地址用于调用发送api
 
@@ -27,6 +31,8 @@ _✨ 适用于Gensokyo以及Onebot的大模型数字人一键端 ✨_
 可转换gpt的sse类型，递增还是只发新增的sse
 
 并发环境下的sse内存安全，支持维持多用户同时双向sse传输
+
+---
 
 ## 安全性
 
@@ -58,6 +64,8 @@ AhoCorasick算法实现的超高效文本IN-Out替换规则，可大量替换n�
 
 针对高效高性能高QPS场景优化的专门场景应用，没有冗余功能和指令,全面围绕数字人设计.
 
+---
+
 ## 使用方法
 使用命令行运行gensokyo-llm可执行程序
 
@@ -65,15 +73,21 @@ AhoCorasick算法实现的超高效文本IN-Out替换规则，可大量替换n�
 
 支持中间件开发,在gensokyo框架层到gensokyo-llm的http请求之间,可开发中间件实现向量拓展,数据库拓展,动态修改用户问题.
 
+---
+
 # API接口调用说明
 
 本文档提供了关于API接口的调用方法和配置文件的格式说明，帮助用户正确使用和配置。
+
+---
 
 ## 接口支持的查询参数
 
 本系统的 `conversation` 和 `gensokyo` 端点支持通过查询参数 `?prompt=xxx` 来指定特定的配置。
 
 - `prompt` 参数允许用户指定位于执行文件（exe）的 `prompts` 文件夹下的配置YAML文件。使用该参数可以动态地调整API行为和返回内容。
+
+---
 
 ## YAML配置文件格式
 
@@ -97,24 +111,71 @@ settings:
   port: 46233
 ```
 
+---
+
+## 多配置文件支持
+
+### 请求 `/gensokyo` 端点
+
+当向 `/gensokyo` 端点发起请求时，系统支持附加 `prompt` 参数和 `api` 参数。`api` 参数允许指定如 `/conversation_ernie` 这类的完整端点。启用此功能需在配置中开启 `allapi` 选项。
+
+示例请求：
+```http
+GET /gensokyo?prompt=example&api=/conversation_ernie
+```
+
+### 请求 `/conversation` 端点
+
+与 `/gensokyo` 类似，`/conversation` 端点支持附加 `prompt` 参数。
+
+示例请求：
+```http
+GET /conversation?prompt=example
+```
+
+### `prompt` 参数解析
+
+提供的 `prompt` 参数将引用可执行文件目录下的 `/prompts` 文件夹中相应的 YAML 文件（例如 `xxxx.yml`，其中 `xxxx` 是 `prompt` 参数的值）。
+
+### YAML 配置文件
+
+YAML 文件的配置格式请参考 **YAML配置文件格式** 部分。以下列出的配置项支持在请求中动态覆盖：
+
+- `GetWenxinApiPath`
+- `GetGptModel`
+- `GetGptApiPath`
+- `GetGptToken`
+- `GetMaxTokenGpt`
+- `GetUseCache`
+- `GetProxy`
+- `GetRwkvMaxTokens`
+
+对于不在上述列表中的配置项，如果需要支持覆盖，请[提交 issue](#)。
+
+---
+
 ### 终结点
 
-| 属性  | 详情                                   |
-| ----- | -------------------------------------- |
-| URL   | http://localhost:46230/conversation    |
-| 方法  | POST                                   |
+本节介绍了与API通信的具体终结点信息。
+
+| 属性  | 详情                                    |
+| ----- | --------------------------------------- |
+| URL   | `http://localhost:46230/conversation`   |
+| 方法  | `POST`                                  |
 
 ### 请求参数
 
-请求体应为JSON格式，包含以下字段：
+客户端应向服务器发送的请求体必须为JSON格式，以下表格详细列出了每个字段的数据类型及其描述。
 
-| 字段名            | 类型   | 描述                           |
-| ----------------- | ------ | ------------------------------ |
-| `message`         | String | 要发送的消息内容               |
-| `conversationId`  | String | 当前对话的唯一标识符           |
-| `parentMessageId` | String | 上一条消息的唯一标识符         |
+| 字段名            | 类型   | 描述                               |
+| ----------------- | ------ | ---------------------------------- |
+| `message`         | String | 用户发送的消息内容                 |
+| `conversationId`  | String | 当前对话会话的唯一标识符            |
+| `parentMessageId` | String | 与此消息关联的上一条消息的标识符    |
 
 #### 请求示例
+
+下面的JSON对象展示了向该API终结点发送请求时，请求体的结构：
 
 ```json
 {
@@ -123,6 +184,10 @@ settings:
     "parentMessageId": "73b144d2-a41f-4aeb-b3bb-8624f0e54ba6"
 }
 ```
+
+该示例展示了如何构造一个包含消息内容、当前对话会话的唯一标识符以及上一条消息的标识符的请求体。这种格式确保了请求的数据不仅符合服务器的处理规则，同时也便于维护对话上下文的连贯性。
+
+---
 
 #### 返回值示例
 
@@ -135,6 +200,8 @@ settings:
 | `messageId`       | String                  | 当前消息的唯一标识符        |
 | `details`         | Object                  | 包含额外的使用详情          |
 | `usage`           | Object (在 `details` 中) | 使用详情，如令牌计数        |
+
+---
 
 #### 响应示例
 
@@ -151,19 +218,21 @@ settings:
     }
 }
 ```
-
+---
 
 ## 兼容性
 可在各种架构运行
 （原生android暂不支持，sqlitev3需要cgo）
 由于cgo编译比较复杂，arm平台，或者其他架构，可试图在对应系统架构下，自行本地编译
 
-
+---
 
 ## 场景支持
 
 API方式调用
 QQ频道直接接入
+
+---
 
 ## 约定参数
 

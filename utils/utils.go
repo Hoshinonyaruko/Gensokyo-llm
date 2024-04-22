@@ -189,6 +189,12 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 	// 去除末尾的换行符 不去除会导致不好看
 	message = removeTrailingCRLFs(message)
 
+	// 繁体转换简体 安全策略 防止用户诱导ai发繁体绕过替换规则
+	message, err = ConvertTraditionalToSimplified(message)
+	if err != nil {
+		fmtf.Printf("繁体转换简体失败:%v", err)
+	}
+
 	// 构造请求体
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"group_id": groupID,
@@ -278,6 +284,12 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 	// 去除末尾的换行符 不去除会导致不好看
 	message = removeTrailingCRLFs(message)
 
+	// 繁体转换简体 安全策略 防止用户诱导ai发繁体绕过替换规则
+	message, err = ConvertTraditionalToSimplified(message)
+	if err != nil {
+		fmtf.Printf("繁体转换简体失败:%v", err)
+	}
+
 	// 构造请求体
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"user_id": UserID,
@@ -362,6 +374,12 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 
 	// 去除末尾的换行符 不去除会导致sse接口始终等待
 	message.Content = removeTrailingCRLFs(message.Content)
+
+	// 繁体转换简体 安全策略 防止用户诱导ai发繁体绕过替换规则
+	message.Content, err = ConvertTraditionalToSimplified(message.Content)
+	if err != nil {
+		fmtf.Printf("繁体转换简体失败:%v", err)
+	}
 
 	if message.Content == "" {
 		message.Content = " "

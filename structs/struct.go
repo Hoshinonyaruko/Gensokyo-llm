@@ -219,6 +219,7 @@ type Settings struct {
 	SystemPrompt []string `yaml:"systemPrompt"`
 	IPWhiteList  []string `yaml:"iPWhiteList"`
 	ApiType      int      `yaml:"apiType"`
+	Proxy        string   `yaml:"proxy"`
 
 	HunyuanType      int `yaml:"hunyuanType"`
 	MaxTokensHunyuan int `yaml:"maxTokensHunyuan"`
@@ -238,6 +239,7 @@ type Settings struct {
 	GptSafeMode     bool   `yaml:"gptSafeMode"`
 	GptSseType      int    `yaml:"gptSseType"`
 	GptEmbeddingUrl string `yaml:"gptEmbeddingUrl"`
+	StandardGptApi  bool   `yaml:"standardGptApi"`
 
 	Groupmessage       bool `yaml:"groupMessage"`
 	SplitByPuntuations int  `yaml:"splitByPuntuations"`

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -135,7 +136,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 截断历史信息
-		userhistory = truncateHistoryGpt(userhistory, msg.Text)
+		userhistory = truncateHistoryGpt(userhistory, msg.Text, promptstr)
 
 		// 注意追加的顺序，确保问题在系统提示词之后
 		// 使用...操作符来展开userhistory切片并追加到history切片
@@ -146,8 +147,8 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 
 	// 构建请求到ChatGPT API
 	model := config.GetGptModel(promptstr)
-	apiURL := config.GetGptApiPath()
-	token := config.GetGptToken()
+	apiURL := config.GetGptApiPath(promptstr)
+	token := config.GetGptToken(promptstr)
 
 	// 构造消息历史和当前消息
 	messages := []map[string]interface{}{}
@@ -173,20 +174,52 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 构建请求体
-	requestBody := map[string]interface{}{
-		"model":           model,
-		"messages":        messages,
-		"safe_mode":       safemode,
-		"stream":          useSSe,
-		"moderation":      gptModeration,
-		"moderation_stop": gptModerationStop,
+	var requestBody map[string]interface{}
+
+	if config.GetStandardGptApi() {
+		requestBody = map[string]interface{}{
+			"model":    model,
+			"messages": messages,
+			"stream":   useSSe,
+		}
+	} else {
+		requestBody = map[string]interface{}{
+			"model":           model,
+			"messages":        messages,
+			"safe_mode":       safemode,
+			"stream":          useSSe,
+			"moderation":      gptModeration,
+			"moderation_stop": gptModerationStop,
+		}
 	}
 
 	fmtf.Printf("chatgpt requestBody :%v", requestBody)
 	requestBodyJSON, _ := json.Marshal(requestBody)
 
-	// 准备HTTP请求
+	// 获取代理服务器地址
+	proxyURL := config.GetProxy(promptstr)
+	if err != nil {
+		http.Error(w, fmtf.Sprintf("Failed to get proxy: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	client := &http.Client{}
+
+	// 检查是否有有效的代理地址
+	if proxyURL != "" {
+		proxy, err := url.Parse(proxyURL)
+		if err != nil {
+			http.Error(w, fmtf.Sprintf("Failed to parse proxy URL: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// 配置客户端使用代理
+		client.Transport = &http.Transport{
+			Proxy: http.ProxyURL(proxy),
+		}
+	}
+
+	// 创建HTTP请求
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(requestBodyJSON))
 	if err != nil {
 		http.Error(w, fmtf.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
@@ -438,8 +471,8 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func truncateHistoryGpt(history []structs.Message, prompt string) []structs.Message {
-	MAX_TOKENS := config.GetMaxTokenGpt()
+func truncateHistoryGpt(history []structs.Message, prompt string, promptstr string) []structs.Message {
+	MAX_TOKENS := config.GetMaxTokenGpt(promptstr)
 
 	tokenCount := len(prompt)
 	for _, msg := range history {

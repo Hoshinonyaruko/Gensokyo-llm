@@ -134,7 +134,7 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 截断历史信息
-		userhistory = truncateHistoryGpt(userhistory, msg.Text)
+		userhistory = truncateHistoryRwkv(userhistory, msg.Text, promptstr)
 
 		// 注意追加的顺序，确保问题在系统提示词之后
 		// 使用...操作符来展开userhistory切片并追加到history切片
@@ -438,4 +438,50 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+}
+
+func truncateHistoryRwkv(history []structs.Message, prompt string, promptstr string) []structs.Message {
+	MAX_TOKENS := config.GetRwkvMaxTokens(promptstr)
+
+	tokenCount := len(prompt)
+	for _, msg := range history {
+		tokenCount += len(msg.Text)
+	}
+
+	if tokenCount >= MAX_TOKENS {
+		// 第一步：从开始逐个移除消息，直到满足令牌数量限制
+		for tokenCount > MAX_TOKENS && len(history) > 0 {
+			tokenCount -= len(history[0].Text)
+			history = history[1:]
+
+			// 确保移除后，历史记录仍然以user消息结尾
+			if len(history) > 0 && history[0].Role == "assistant" {
+				tokenCount -= len(history[0].Text)
+				history = history[1:]
+			}
+		}
+	}
+
+	// 第二步：检查并移除包含空文本的QA对
+	for i := 0; i < len(history)-1; i++ { // 使用len(history)-1是因为我们要检查成对的消息
+		q := history[i]
+		a := history[i+1]
+
+		// 检查Q和A是否成对，且A的角色应为assistant，Q的角色为user，避免删除非QA对的消息
+		if q.Role == "user" && a.Role == "assistant" && (len(q.Text) == 0 || len(a.Text) == 0) {
+			fmtf.Println("closeai-找到了空的对话: ", q, a)
+			// 移除这对QA
+			history = append(history[:i], history[i+2:]...)
+			i-- // 因为删除了元素，调整索引以正确检查下一个元素
+		}
+	}
+
+	// 确保以user结尾，如果不是则尝试移除直到满足条件
+	if len(history) > 0 && history[len(history)-1].Role != "user" {
+		for len(history) > 0 && history[len(history)-1].Role != "user" {
+			history = history[:len(history)-1]
+		}
+	}
+
+	return history
 }
