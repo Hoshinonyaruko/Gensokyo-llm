@@ -194,7 +194,7 @@ func getWenxinApiPathInternal(options ...string) string {
 	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "WenxinApiPath")
 	if err != nil {
 		log.Println("Error retrieving WenxinApiPath:", err)
-		return "0"
+		return getWenxinApiPathInternal() // 递归调用内部函数，不传递任何参数
 	}
 
 	apiPath, ok := apiPathInterface.(string)
@@ -238,7 +238,7 @@ func getGptModelInternal(options ...string) string {
 	gptModelInterface, err := prompt.GetSettingFromFilename(basename, "GptModel")
 	if err != nil {
 		log.Println("Error retrieving GptModel:", err)
-		return "0"
+		return getGptModelInternal() // 递归调用内部函数，不传递任何参数
 	}
 
 	gptModel, ok := gptModelInterface.(string)
@@ -251,33 +251,105 @@ func getGptModelInternal(options ...string) string {
 }
 
 // 获取GptApiPath
-func GetGptApiPath() string {
+func GetGptApiPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GptApiPath
+	return getGptApiPathInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGptApiPathInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GptApiPath
+		}
+		return ""
 	}
-	return "0"
+
+	// 使用传入的 basename
+	basename := options[0]
+	gptApiPathInterface, err := prompt.GetSettingFromFilename(basename, "GptApiPath")
+	if err != nil {
+		log.Println("Error retrieving GptApiPath:", err)
+		return getGptApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	gptApiPath, ok := gptApiPathInterface.(string)
+	if !ok || gptApiPath == "" { // 检查是否断言失败或结果为空字符串
+		fmt.Println("Type assertion failed or empty string for GptApiPath, fetching default")
+		return getGptApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return gptApiPath
 }
 
 // 获取GptToken
-func GetGptToken() string {
+func GetGptToken(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GptToken
+	return getGptTokenInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGptTokenInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GptToken
+		}
+		return ""
 	}
-	return "0"
+
+	// 使用传入的 basename
+	basename := options[0]
+	gptTokenInterface, err := prompt.GetSettingFromFilename(basename, "GptToken")
+	if err != nil {
+		log.Println("Error retrieving GptToken:", err)
+		return getGptTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	gptToken, ok := gptTokenInterface.(string)
+	if !ok || gptToken == "" { // 检查是否断言失败或结果为空字符串
+		fmt.Println("Type assertion failed or empty string for GptToken, fetching default")
+		return getGptTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return gptToken
 }
 
 // 获取MaxTokenGpt
-func GetMaxTokenGpt() int {
+func GetMaxTokenGpt(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.MaxTokenGpt
+	return getMaxTokenGptInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getMaxTokenGptInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.MaxTokenGpt
+		}
+		return 0
 	}
-	return 0
+
+	// 使用传入的 basename
+	basename := options[0]
+	maxTokenGptInterface, err := prompt.GetSettingFromFilename(basename, "MaxTokenGpt")
+	if err != nil {
+		log.Println("Error retrieving MaxTokenGpt:", err)
+		return getMaxTokenGptInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	maxTokenGpt, ok := maxTokenGptInterface.(int)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for MaxTokenGpt, fetching default")
+		return getMaxTokenGptInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return maxTokenGpt
 }
 
 // gpt安全模式
@@ -625,11 +697,15 @@ func GetAntiPromptLimit() float64 {
 	return 0.9
 }
 
-// 获取UseCache
+// 获取UseCache，增加可选参数支持动态配置查询
 func GetUseCache(options ...string) bool {
 	mu.Lock()
 	defer mu.Unlock()
+	return getUseCacheInternal(options...)
+}
 
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getUseCacheInternal(options ...string) bool {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -643,13 +719,13 @@ func GetUseCache(options ...string) bool {
 	useCacheInterface, err := prompt.GetSettingFromFilename(basename, "UseCache")
 	if err != nil {
 		log.Println("Error retrieving UseCache:", err)
-		return false
+		return getUseCacheInternal() // 如果出错，递归调用自身，不传递任何参数
 	}
 
 	useCache, ok := useCacheInterface.(bool)
 	if !ok {
 		log.Println("Type assertion failed for UseCache")
-		return false
+		return getUseCacheInternal() // 如果类型断言失败，递归调用自身，不传递任何参数
 	}
 
 	return useCache
@@ -964,13 +1040,37 @@ func GetRwkvApiPath() string {
 }
 
 // 获取RWKV最大令牌数
-func GetRwkvMaxTokens() int {
+func GetRwkvMaxTokens(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvMaxTokens
+	return getRwkvMaxTokensInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getRwkvMaxTokensInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.RwkvMaxTokens
+		}
+		return 0
 	}
-	return 0
+
+	// 使用传入的 basename
+	basename := options[0]
+	maxTokensInterface, err := prompt.GetSettingFromFilename(basename, "RwkvMaxTokens")
+	if err != nil {
+		log.Println("Error retrieving RwkvMaxTokens:", err)
+		return getRwkvMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	maxTokens, ok := maxTokensInterface.(int)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for RwkvMaxTokens, fetching default")
+		return getRwkvMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return maxTokens
 }
 
 // 获取RwkvSseType
@@ -1151,4 +1251,72 @@ func GetAllApi() bool {
 		return instance.Settings.AllApi
 	}
 	return false
+}
+
+// 获取Proxy
+func GetProxy(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getProxyInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getProxyInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.Proxy
+		}
+		return "" // 提供一个默认的 Proxy 值
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	proxyInterface, err := prompt.GetSettingFromFilename(basename, "Proxy")
+	if err != nil {
+		log.Println("Error retrieving Proxy:", err)
+		return getProxyInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	proxy, ok := proxyInterface.(string)
+	if !ok || proxy == "" { // 检查是否断言失败或结果为空字符串
+		fmt.Println("Type assertion failed or empty string for Proxy, fetching default")
+		return getProxyInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return proxy
+}
+
+// 获取 StandardGptApi
+func GetStandardGptApi(options ...string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return getStandardGptApiInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getStandardGptApiInternal(options ...string) bool {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.StandardGptApi
+		}
+		return false
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	standardGptApiInterface, err := prompt.GetSettingFromFilename(basename, "StandardGptApi")
+	if err != nil {
+		log.Println("Error retrieving StandardGptApi:", err)
+		return getStandardGptApiInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	standardGptApi, ok := standardGptApiInterface.(bool)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for StandardGptApi, fetching default")
+		return getStandardGptApiInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return standardGptApi
 }

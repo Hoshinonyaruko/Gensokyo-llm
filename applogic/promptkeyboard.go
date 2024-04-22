@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 )
 
 // ResponseDataPromptKeyboard 用于解析外层响应
@@ -19,20 +21,35 @@ type ResponseDataPromptKeyboard struct {
 }
 
 // 你要扮演一个json生成器,根据我下一句提交的QA内容,推断我可能会继续问的问题,生成json数组格式的结果,如:输入Q我好累啊A要休息一下吗,返回["嗯，我想要休息","我想喝杯咖啡","你平时怎么休息呢"]，返回需要是["","",""]需要2-3个结果
-func GetPromptKeyboardAI(msg string) []string {
-	url := config.GetAIPromptkeyboardPath()
+func GetPromptKeyboardAI(msg string, promptstr string) []string {
+	baseurl := config.GetAIPromptkeyboardPath()
+	// 使用net/url包来构建和编码URL
+	urlParams := url.Values{}
+	if promptstr != "" {
+		urlParams.Add("prompt", promptstr)
+	}
+
+	// 将查询参数编码后附加到基本URL上
+	fullURL := baseurl
+	if len(urlParams) > 0 {
+		fullURL += "?" + urlParams.Encode()
+	}
+
+	fmtf.Printf("Generated PromptKeyboard URL:%v\n", fullURL)
+
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"message":         msg,
 		"conversationId":  "",
 		"parentMessageId": "",
 		"user_id":         "",
 	})
+
 	if err != nil {
 		fmt.Printf("Error marshalling request: %v\n", err)
 		return config.GetPromptkeyboard()
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	resp, err := http.Post(fullURL, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		fmt.Printf("Error sending request: %v\n", err)
 		return config.GetPromptkeyboard()
