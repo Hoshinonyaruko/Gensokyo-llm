@@ -223,7 +223,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 如果使用向量缓存 或者使用 向量安全词
-		if config.GetUseCache() || config.GetVectorSensitiveFilter() {
+		if config.GetUseCache(promptstr) || config.GetVectorSensitiveFilter() {
 			if config.GetPrintHanming() {
 				fmtf.Printf("计算向量的文本: %v", newmsg)
 			}
@@ -515,7 +515,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								}
 							}
 							//清空之前加入缓存
-							// 缓存省钱部分
+							// 缓存省钱部分 这里默认不被覆盖,如果主配置开了缓存,始终缓存.
 							if config.GetUseCache() {
 								if response != "" {
 									fmtf.Printf("缓存了Q:%v,A:%v,向量ID:%v", newmsg, response, lastSelectedVectorID)
@@ -556,7 +556,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							promptkeyboard = config.GetPromptkeyboard()
 						} else {
 							fmtf.Printf("ai生成气泡:%v", "Q"+newmsg+"A"+response)
-							promptkeyboard = GetPromptKeyboardAI("Q" + newmsg + "A" + response)
+							promptkeyboard = GetPromptKeyboardAI("Q"+newmsg+"A"+response, promptstr)
 						}
 
 						// 使用acnode.CheckWordOUT()过滤promptkeyboard中的每个字符串
