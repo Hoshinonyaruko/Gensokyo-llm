@@ -129,7 +129,12 @@ func processWSMessage(msg []byte, selfid string) {
 
 			port := config.GetPort()
 			// 构造请求URL
-			url := "http://127.0.0.1:" + fmt.Sprint(port) + "/gensokyo?selfid=" + selfid
+			var url string
+			if config.GetLotus() == "" {
+				url = "http://127.0.0.1:" + fmt.Sprint(port) + "/gensokyo?selfid=" + selfid
+			} else {
+				url = config.GetLotus() + "/gensokyo?selfid=" + selfid
+			}
 
 			// 创建POST请求
 			resp, err := http.Post(url, "application/json", bytes.NewReader(data))

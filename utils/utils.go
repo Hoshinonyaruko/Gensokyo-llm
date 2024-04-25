@@ -479,8 +479,13 @@ func RemoveBracketsContent(input string) string {
 }
 
 func PostSensitiveMessages() error {
-	port := config.GetPort()                                     // 从config包获取端口号
-	portStr := fmt.Sprintf("http://127.0.0.1:%d/gensokyo", port) // 根据端口号构建URL
+	port := config.GetPort() // 从config包获取端口号
+	var portStr string
+	if config.GetLotus() == "" {
+		portStr = fmt.Sprintf("http://127.0.0.1:%d/gensokyo", port) // 根据端口号构建URL
+	} else {
+		portStr = config.GetLotus() + "/gensokyo"
+	}
 
 	file, err := os.Open("test.txt")
 	if err != nil {
