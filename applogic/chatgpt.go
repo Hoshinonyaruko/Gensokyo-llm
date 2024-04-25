@@ -165,7 +165,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 
 	//是否安全模式
 	safemode := config.GetGptSafeMode()
-	useSSe := config.GetuseSse()
+	useSSe := config.GetuseSse(promptstr)
 	// 腾讯云审核 by api2d
 	gptModeration := config.GetGptModeration()
 	var gptModerationStop bool
@@ -237,7 +237,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	if !config.GetuseSse() {
+	if !config.GetuseSse(promptstr) {
 		// 处理响应
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {

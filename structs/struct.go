@@ -215,6 +215,7 @@ type Settings struct {
 	UseSse       bool     `yaml:"useSse"`
 	Port         int      `yaml:"port"`
 	HttpPath     string   `yaml:"path"`
+	Lotus        string   `yaml:"lotus"`
 	PathToken    string   `yaml:"pathToken"`
 	SystemPrompt []string `yaml:"systemPrompt"`
 	IPWhiteList  []string `yaml:"iPWhiteList"`

@@ -141,16 +141,24 @@ GET /conversation?prompt=example
 
 YAML 文件的配置格式请参考 **YAML配置文件格式** 部分。以下列出的配置项支持在请求中动态覆盖：
 
-- `GetWenxinApiPath`
-- `GetGptModel`
-- `GetGptApiPath`
-- `GetGptToken`
-- `GetMaxTokenGpt`
-- `GetUseCache`
-- `GetProxy`
-- `GetRwkvMaxTokens`
+实现了配置覆盖的函数
+- [x] GetWenxinApiPath
+- [x] GetGptModel
+- [x] GetGptApiPath
+- [x] GetGptToken
+- [x] GetMaxTokenGpt
+- [x] GetUseCache（bool）
+- [x] GetProxy
+- [x] GetRwkvMaxTokens
+- [x] GetLotus
+- [x] GetuseSse（bool）
+- [x] GetAIPromptkeyboardPath
 
 对于不在上述列表中的配置项，如果需要支持覆盖，请[提交 issue](#)。
+
+所有的bool值在配置文件覆盖的yml中必须指定,否则将会被认为是false.
+
+动态配置覆盖是一个我自己构思的特性,利用这个特性,可以实现配置文件之间的递归,举例,你可以在自己的中间件传递prompt=a,在a.yml中指定Lotus为调用自身,并在lotus地址中指定下一个prompt参数为b,b指定c,c指定d,以此类推.
 
 ---
 
@@ -255,3 +263,11 @@ QQ频道直接接入
 ```
 
 这表示气泡生成的结果是一个包含三个字符串的数组。这个格式用于在返回结果时指明三个不同的气泡，也可以少于或等于3个.
+
+现已不再需要开多个gsk-llm实现类agent功能,基于新的多配置覆盖,prompt参数和lotus特性,可以自己请求自己实现气泡生成,故事推进等复杂特性.
+
+GetAIPromptkeyboardPath可以是自身地址,可以带有prompt参数
+
+当使用中间件指定prompt参数时,配置位于prompts文件夹,其格式xxx-keyboard.yml,若未使用中间件,请在path中指定prompts参数,并将相应的xxx.yml放在prompts文件夹下)
+
+设置系统提示词的gsk-llm联合工作的/conversation地址,约定系统提示词需返回文本json数组(3个).

@@ -22,11 +22,12 @@ type ResponseDataPromptKeyboard struct {
 
 // 你要扮演一个json生成器,根据我下一句提交的QA内容,推断我可能会继续问的问题,生成json数组格式的结果,如:输入Q我好累啊A要休息一下吗,返回["嗯，我想要休息","我想喝杯咖啡","你平时怎么休息呢"]，返回需要是["","",""]需要2-3个结果
 func GetPromptKeyboardAI(msg string, promptstr string) []string {
-	baseurl := config.GetAIPromptkeyboardPath()
+	baseurl := config.GetAIPromptkeyboardPath(promptstr)
+	fmtf.Printf("获取到keyboard baseurl:%v", baseurl)
 	// 使用net/url包来构建和编码URL
 	urlParams := url.Values{}
 	if promptstr != "" {
-		urlParams.Add("prompt", promptstr)
+		urlParams.Add("prompt", promptstr+"-keyboard")
 	}
 
 	// 将查询参数编码后附加到基本URL上

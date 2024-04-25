@@ -373,7 +373,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			fmtf.Printf("收到api参数: %s\n", api)
 			basePath = "/" + api // 动态替换conversation部分为api参数值
 		}
-		baseURL := "http://127.0.0.1" + portStr + basePath
+		var baseURL string
+		if config.GetLotus(promptstr) == "" {
+			baseURL = "http://127.0.0.1" + portStr + basePath
+		} else {
+			baseURL = config.GetLotus(promptstr) + basePath
+		}
 
 		// 使用net/url包来构建和编码URL
 		urlParams := url.Values{}
@@ -432,7 +437,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		var lastMessageID string
 		var response string
 
-		if config.GetuseSse() {
+		if config.GetuseSse(promptstr) {
 			// 处理SSE流式响应
 			reader := bufio.NewReader(resp.Body)
 			for {
