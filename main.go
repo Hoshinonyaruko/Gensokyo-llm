@@ -125,6 +125,12 @@ func main() {
 		log.Fatalf("Failed to ensure SensitiveWordsTable table exists: %v", err)
 	}
 
+	// 故事模式存档
+	err = app.EnsureCustomTableExist()
+	if err != nil {
+		log.Fatalf("Failed to ensure CustomTableExist table exists: %v", err)
+	}
+
 	// 加载 拦截词
 	err = app.ProcessSensitiveWords()
 	if err != nil {

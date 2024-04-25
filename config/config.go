@@ -1402,3 +1402,105 @@ func getStandardGptApiInternal(options ...string) bool {
 
 	return standardGptApi
 }
+
+// 获取 PromptMarkType
+func GetPromptMarkType(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getPromptMarkTypeInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getPromptMarkTypeInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.PromptMarkType
+		}
+		return 0 // 默认返回 0 或一个合理的默认值
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	promptMarkTypeInterface, err := prompt.GetSettingFromFilename(basename, "PromptMarkType")
+	if err != nil {
+		log.Println("Error retrieving PromptMarkType:", err)
+		return getPromptMarkTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	promptMarkType, ok := promptMarkTypeInterface.(int)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for PromptMarkType, fetching default")
+		return getPromptMarkTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return promptMarkType
+}
+
+// 获取 PromptMarksLength
+func GetPromptMarksLength(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getPromptMarksLengthInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getPromptMarksLengthInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.PromptMarksLength
+		}
+		return 0 // 默认返回 0 或一个合理的默认值
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	promptMarksLengthInterface, err := prompt.GetSettingFromFilename(basename, "PromptMarksLength")
+	if err != nil {
+		log.Println("Error retrieving PromptMarksLength:", err)
+		return getPromptMarksLengthInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	promptMarksLength, ok := promptMarksLengthInterface.(int)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for PromptMarksLength, fetching default")
+		return getPromptMarksLengthInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return promptMarksLength
+}
+
+// 获取 PromptMarks
+func GetPromptMarks(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getPromptMarksInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getPromptMarksInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.PromptMarks
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	promptMarksInterface, err := prompt.GetSettingFromFilename(basename, "PromptMarks")
+	if err != nil {
+		log.Println("Error retrieving PromptMarks:", err)
+		return getPromptMarksInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	promptMarks, ok := promptMarksInterface.([]string)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for PromptMarks, fetching default")
+		return getPromptMarksInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return promptMarks
+}

@@ -92,11 +92,68 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 读取URL参数 "prompt"
-	promptstr := r.URL.Query().Get("prompt")
-	if promptstr != "" {
-		// 使用 prompt 变量进行后续处理
-		fmt.Printf("收到prompt参数: %s\n", promptstr)
+	// 从数据库读取用户的剧情存档
+	CustomRecord, err := app.FetchCustomRecord(message.UserID)
+	if err != nil {
+		fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
+	}
+
+	var promptstr string
+	if CustomRecord != nil {
+		// 提示词参数
+		if CustomRecord.PromptStr == "" {
+			// 读取URL参数 "prompt"
+			promptstr = r.URL.Query().Get("prompt")
+			if promptstr != "" {
+				// 使用 prompt 变量进行后续处理
+				fmt.Printf("收到prompt参数: %s\n", promptstr)
+			}
+		} else {
+			promptstr = CustomRecord.PromptStr
+			fmt.Printf("刷新prompt参数: %s,newPromptStrStat:%d\n", promptstr, CustomRecord.PromptStrStat-1)
+			newPromptStrStat := CustomRecord.PromptStrStat - 1
+			err = app.InsertCustomTableRecord(message.UserID, promptstr, newPromptStrStat)
+			if err != nil {
+				fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
+			}
+		}
+
+		// 提示词之间流转 达到信号量
+		markType := config.GetPromptMarkType(promptstr)
+		if (markType == 0 || markType == 1) && (CustomRecord.PromptStrStat-1 <= 0) {
+			PromptMarks := config.GetPromptMarks(promptstr)
+			if len(PromptMarks) != 0 {
+				randomIndex := rand.Intn(len(PromptMarks))
+				newPromptStr := PromptMarks[randomIndex]
+
+				// 如果 markType 是 1，提取 "aaa" 部分
+				if markType == 1 {
+					parts := strings.Split(newPromptStr, ":")
+					if len(parts) > 0 {
+						newPromptStr = parts[0] // 取冒号前的部分作为新的提示词
+					}
+				}
+
+				// 刷新新的提示词给用户目前的状态
+				// 获取新的信号长度
+				PromptMarksLength := config.GetPromptMarksLength(newPromptStr)
+
+				app.InsertCustomTableRecord(message.UserID, newPromptStr, PromptMarksLength)
+				fmt.Printf("流转prompt参数: %s,newPromptStrStat:%d\n", newPromptStr, PromptMarksLength)
+			}
+		}
+	} else {
+		// 读取URL参数 "prompt"
+		promptstr = r.URL.Query().Get("prompt")
+		if promptstr != "" {
+			// 使用 prompt 变量进行后续处理
+			fmt.Printf("收到prompt参数: %s\n", promptstr)
+		}
+		PromptMarksLength := config.GetPromptMarksLength(promptstr)
+		err = app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
+		if err != nil {
+			fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
+		}
 	}
 
 	// 读取URL参数 "selfid"
@@ -168,6 +225,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
 			}
+			// 处理故事情节的重置
+			app.deleteCustomRecord(message.UserID)
 			return
 		}
 
@@ -519,7 +578,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 									}
 								}
 							}
-							//清空之前加入缓存
+							// 处理故事模式
+							app.ProcessAnswer(message.UserID, response, promptstr)
+							// 清空之前加入缓存
 							// 缓存省钱部分 这里默认不被覆盖,如果主配置开了缓存,始终缓存.
 							if config.GetUseCache() {
 								if response != "" {
