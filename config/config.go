@@ -1504,3 +1504,37 @@ func getPromptMarksInternal(options ...string) []string {
 
 	return promptMarks
 }
+
+// 获取 EnhancedQA
+func GetEnhancedQA(options ...string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return getEnhancedQAInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getEnhancedQAInternal(options ...string) bool {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.EnhancedQA
+		}
+		return false
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	enhancedQAInterface, err := prompt.GetSettingFromFilename(basename, "EnhancedQA")
+	if err != nil {
+		log.Println("Error retrieving EnhancedQA:", err)
+		return getEnhancedQAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	enhancedQA, ok := enhancedQAInterface.(bool)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for EnhancedQA, fetching default")
+		return getEnhancedQAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return enhancedQA
+}
