@@ -170,7 +170,7 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 		"top_k":             config.GetRwkvTopK(),
 		"global_penalty":    config.GetRwkvGlobalPenalty(),
 		"model":             "rwkv",
-		"stream":            config.GetuseSse(),
+		"stream":            config.GetuseSse(promptstr),
 		"stop":              config.GetRwkvStop(),
 		"user_name":         config.GetRwkvUserName(),
 		"assistant_name":    config.GetRwkvAssistantName(),
@@ -200,7 +200,7 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	if !config.GetuseSse() {
+	if !config.GetuseSse(promptstr) {
 		// 处理响应
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {

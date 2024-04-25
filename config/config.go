@@ -83,13 +83,37 @@ func Getregion() string {
 }
 
 // 获取useSse
-func GetuseSse() bool {
+func GetuseSse(options ...string) bool {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.UseSse
+	return getUseSseInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getUseSseInternal(options ...string) bool {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.UseSse
+		}
+		return false
 	}
-	return false
+
+	// 使用传入的 basename
+	basename := options[0]
+	useSseInterface, err := prompt.GetSettingFromFilename(basename, "UseSse")
+	if err != nil {
+		log.Println("Error retrieving UseSse:", err)
+		return getUseSseInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	useSse, ok := useSseInterface.(bool)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for UseSse, fetching default")
+		return getUseSseInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return useSse
 }
 
 // 获取GetPort
@@ -110,6 +134,40 @@ func GetHttpPath() string {
 		return instance.Settings.HttpPath
 	}
 	return "0"
+}
+
+// 获取getLotus
+func GetLotus(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getLotusInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getLotusInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.Lotus
+		}
+		return ""
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	lotusInterface, err := prompt.GetSettingFromFilename(basename, "Lotus")
+	if err != nil {
+		log.Println("Error retrieving Lotus:", err)
+		return getLotusInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	lotus, ok := lotusInterface.(string)
+	if !ok || lotus == "" { // 检查是否断言失败或结果为空字符串
+		log.Println("Type assertion failed or empty string for Lotus, fetching default")
+		return getLotusInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return lotus
 }
 
 // 获取SystemPrompt
@@ -1020,13 +1078,37 @@ func GetUseAIPromptkeyboard() bool {
 }
 
 // 获取AIPromptkeyboardPath
-func GetAIPromptkeyboardPath() string {
+func GetAIPromptkeyboardPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.AIPromptkeyboardPath
+	return getAIPromptkeyboardPathInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getAIPromptkeyboardPathInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.AIPromptkeyboardPath
+		}
+		return ""
 	}
-	return ""
+
+	// 使用传入的 basename
+	basename := options[0]
+	pathInterface, err := prompt.GetSettingFromFilename(basename, "AIPromptkeyboardPath")
+	if err != nil {
+		log.Println("Error retrieving AIPromptkeyboardPath:", err)
+		return getAIPromptkeyboardPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	path, ok := pathInterface.(string)
+	if !ok || path == "" { // 检查是否断言失败或结果为空字符串
+		log.Println("Type assertion failed or empty string for AIPromptkeyboardPath, fetching default")
+		return getAIPromptkeyboardPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return path
 }
 
 // 获取RWKV API路径
