@@ -102,9 +102,12 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		history, err = prompt.GetMessagesExcludingSystem(promptstr)
-		if err != nil {
-			fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+		// 默认执行 正常提示词顺序
+		if !config.GetEnhancedQA(promptstr) {
+			history, err = prompt.GetMessagesExcludingSystem(promptstr)
+			if err != nil {
+				fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+			}
 		}
 	}
 
@@ -122,6 +125,15 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		// 注意追加的顺序，确保问题在系统提示词之后
 		// 使用...操作符来展开userhistory切片并追加到history切片
 		history = append(history, userhistory...)
+	}
+
+	// 如果使用增强的提示词顺序(需配置覆盖)
+	if config.GetEnhancedQA(promptstr) {
+		systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
+		if err != nil {
+			fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+		}
+		history = append(history, systemHistory...)
 	}
 
 	fmtf.Printf("文心上下文history:%v\n", history)

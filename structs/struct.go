@@ -318,6 +318,7 @@ type Settings struct {
 	PromptMarkType    int      `yaml:"promptMarkType"`
 	PromptMarksLength int      `yaml:"promptMarksLength"`
 	PromptMarks       []string `yaml:"promptMarks"`
+	EnhancedQA        bool     `yaml:"enhancedQA"`
 }
 
 type MetaEvent struct {
