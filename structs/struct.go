@@ -314,6 +314,10 @@ type Settings struct {
 
 	WSServerToken string `yaml:"wsServerToken"`
 	WSPath        string `yaml:"wsPath"`
+
+	PromptMarkType    int      `yaml:"promptMarkType"`
+	PromptMarksLength int      `yaml:"promptMarksLength"`
+	PromptMarks       []string `yaml:"promptMarks"`
 }
 
 type MetaEvent struct {
@@ -369,4 +373,11 @@ type OnebotActionMessage struct {
 	Action string                 `json:"action"`
 	Params map[string]interface{} `json:"params"`
 	Echo   interface{}            `json:"echo,omitempty"`
+}
+
+type CustomRecord struct {
+	UserID        int64
+	PromptStr     string
+	PromptStrStat int        // New integer field for storing promptstr_stat
+	Strs          [10]string // Array to store str1 to str10
 }

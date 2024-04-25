@@ -78,6 +78,11 @@ settings:
   vectorSensitiveFilter : false                 #是否开启向量拦截词,请放在同目录下的vector_sensitive.txt中 一行一个，可以是句子。 命令行参数 -test 会用test.exe中的内容跑测试脚本。
   vertorSensitiveThreshold : 200                #汉明距离,满足距离代表向量含义相近,可给出拦截.
 
+  #多配置覆盖,切换条件等设置
+  promptMarkType : 0                            #0=多个里随机一个,promptMarksLength达到时触发 1=按条件触发,promptMarksLength达到时也触发.条件格式aaaa:xxx-xxx-xxxx-xxx,aaa是promptmark中的yml,xxx是标记,识别到用户和模型说出标记就会触发这个支线(需要自行写好提示词,让llm能根据条件说出.)
+  promptMarksLength : 2                         #promptMarkType=0时,多少轮开始切换上下文.
+  promptMarks : []                              #prompts文件夹内的文件,一个代表一个配置文件,当promptMarkType为0是,直接是prompts文件夹内的yml名字,当为1时,格式在上面.
+
   #混元配置项
   secretId : ""                                 #腾讯云账号(右上角)-访问管理-访问密钥，生成获取
   secretKey : ""

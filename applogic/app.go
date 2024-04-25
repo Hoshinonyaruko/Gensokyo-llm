@@ -178,6 +178,32 @@ func (app *App) EnsureQATableExist() error {
 	return nil
 }
 
+func (app *App) EnsureCustomTableExist() error {
+	createTableSQL := `
+    CREATE TABLE IF NOT EXISTS custom_table (
+        user_id INTEGER PRIMARY KEY,
+        promptstr TEXT NOT NULL,
+        promptstr_stat INTEGER,
+        str1 TEXT,
+        str2 TEXT,
+        str3 TEXT,
+        str4 TEXT,
+        str5 TEXT,
+        str6 TEXT,
+        str7 TEXT,
+        str8 TEXT,
+        str9 TEXT,
+        str10 TEXT
+    );`
+
+	_, err := app.DB.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("error creating custom_table: %w", err)
+	}
+
+	return nil
+}
+
 func (app *App) EnsureUserContextTableExists() error {
 	createTableSQL := `
     CREATE TABLE IF NOT EXISTS user_context (
