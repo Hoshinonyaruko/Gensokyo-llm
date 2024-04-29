@@ -132,9 +132,10 @@ func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message
 }
 
 // ApplySwitchOnQ 应用switchOnQ的逻辑，动态修改promptstr
-func (app *App) ApplySwitchOnQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
+func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *structs.OnebotGroupMessage) {
+	promptstrtemp := *promptstr
 	// promptstr 随 switchOnQ 变化
-	promptstrChoices := config.GetSwitchOnQ(promptstr)
+	promptstrChoices := config.GetSwitchOnQ(promptstrtemp)
 	if len(promptstrChoices) != 0 {
 		// 获取用户剧情存档中的当前状态
 		CustomRecord, err := app.FetchCustomRecord(message.UserID)
@@ -144,13 +145,13 @@ func (app *App) ApplySwitchOnQ(promptstr string, requestmsg *string, message *st
 		}
 
 		// 获取当前场景的总对话长度
-		PromptMarksLength := config.GetPromptMarksLength(promptstr)
+		PromptMarksLength := config.GetPromptMarksLength(promptstrtemp)
 
 		// 计算当前对话轮次
 		currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 		fmt.Printf("关键词切换分支状态:当前对话轮次Q %v,当前promptstr:%v", currentRound, promptstr)
 
-		enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
+		enhancedChoices := config.GetEnhancedPromptChoices(promptstrtemp)
 		fmt.Printf("关键词切换分支状态:%v", enhancedChoices)
 		if enhancedChoices {
 			// 遍历所有的promptChoices配置项
@@ -188,13 +189,13 @@ func (app *App) ApplySwitchOnQ(promptstr string, requestmsg *string, message *st
 					}
 					// 如果找到了有效的触发词组合，修改分支
 					if bestMatchCount > 0 {
-						promptstr = bestText
+						*promptstr = bestText
 						// 获取新的信号长度 刷新持久化数据库
-						PromptMarksLength := config.GetPromptMarksLength(promptstr)
-						app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
-						fmt.Printf("enhancedChoices=true,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
+						PromptMarksLength := config.GetPromptMarksLength(promptstrtemp)
+						app.InsertCustomTableRecord(message.UserID, promptstrtemp, PromptMarksLength)
+						fmt.Printf("enhancedChoices=true,根据关键词切换prompt为: %v,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
 						// 故事模式规则 应用 PromptChoiceQ 这一次是为了,替换了分支后,再次用新的分支的promptstr处理一次,因为原先的promptstr是跳转前,要用跳转后的再替换一次
-						app.ApplyPromptChoiceQ(promptstr, requestmsg, message)
+						app.ApplyPromptChoiceQ(promptstrtemp, requestmsg, message)
 					}
 				}
 			}
@@ -213,13 +214,13 @@ func (app *App) ApplySwitchOnQ(promptstr string, requestmsg *string, message *st
 					texts := strings.Split(addedTexts, "-")
 					if len(texts) > 0 {
 						selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-						promptstr = selectedText
+						*promptstr = selectedText
 						// 获取新的信号长度 刷新持久化数据库
-						PromptMarksLength := config.GetPromptMarksLength(promptstr)
-						app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
-						fmt.Printf("enhancedChoices=false,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
+						PromptMarksLength := config.GetPromptMarksLength(promptstrtemp)
+						app.InsertCustomTableRecord(message.UserID, promptstrtemp, PromptMarksLength)
+						fmt.Printf("enhancedChoices=false,根据关键词切换prompt为: %v,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
 						// 故事模式规则 应用 PromptChoiceQ 这一次是为了,替换了分支后,再次用新的分支的promptstr处理一次,因为原先的promptstr是跳转前,要用跳转后的再替换一次
-						app.ApplyPromptChoiceQ(promptstr, requestmsg, message)
+						app.ApplyPromptChoiceQ(promptstrtemp, requestmsg, message)
 					}
 				}
 			}
@@ -399,9 +400,10 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 }
 
 // ApplySwitchOnA 应用switchOnA的逻辑，动态修改promptstr
-func (app *App) ApplySwitchOnA(promptstr string, response *string, message *structs.OnebotGroupMessage) {
+func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *structs.OnebotGroupMessage) {
+	promptstrtemp := *promptstr
 	// 获取与 switchOnA 相关的选择
-	promptstrChoices := config.GetSwitchOnA(promptstr)
+	promptstrChoices := config.GetSwitchOnA(promptstrtemp)
 	if len(promptstrChoices) != 0 {
 		// 获取用户剧情存档中的当前状态
 		CustomRecord, err := app.FetchCustomRecord(message.UserID)
@@ -411,13 +413,13 @@ func (app *App) ApplySwitchOnA(promptstr string, response *string, message *stru
 		}
 
 		// 获取当前场景的总对话长度
-		PromptMarksLength := config.GetPromptMarksLength(promptstr)
+		PromptMarksLength := config.GetPromptMarksLength(promptstrtemp)
 
 		// 计算当前对话轮次
 		currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 		fmt.Printf("关键词[%v]切换分支状态:当前对话轮次A %v", *response, currentRound)
 
-		enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
+		enhancedChoices := config.GetEnhancedPromptChoices(promptstrtemp)
 		fmt.Printf("关键词切换分支状态:%v", enhancedChoices)
 		if enhancedChoices {
 			for _, choice := range promptstrChoices {
@@ -448,10 +450,10 @@ func (app *App) ApplySwitchOnA(promptstr string, response *string, message *stru
 						}
 					}
 					if bestMatchCount > 0 {
-						promptstr = bestText
-						PromptMarksLength := config.GetPromptMarksLength(promptstr)
-						app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
-						fmt.Printf("enhancedChoices=true,根据关键词A切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
+						*promptstr = bestText
+						PromptMarksLength := config.GetPromptMarksLength(promptstrtemp)
+						app.InsertCustomTableRecord(message.UserID, promptstrtemp, PromptMarksLength)
+						fmt.Printf("enhancedChoices=true,根据关键词A切换prompt为: %v,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
 					}
 				}
 			}
@@ -468,10 +470,10 @@ func (app *App) ApplySwitchOnA(promptstr string, response *string, message *stru
 					texts := strings.Split(addedTexts, "-")
 					if len(texts) > 0 {
 						selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-						promptstr = selectedText
-						PromptMarksLength := config.GetPromptMarksLength(promptstr)
-						app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
-						fmt.Printf("enhancedChoices=false,根据关键词A切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
+						*promptstr = selectedText
+						PromptMarksLength := config.GetPromptMarksLength(promptstrtemp)
+						app.InsertCustomTableRecord(message.UserID, promptstrtemp, PromptMarksLength)
+						fmt.Printf("enhancedChoices=false,根据关键词A切换prompt为: %v,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
 					}
 				}
 			}
