@@ -116,7 +116,7 @@ func fieldIndex(field string) int {
 	return -1
 }
 
-func (app *App) ProcessAnswer(userID int64, answer string, promptStr string) {
+func (app *App) ProcessQA(userID int64, QorA string, promptStr string) {
 	// 根据 promptStr 获取 PromptMarkType
 	markType := config.GetPromptMarkType(promptStr)
 
@@ -138,9 +138,9 @@ func (app *App) ProcessAnswer(userID int64, answer string, promptStr string) {
 			}
 			codes := strings.Split(parts[1], "-")
 
-			// 检查 answer 是否包含数组中的任意一个成员
+			// 检查 QorA  是否包含数组中的任意一个成员
 			for _, code := range codes {
-				if strings.Contains(answer, code) {
+				if strings.Contains(QorA, code) {
 					// 当找到匹配时，构建新的 promptStr
 					newPromptStr := parts[0]
 
