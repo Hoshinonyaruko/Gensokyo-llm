@@ -116,7 +116,7 @@ func fieldIndex(field string) int {
 	return -1
 }
 
-func (app *App) ProcessQA(userID int64, QorA string, promptStr string) {
+func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr string) {
 	// 根据 promptStr 获取 PromptMarkType
 	markType := config.GetPromptMarkType(promptStr)
 
