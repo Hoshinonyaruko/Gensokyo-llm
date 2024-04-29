@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
@@ -76,6 +77,9 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	// 预处理响应数据，移除可能的换行符
 	preprocessedResponse := strings.TrimSpace(responseData.Response)
 
+	// 预处理响应数据，移除非JSON内容
+	preprocessedResponse = preprocessResponse(preprocessedResponse)
+
 	// 尝试直接解析JSON
 	err = json.Unmarshal([]byte(preprocessedResponse), &keyboardPrompts)
 	if err != nil {
@@ -84,4 +88,23 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	}
 
 	return keyboardPrompts
+}
+
+func preprocessResponse(response string) string {
+	// 移除转义符
+	cleanResponse := strings.ReplaceAll(response, "\\n", "\n")
+
+	// 正则表达式匹配有效的JSON数组
+	re := regexp.MustCompile(`\[\s*".*?"\s*\]`)
+	matches := re.FindAllString(cleanResponse, -1)
+
+	// 选择最佳匹配（偏好更多的元素）
+	bestMatch := ""
+	for _, match := range matches {
+		if len(match) > len(bestMatch) {
+			bestMatch = match
+		}
+	}
+
+	return bestMatch
 }
