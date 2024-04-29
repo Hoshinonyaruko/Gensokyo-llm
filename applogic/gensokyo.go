@@ -797,6 +797,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		var lastMessageID string
 		var response string
+		var EnhancedAContent string
 
 		if config.GetuseSse(promptstr) {
 			// 处理SSE流式响应
@@ -827,90 +828,6 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if err := json.Unmarshal([]byte(jsonData), &responseData); err == nil {
 					//接收到最后一条信息
 					if id, ok := responseData["messageId"].(string); ok {
-						// 先判断是否有enhanceA部分 判断是否开启增强式QA 为A补充预定义内容
-						var EnhancedAContent string
-						if config.GetEnhancedQA(promptstr) {
-							// 故事模式的补充A 可以追加人物情绪
-							promptChoices := config.GetPromptChoicesA(promptstr)
-							if len(promptChoices) != 0 {
-								// 获取用户剧情存档中的当前状态
-								CustomRecord, err := app.FetchCustomRecord(message.UserID)
-								if err != nil {
-									fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
-									return
-								}
-
-								// 获取当前场景的总对话长度
-								PromptMarksLength := config.GetPromptMarksLength(promptstr)
-
-								// 计算当前对话轮次
-								currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
-								fmtf.Printf("故事模式:当前对话轮次A %v", currentRound)
-								enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
-								if enhancedChoices {
-									// 遍历所有的promptChoices配置项
-									for _, choice := range promptChoices {
-										parts := strings.Split(choice, ":")
-										roundNumberStr, triggerGroups := parts[0], parts[1]
-										// 将字符串轮次号转换为整数
-										roundNumber, err := strconv.Atoi(roundNumberStr)
-										if err != nil {
-											fmt.Printf("Error converting round number: %v\n", err)
-											continue // 如果转换出错，跳过当前循环
-										}
-										// 检查当前轮次是否符合条件
-										if roundNumber == currentRound {
-											triggerSets := strings.Split(triggerGroups, "-")
-											bestMatchCount := 0
-											bestText := ""
-											// 遍历每组触发词设置
-											for _, triggerSet := range triggerSets {
-												triggerDetails := strings.Split(triggerSet, "/")
-												addedText := triggerDetails[0] // 提取附加文本
-												triggers := triggerDetails[1:] // 提取所有触发词
-												matchCount := 0
-												// 计算当前消息中包含的触发词数量
-												for _, trigger := range triggers {
-													if strings.Contains(requestmsg, trigger) {
-														matchCount++
-													}
-												}
-												// 如果当前组的匹配数量最高，更新最佳文本
-												if matchCount > bestMatchCount {
-													bestMatchCount = matchCount
-													bestText = addedText
-												}
-											}
-											// 如果找到了有效的触发词组合，附加最佳文本到消息中
-											if bestMatchCount > 0 {
-												EnhancedAContent = "(" + bestText + ")"
-
-											}
-										}
-									}
-								} else {
-									// 当enhancedChoices为false时的处理逻辑
-									for _, choice := range promptChoices {
-										parts := strings.Split(choice, ":")
-										roundNumberStr, addedTexts := parts[0], parts[1]
-										roundNumber, err := strconv.Atoi(roundNumberStr)
-										if err != nil {
-											fmt.Printf("Error converting round number: %v\n", err)
-											continue // 如果轮次号转换出错，跳过当前循环
-										}
-										// 如果当前轮次符合条件，随机选择一个文本添加
-										if roundNumber == currentRound {
-											texts := strings.Split(addedTexts, "-")
-											if len(texts) > 0 {
-												selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-												EnhancedAContent = "(" + selectedText + ")"
-											}
-										}
-									}
-								}
-							}
-						}
-						// 此时如果获取到了EnhancedAContent
 
 						lastMessageID = id // 更新lastMessageID
 						// 检查是否有未发送的消息部分
@@ -919,6 +836,89 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 						// 提取response字段
 						if response, ok = responseData["response"].(string); ok {
+							// 先判断是否有enhanceA部分 判断是否开启增强式QA 为A补充预定义内容
+							if config.GetEnhancedQA(promptstr) {
+								// 故事模式的补充A 可以追加人物情绪
+								promptChoices := config.GetPromptChoicesA(promptstr)
+								if len(promptChoices) != 0 {
+									// 获取用户剧情存档中的当前状态
+									CustomRecord, err := app.FetchCustomRecord(message.UserID)
+									if err != nil {
+										fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
+										return
+									}
+
+									// 获取当前场景的总对话长度
+									PromptMarksLength := config.GetPromptMarksLength(promptstr)
+
+									// 计算当前对话轮次
+									currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
+									fmtf.Printf("故事模式:当前对话轮次A %v", currentRound)
+									enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
+									if enhancedChoices {
+										// 遍历所有的promptChoices配置项
+										for _, choice := range promptChoices {
+											parts := strings.Split(choice, ":")
+											roundNumberStr, triggerGroups := parts[0], parts[1]
+											// 将字符串轮次号转换为整数
+											roundNumber, err := strconv.Atoi(roundNumberStr)
+											if err != nil {
+												fmt.Printf("Error converting round number: %v\n", err)
+												continue // 如果转换出错，跳过当前循环
+											}
+											// 检查当前轮次是否符合条件
+											if roundNumber == currentRound {
+												triggerSets := strings.Split(triggerGroups, "-")
+												bestMatchCount := 0
+												bestText := ""
+												// 遍历每组触发词设置
+												for _, triggerSet := range triggerSets {
+													triggerDetails := strings.Split(triggerSet, "/")
+													addedText := triggerDetails[0] // 提取附加文本
+													triggers := triggerDetails[1:] // 提取所有触发词
+													matchCount := 0
+													// 计算当前消息中包含的触发词数量
+													for _, trigger := range triggers {
+														//从response中判断
+														if strings.Contains(response, trigger) {
+															matchCount++
+														}
+													}
+													// 如果当前组的匹配数量最高，更新最佳文本
+													if matchCount > bestMatchCount {
+														bestMatchCount = matchCount
+														bestText = addedText
+													}
+												}
+												// 如果找到了有效的触发词组合，附加最佳文本到消息中
+												if bestMatchCount > 0 {
+													EnhancedAContent = "(" + bestText + ")"
+
+												}
+											}
+										}
+									} else {
+										// 当enhancedChoices为false时的处理逻辑
+										for _, choice := range promptChoices {
+											parts := strings.Split(choice, ":")
+											roundNumberStr, addedTexts := parts[0], parts[1]
+											roundNumber, err := strconv.Atoi(roundNumberStr)
+											if err != nil {
+												fmt.Printf("Error converting round number: %v\n", err)
+												continue // 如果轮次号转换出错，跳过当前循环
+											}
+											// 如果当前轮次符合条件，随机选择一个文本添加
+											if roundNumber == currentRound {
+												texts := strings.Split(addedTexts, "-")
+												if len(texts) > 0 {
+													selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
+													EnhancedAContent = "(" + selectedText + ")"
+												}
+											}
+										}
+									}
+								}
+							}
 							// 如果accumulatedMessage是response的子串，则提取新的部分并发送
 							if exists && strings.HasPrefix(response, accumulatedMessage) {
 								newPart := response[len(accumulatedMessage):]
@@ -1000,26 +1000,6 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								}
 							}
 
-							// 在流的末尾发送补充的A 因为是SSE
-							if EnhancedAContent != "" {
-								if message.RealMessageType == "group_private" || message.MessageType == "private" {
-									if config.GetUsePrivateSSE() {
-										//判断是否最后一条
-										var state int
-										if EnhancedAContent == "" {
-											state = 11
-										} else {
-											state = 10
-										}
-										messageSSE := structs.InterfaceBody{
-											Content: EnhancedAContent,
-											State:   state,
-										}
-										utils.SendPrivateMessageSSE(message.UserID, messageSSE)
-									}
-								}
-							}
-
 							// 清空映射中对应的累积消息
 							groupUserMessages[key] = ""
 						}
@@ -1031,7 +1011,19 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						splitAndSendMessages(message, string(line), newmsg, selfid)
 					}
 				}
+			}
 
+			// 在流的末尾发送补充的A 因为是SSE
+			if EnhancedAContent != "" {
+				if message.RealMessageType == "group_private" || message.MessageType == "private" {
+					if config.GetUsePrivateSSE() {
+						messageSSE := structs.InterfaceBody{
+							Content: EnhancedAContent,
+							State:   11,
+						}
+						utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+					}
+				}
 			}
 
 			// 在SSE流结束后更新用户上下文 在这里调用gensokyo流式接口的最后一步 插推荐气泡
