@@ -321,9 +321,11 @@ type Settings struct {
 	EnhancedQA            bool     `yaml:"enhancedQA"`
 	PromptChoicesQ        []string `yaml:"promptChoicesQ"`
 	PromptChoicesA        []string `yaml:"promptChoicesA"`
-	EnhancedPromptChoices bool     `yaml:"enhancedpromptChoices"`
+	EnhancedPromptChoices bool     `yaml:"enhancedPromptChoices"`
 	SwitchOnQ             []string `yaml:"switchOnQ"`
 	SwitchOnA             []string `yaml:"switchOnA"`
+	ExitOnQ               []string `yaml:"exitOnQ"`
+	ExitOnA               []string `yaml:"exitOnA"`
 }
 
 type MetaEvent struct {

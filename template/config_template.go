@@ -87,6 +87,8 @@ settings:
   promptChoicesA: []                            #规则同上,对llm的A生效.我用于追加LLM的情绪和做一个补充的引导,比如llm的a回复包含了饿,可补充(想去吃饭,带我去吃饭...),会追加到当前A,对剧情起到推动和修饰.
   switchOnQ : []                                #根据当前Q关键字检测切换yml分支,Q,语法与promptChoices一致,并且也取决于enhancedPromptChoices,只是将附加内容(xxx)变为,检测到关键字直接将当前分支转换到xxx.
   switchOnA : []                                #根据当前A关键字检测切换yml分支,A,语法与promptChoices一致,并且也取决于enhancedPromptChoices,只是将附加内容(xxx)变为,检测到关键字直接将当前分支转换到xxx.
+  exitOnQ : []                                  #同上,效果和restoreCommand一致,语法与promptChoices一致,检测到关键字词触发退出故事模式.
+  exitOnA : []                                  #同上,效果和restoreCommand一致,语法与promptChoices一致,检测到关键字词触发退出故事模式.
   enhancedPromptChoices: false                  #当设为true时,promptChoices的格式变化为"轮次编号:附加文本/触发词1/触发词2/触发词3-附加文本/触发词4/触发词5/触发词6"，如"1:hello/aaa/bbb/ccc-goodbye/ddd/eee/fff"。在指定轮次，根据触发词的匹配数量选择最适合的文本添加，匹配越多触发词的组合附加的文本越优先被选择。  
 
   #混元配置项

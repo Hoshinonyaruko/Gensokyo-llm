@@ -1732,3 +1732,71 @@ func getSwitchOnAInternal(options ...string) []string {
 
 	return switchOnA
 }
+
+// 获取ExitOnQ
+func GetExitOnQ(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getExitOnQInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getExitOnQInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.ExitOnQ
+		}
+		return nil // 默认值为空数组
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	exitOnQInterface, err := prompt.GetSettingFromFilename(basename, "ExitOnQ")
+	if err != nil {
+		log.Println("Error retrieving ExitOnQ:", err)
+		return getExitOnQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	exitOnQ, ok := exitOnQInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for ExitOnQ, fetching default")
+		return getExitOnQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return exitOnQ
+}
+
+// 获取ExitOnA
+func GetExitOnA(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getExitOnAInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getExitOnAInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.ExitOnA
+		}
+		return nil // 默认值为空数组
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	exitOnAInterface, err := prompt.GetSettingFromFilename(basename, "ExitOnA")
+	if err != nil {
+		log.Println("Error retrieving ExitOnA:", err)
+		return getExitOnAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	exitOnA, ok := exitOnAInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for ExitOnA, fetching default")
+		return getExitOnAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return exitOnA
+}
