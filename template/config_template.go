@@ -78,11 +78,16 @@ settings:
   vectorSensitiveFilter : false                 #是否开启向量拦截词,请放在同目录下的vector_sensitive.txt中 一行一个，可以是句子。 命令行参数 -test 会用test.exe中的内容跑测试脚本。
   vertorSensitiveThreshold : 200                #汉明距离,满足距离代表向量含义相近,可给出拦截.
 
-  #多配置覆盖,切换条件等设置
+  #多配置覆盖,切换条件等设置 该类配置比较绕,可咨询QQ2022717137
   promptMarkType : 0                            #0=多个里随机一个,promptMarksLength达到时触发 1=按条件触发,promptMarksLength达到时也触发.条件格式aaaa:xxx-xxx-xxxx-xxx,aaa是promptmark中的yml,xxx是标记,识别到用户和模型说出标记就会触发这个支线(需要自行写好提示词,让llm能根据条件说出.)
   promptMarksLength : 2                         #promptMarkType=0时,多少轮开始切换上下文.
   promptMarks : []                              #prompts文件夹内的文件,一个代表一个配置文件,当promptMarkType为0是,直接是prompts文件夹内的yml名字,当为1时,格式在上面.
-  enhancedQA : false                             #默认是false,用于在故事支线将firstQA的位置从顶部移动到用户之前,从而增强权重和效果.
+  enhancedQA : false                            #默认是false,用于在故事支线将firstQA的位置从顶部移动到用户之前,从而增强权重和效果.
+  promptChoicesQ: []                            #当enhancedQA为true时,若数组为空。将附加配置覆盖yml中最后一个Q到用户的当前输入中,格式Q:xxx(yml最后一个Q)。如果数组不为空,且格式需为"轮次编号:文本1-文本2-文本3"，例如"1:hello-goodbye-hi",会在符合的对话轮次中随机选择一个文本添加。所设置的promptChoices数量不能大于当前yml的promptMarksLength。
+  promptChoicesA: []                            #规则同上,对llm的A生效.我用于追加LLM的情绪和做一个补充的引导,比如llm的a回复包含了饿,可补充(想去吃饭,带我去吃饭...),会追加到当前A,对剧情起到推动和修饰.
+  switchOnQ : []                                #根据当前Q关键字检测切换yml分支,Q,语法与promptChoices一致,并且也取决于enhancedPromptChoices,只是将附加内容(xxx)变为,检测到关键字直接将当前分支转换到xxx.
+  switchOnA : []                                #根据当前A关键字检测切换yml分支,A,语法与promptChoices一致,并且也取决于enhancedPromptChoices,只是将附加内容(xxx)变为,检测到关键字直接将当前分支转换到xxx.
+  enhancedPromptChoices: false                  #当设为true时,promptChoices的格式变化为"轮次编号:附加文本/触发词1/触发词2/触发词3-附加文本/触发词4/触发词5/触发词6"，如"1:hello/aaa/bbb/ccc-goodbye/ddd/eee/fff"。在指定轮次，根据触发词的匹配数量选择最适合的文本添加，匹配越多触发词的组合附加的文本越优先被选择。  
 
   #混元配置项
   secretId : ""                                 #腾讯云账号(右上角)-访问管理-访问密钥，生成获取

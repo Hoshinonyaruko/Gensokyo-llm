@@ -28,6 +28,8 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	urlParams := url.Values{}
 	if promptstr != "" {
 		urlParams.Add("prompt", promptstr+"-keyboard")
+	} else {
+		urlParams.Add("prompt", "keyboard")
 	}
 
 	// 将查询参数编码后附加到基本URL上

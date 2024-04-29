@@ -135,6 +135,20 @@ func GetMessagesFromFilename(basename string) ([]structs.Message, error) {
 	return history, nil
 }
 
+// FindFirstSystemMessage 从消息列表中查找第一条角色为 "system" 的消息
+func FindFirstSystemMessage(history []structs.Message) (structs.Message, error) {
+	lock.RLock()
+	defer lock.RUnlock()
+
+	for _, message := range history {
+		if message.Role == "system" || message.Role == "System" {
+			return message, nil
+		}
+	}
+
+	return structs.Message{}, fmt.Errorf("no system message found in history")
+}
+
 // 返回除了 "system" 角色之外的所有消息
 func GetMessagesExcludingSystem(basename string) ([]structs.Message, error) {
 	lock.RLock()
