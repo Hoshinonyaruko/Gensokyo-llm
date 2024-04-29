@@ -662,6 +662,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 				}
 			} else {
+				var ischange bool
 				// 获取用户剧情存档中的当前状态
 				CustomRecord, err := app.FetchCustomRecord(message.UserID)
 				if err != nil {
@@ -714,6 +715,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							// 如果找到了有效的触发词组合，附加最佳文本到消息中
 							if bestMatchCount > 0 {
 								requestmsg += " (" + bestText + ")"
+								ischange = true
 							}
 						}
 					}
@@ -733,8 +735,25 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							if len(texts) > 0 {
 								selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
 								requestmsg += " (" + selectedText + ")"
+								ischange = true
 							}
 						}
+					}
+				}
+				// 如果内容没有改变,回滚到用最后一个Q来加入对话中
+				if !ischange {
+					// 获取系统历史，但不包括系统消息
+					systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
+					if err != nil {
+						fmt.Printf("Error getting system history: %v\n", err)
+						return
+					}
+
+					// 如果有系统历史并且有至少一个消息
+					if len(systemHistory) > 0 {
+						lastSystemMessage := systemHistory[len(systemHistory)-2] // 获取最后一个系统消息
+						// 将最后一个系统历史消息附加到用户消息后
+						requestmsg += "(" + lastSystemMessage.Text + ")"
 					}
 				}
 			}
