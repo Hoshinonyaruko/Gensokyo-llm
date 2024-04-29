@@ -315,10 +315,15 @@ type Settings struct {
 	WSServerToken string `yaml:"wsServerToken"`
 	WSPath        string `yaml:"wsPath"`
 
-	PromptMarkType    int      `yaml:"promptMarkType"`
-	PromptMarksLength int      `yaml:"promptMarksLength"`
-	PromptMarks       []string `yaml:"promptMarks"`
-	EnhancedQA        bool     `yaml:"enhancedQA"`
+	PromptMarkType        int      `yaml:"promptMarkType"`
+	PromptMarksLength     int      `yaml:"promptMarksLength"`
+	PromptMarks           []string `yaml:"promptMarks"`
+	EnhancedQA            bool     `yaml:"enhancedQA"`
+	PromptChoicesQ        []string `yaml:"promptChoicesQ"`
+	PromptChoicesA        []string `yaml:"promptChoicesA"`
+	EnhancedPromptChoices bool     `yaml:"enhancedpromptChoices"`
+	SwitchOnQ             []string `yaml:"switchOnQ"`
+	SwitchOnA             []string `yaml:"switchOnA"`
 }
 
 type MetaEvent struct {

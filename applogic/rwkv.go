@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -119,9 +120,22 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		history, err = prompt.GetMessagesFromFilename(promptstr)
-		if err != nil {
-			fmtf.Printf("prompt.GetMessagesFromFilename error: %v\n", err)
+		// 默认执行 正常提示词顺序
+		if !config.GetEnhancedQA(promptstr) {
+			history, err = prompt.GetMessagesFromFilename(promptstr)
+			if err != nil {
+				fmtf.Printf("prompt.GetMessagesFromFilename error: %v\n", err)
+			}
+		} else {
+			// 只获取系统提示词
+			systemMessage, err := prompt.FindFirstSystemMessage(history)
+			if err != nil {
+				fmt.Println("Error:", err)
+			} else {
+				// 如果找到system消息，将其添加到历史数组中
+				history = append(history, systemMessage)
+				fmt.Println("Added system message back to history.")
+			}
 		}
 	}
 
@@ -134,11 +148,50 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 截断历史信息
-		userhistory = truncateHistoryRwkv(userhistory, msg.Text, promptstr)
+		userHistory := truncateHistoryRwkv(userhistory, msg.Text, promptstr)
 
-		// 注意追加的顺序，确保问题在系统提示词之后
-		// 使用...操作符来展开userhistory切片并追加到history切片
-		history = append(history, userhistory...)
+		if promptstr != "" {
+			// 注意追加的顺序，确保问题在系统提示词之后
+			// 使用...操作符来展开userhistory切片并追加到history切片
+			// 获取系统级预埋的系统自定义QA对
+			systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
+			if err != nil {
+				fmtf.Printf("Error getting system history: %v\n", err)
+				return
+			}
+
+			// 处理增强QA逻辑
+			if config.GetEnhancedQA(promptstr) {
+				// 确保系统历史与用户或助手历史数量一致，如果不足，则补足空的历史记录
+				if len(systemHistory) > len(userHistory) {
+					difference := len(systemHistory) - len(userHistory)
+					for i := 0; i < difference; i++ {
+						userHistory = append(userHistory, structs.Message{Text: "", Role: "user"})
+						userHistory = append(userHistory, structs.Message{Text: "", Role: "assistant"})
+					}
+				}
+
+				// 如果系统历史中只有一个成员，跳过覆盖逻辑，留给后续处理
+				if len(systemHistory) > 1 {
+					// 将系统历史（除最后2个成员外）附加到相应的用户或助手历史上，采用倒序方式处理最近的记录
+					for i := 0; i < len(systemHistory)-2; i++ {
+						sysMsg := systemHistory[i]
+						index := len(userHistory) - len(systemHistory) + i
+						if index >= 0 && index < len(userHistory) && (userHistory[index].Role == "user" || userHistory[index].Role == "assistant") {
+							userHistory[index].Text += fmt.Sprintf(" (%s)", sysMsg.Text)
+						}
+					}
+				}
+			} else {
+				// 将系统级别QA简单的附加在用户对话前方的位置(ai会知道,但不会主动引导)
+				history = append(history, systemHistory...)
+			}
+
+			// 留下最后一个systemHistory成员进行后续处理
+		}
+
+		// 添加用户历史到总历史中
+		history = append(history, userHistory...)
 	}
 
 	fmtf.Printf("RWKV上下文history:%v\n", history)
@@ -154,6 +207,8 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 			"content": hMsg.Text,
 		})
 	}
+
+	// 添加当前用户消息
 	messages = append(messages, map[string]interface{}{
 		"role":    "user",
 		"content": msg.Text,
