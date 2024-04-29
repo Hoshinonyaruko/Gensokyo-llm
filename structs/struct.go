@@ -1,391 +1,482 @@
-package structs
+package applogic
 
-type Message struct {
-	ConversationID  string `json:"conversationId"`
-	ParentMessageID string `json:"parentMessageId"`
-	Text            string `json:"message"`
-	Role            string `json:"role"`
-	CreatedAt       string `json:"created_at"`
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
+	"github.com/hoshinonyaruko/gensokyo-llm/prompt"
+	"github.com/hoshinonyaruko/gensokyo-llm/structs"
+	"github.com/hoshinonyaruko/gensokyo-llm/utils"
+)
+
+//var mutexErnie sync.Mutex
+
+func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 获取访问者的IP地址
+	ip := r.RemoteAddr             // 注意：这可能包含端口号
+	ip = strings.Split(ip, ":")[0] // 去除端口号，仅保留IP地址
+
+	// 获取IP白名单
+	whiteList := config.IPWhiteList()
+
+	// 检查IP是否在白名单中
+	if !utils.Contains(whiteList, ip) {
+		http.Error(w, "Access denied", http.StatusInternalServerError)
+		return
+	}
+
+	var msg structs.Message
+	err := json.NewDecoder(r.Body).Decode(&msg)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// 读取URL参数 "prompt"
+	promptstr := r.URL.Query().Get("prompt")
+	if promptstr != "" {
+		// prompt 参数存在，可以根据需要进一步处理或记录
+		fmtf.Printf("Received prompt parameter: %s\n", promptstr)
+	}
+
+	msg.Role = "user"
+	//颠倒用户输入
+	if config.GetReverseUserPrompt() {
+		msg.Text = utils.ReverseString(msg.Text)
+	}
+
+	if msg.ConversationID == "" {
+		msg.ConversationID = utils.GenerateUUID()
+		app.createConversation(msg.ConversationID)
+	}
+
+	userMessageID, err := app.addMessage(msg)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var history []structs.Message
+
+	// 是否从参数获取prompt
+	if promptstr == "" {
+		// 分别获取FirstQ&A, SecondQ&A, ThirdQ&A
+		pairs := []struct {
+			Q     string
+			A     string
+			RoleQ string // 问题的角色
+			RoleA string // 答案的角色
+		}{
+			{config.GetFirstQ(), config.GetFirstA(), "user", "assistant"},
+			{config.GetSecondQ(), config.GetSecondA(), "user", "assistant"},
+			{config.GetThirdQ(), config.GetThirdA(), "user", "assistant"},
+		}
+
+		// 检查每一对Q&A是否均不为空，并追加到历史信息中
+		for _, pair := range pairs {
+			if pair.Q != "" && pair.A != "" {
+				qMessage := structs.Message{
+					Text: pair.Q,
+					Role: pair.RoleQ,
+				}
+				aMessage := structs.Message{
+					Text: pair.A,
+					Role: pair.RoleA,
+				}
+
+				// 注意追加的顺序，确保问题在答案之前
+				history = append(history, qMessage, aMessage)
+			}
+		}
+	} else {
+		// 默认执行 正常提示词顺序
+		if !config.GetEnhancedQA(promptstr) {
+			history, err = prompt.GetMessagesExcludingSystem(promptstr)
+			if err != nil {
+				fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+			}
+		}
+	}
+
+	// 获取历史信息
+	if msg.ParentMessageID != "" {
+		userHistory, err := app.getHistory(msg.ConversationID, msg.ParentMessageID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// 截断历史信息
+		userHistory = truncateHistoryErnie(userHistory, msg.Text)
+
+		if promptstr != "" {
+			// 获取系统级预埋的系统自定义QA对
+			systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
+			if err != nil {
+				fmt.Printf("Error getting system history: %v\n", err)
+				return
+			}
+
+			// 处理增强QA逻辑
+			if config.GetEnhancedQA(promptstr) {
+				// 确保系统历史与用户或助手历史数量一致，如果不足，则补足空的历史记录
+				if len(systemHistory) > len(userHistory) {
+					difference := len(systemHistory) - len(userHistory)
+					for i := 0; i < difference; i++ {
+						userHistory = append(userHistory, structs.Message{Text: "", Role: "user"})
+						userHistory = append(userHistory, structs.Message{Text: "", Role: "assistant"})
+					}
+				}
+
+				// 如果系统历史中只有一个成员，跳过覆盖逻辑，留给后续处理
+				if len(systemHistory) > 1 {
+					// 将系统历史（除最后2个成员外）附加到相应的用户或助手历史上，采用倒序方式处理最近的记录
+					for i := 0; i < len(systemHistory)-2; i++ {
+						sysMsg := systemHistory[i]
+						index := len(userHistory) - len(systemHistory) + i
+						if index >= 0 && index < len(userHistory) && (userHistory[index].Role == "user" || userHistory[index].Role == "assistant") {
+							userHistory[index].Text += fmt.Sprintf(" (%s)", sysMsg.Text)
+						}
+					}
+				}
+			} else {
+				// 将系统级别QA简单的附加在用户对话前方的位置(ai会知道,但不会主动引导)
+				history = append(history, systemHistory...)
+			}
+
+			// 留下最后一个systemHistory成员进行后续处理
+		}
+		// 添加用户历史到总历史中
+		history = append(history, userHistory...)
+	}
+
+	fmtf.Printf("文心上下文history:%v\n", history)
+
+	// 构建请求负载
+	var payload structs.WXRequestPayload
+	for _, hMsg := range history {
+		payload.Messages = append(payload.Messages, structs.WXMessage{
+			Content: hMsg.Text,
+			Role:    hMsg.Role,
+		})
+	}
+
+	// 添加当前用户消息
+	payload.Messages = append(payload.Messages, structs.WXMessage{
+		Content: msg.Text,
+		Role:    "user",
+	})
+
+	TopP := config.GetWenxinTopp()
+	PenaltyScore := config.GetWnxinPenaltyScore()
+	MaxOutputTokens := config.GetWenxinMaxOutputTokens()
+
+	// 设置其他可选参数
+	payload.TopP = TopP
+	payload.PenaltyScore = PenaltyScore
+	payload.MaxOutputTokens = MaxOutputTokens
+
+	// 是否sse
+	if config.GetuseSse(promptstr) {
+		payload.Stream = true
+	}
+
+	// 是否从参数中获取prompt
+	if promptstr == "" {
+		// 获取系统提示词，并设置system字段，如果它不为空
+		systemPromptContent := config.SystemPrompt() // 确保函数名正确
+		if systemPromptContent != "0" {
+			payload.System = systemPromptContent // 直接在请求负载中设置system字段
+		}
+	} else {
+		// 获取系统提示词，并设置system字段，如果它不为空
+		systemPromptContent, err := prompt.GetFirstSystemMessage(promptstr)
+		if err != nil {
+			fmtf.Printf("prompt.GetFirstSystemMessage error: %v\n", err)
+		}
+		if systemPromptContent != "" {
+			payload.System = systemPromptContent // 直接在请求负载中设置system字段
+		}
+	}
+
+	// 获取访问凭证和API路径
+	accessToken := config.GetWenxinAccessToken()
+	apiPath := config.GetWenxinApiPath(promptstr)
+
+	// 构建请求URL
+	url := fmtf.Sprintf("%s?access_token=%s", apiPath, accessToken)
+	fmtf.Printf("%v\n", url)
+
+	// 序列化请求负载
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Fatalf("Error occurred during marshaling. Error: %s", err.Error())
+	}
+
+	fmtf.Printf("文心一言请求:%v\n", string(jsonData))
+
+	// 创建并发送POST请求
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Fatalf("Error occurred during request creation. Error: %s", err.Error())
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("Error occurred during sending the request. Error: %s", err.Error())
+	}
+	defer resp.Body.Close()
+
+	// 读取响应头中的速率限制信息
+	rateLimitRequests := resp.Header.Get("X-Ratelimit-Limit-Requests")
+	rateLimitTokens := resp.Header.Get("X-Ratelimit-Limit-Tokens")
+	remainingRequests := resp.Header.Get("X-Ratelimit-Remaining-Requests")
+	remainingTokens := resp.Header.Get("X-Ratelimit-Remaining-Tokens")
+
+	fmtf.Printf("RateLimit: Requests %s, Tokens %s, Remaining Requests %s, Remaining Tokens %s\n",
+		rateLimitRequests, rateLimitTokens, remainingRequests, remainingTokens)
+
+	// 检查是否不使用SSE
+	if !config.GetuseSse(promptstr) {
+		// 读取整个响应体到内存中
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatalf("Error occurred during response body reading. Error: %s", err)
+		}
+
+		// 首先尝试解析为简单的map来查看响应概览
+		var response map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &response); err != nil {
+			log.Fatalf("Error occurred during response decoding to map. Error: %s", err)
+		}
+		fmtf.Printf("%v\n", response)
+
+		// 然后尝试解析为具体的结构体以获取详细信息
+		var responseStruct struct {
+			ID               string `json:"id"`
+			Object           string `json:"object"`
+			Created          int    `json:"created"`
+			SentenceID       int    `json:"sentence_id,omitempty"`
+			IsEnd            bool   `json:"is_end,omitempty"`
+			IsTruncated      bool   `json:"is_truncated"`
+			Result           string `json:"result"`
+			NeedClearHistory bool   `json:"need_clear_history"`
+			BanRound         int    `json:"ban_round"`
+			Usage            struct {
+				PromptTokens     int `json:"prompt_tokens"`
+				CompletionTokens int `json:"completion_tokens"`
+				TotalTokens      int `json:"total_tokens"`
+			} `json:"usage"`
+		}
+
+		if err := json.Unmarshal(bodyBytes, &responseStruct); err != nil {
+			http.Error(w, fmtf.Sprintf("解析响应体出错: %v", err), http.StatusInternalServerError)
+			return
+		}
+		// 根据API响应构造消息和响应给客户端
+		assistantMessageID, err := app.addMessage(structs.Message{
+			ConversationID:  msg.ConversationID,
+			ParentMessageID: userMessageID,
+			Text:            responseStruct.Result,
+			Role:            "assistant",
+		})
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// 构造响应
+		responseMap := map[string]interface{}{
+			"response":       responseStruct.Result,
+			"conversationId": msg.ConversationID,
+			"messageId":      assistantMessageID,
+			"details": map[string]interface{}{
+				"usage": map[string]int{
+					"prompt_tokens":     responseStruct.Usage.PromptTokens,
+					"completion_tokens": responseStruct.Usage.CompletionTokens,
+					"total_tokens":      responseStruct.Usage.TotalTokens,
+				},
+			},
+		}
+
+		// 设置响应头信息以反映速率限制状态
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Ratelimit-Limit-Requests", rateLimitRequests)
+		w.Header().Set("X-Ratelimit-Limit-Tokens", rateLimitTokens)
+		w.Header().Set("X-Ratelimit-Remaining-Requests", remainingRequests)
+		w.Header().Set("X-Ratelimit-Remaining-Tokens", remainingTokens)
+
+		// 发送JSON响应
+		json.NewEncoder(w).Encode(responseMap)
+	} else {
+		// SSE响应模式
+		// 设置SSE相关的响应头部
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+			return
+		}
+
+		var responseTextBuilder strings.Builder
+		var totalUsage structs.UsageInfo
+
+		// 假设我们已经建立了与API的连接并且开始接收流式响应
+		// reader代表从API接收数据的流
+		reader := bufio.NewReader(resp.Body)
+		for {
+			// 读取流中的一行，即一个事件数据块
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					// 流结束
+					break
+				}
+				// 处理错误
+				fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("读取流数据时发生错误: %v", err))
+				flusher.Flush()
+				continue
+			}
+
+			// 处理流式数据行
+			if strings.HasPrefix(line, "data: ") {
+				eventDataJSON := line[6:] // 去掉"data: "前缀
+
+				var eventData struct {
+					ID               string `json:"id"`
+					Object           string `json:"object"`
+					Created          int    `json:"created"`
+					SentenceID       int    `json:"sentence_id,omitempty"`
+					IsEnd            bool   `json:"is_end,omitempty"`
+					IsTruncated      bool   `json:"is_truncated"`
+					Result           string `json:"result"`
+					NeedClearHistory bool   `json:"need_clear_history"`
+					BanRound         int    `json:"ban_round"`
+					Usage            struct {
+						PromptTokens     int `json:"prompt_tokens"`
+						CompletionTokens int `json:"completion_tokens"`
+						TotalTokens      int `json:"total_tokens"`
+					} `json:"usage"`
+				}
+				// 解析JSON数据
+				if err := json.Unmarshal([]byte(eventDataJSON), &eventData); err != nil {
+					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("解析事件数据出错: %v", err))
+					flusher.Flush()
+					continue
+				}
+
+				// 这里处理解析后的事件数据
+				responseTextBuilder.WriteString(eventData.Result)
+				totalUsage.PromptTokens += eventData.Usage.PromptTokens
+				totalUsage.CompletionTokens += eventData.Usage.CompletionTokens
+
+				// 发送当前事件的响应数据，但不包含assistantMessageID
+				tempResponseMap := map[string]interface{}{
+					"response":       eventData.Result,
+					"conversationId": msg.ConversationID,
+					"details": map[string]interface{}{
+						"usage": eventData.Usage,
+					},
+				}
+				tempResponseJSON, _ := json.Marshal(tempResponseMap)
+				fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
+				flusher.Flush()
+
+				// 如果这是最后一个消息
+				if eventData.IsEnd {
+					break
+				}
+			}
+		}
+
+		// 处理完所有事件后，生成并发送包含assistantMessageID的最终响应
+		//fmt.Printf("处理完所有事件后，生成并发送包含assistantMessageID的最终响应\n")
+		responseText := responseTextBuilder.String()
+		assistantMessageID, err := app.addMessage(structs.Message{
+			ConversationID:  msg.ConversationID,
+			ParentMessageID: userMessageID,
+			Text:            responseText,
+			Role:            "assistant",
+		})
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		finalResponseMap := map[string]interface{}{
+			"response":       responseText,
+			"conversationId": msg.ConversationID,
+			"messageId":      assistantMessageID,
+			"details": map[string]interface{}{
+				"usage": totalUsage,
+			},
+		}
+		finalResponseJSON, _ := json.Marshal(finalResponseMap)
+		fmt.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+		flusher.Flush()
+	}
+
 }
 
-type WXRequestMessage struct {
-	ConversationID  string `json:"conversationId"`
-	ParentMessageID string `json:"parentMessageId"`
-	Text            string `json:"message"`
-	Role            string `json:"role"`
-	CreatedAt       string `json:"created_at"`
-}
+func truncateHistoryErnie(history []structs.Message, prompt string) []structs.Message {
+	MAX_TOKENS := config.GetMaxTokenWenxin()
 
-type WXRequestMessageF struct {
-	ConversationID  string     `json:"conversationId"`
-	ParentMessageID string     `json:"parentMessageId"`
-	Text            string     `json:"message"`
-	Role            string     `json:"role"`
-	CreatedAt       string     `json:"created_at"`
-	WXFunction      WXFunction `json:"functions,omitempty"`
-}
+	tokenCount := len(prompt)
+	for _, msg := range history {
+		tokenCount += len(msg.Text)
+	}
 
-type UsageInfo struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-}
+	if tokenCount >= MAX_TOKENS {
+		// 第一步：逐个移除消息直到满足令牌数量限制
+		for tokenCount > MAX_TOKENS && len(history) > 0 {
+			tokenCount -= len(history[0].Text)
+			history = history[1:]
 
-// 群信息事件
-type OnebotGroupMessage struct {
-	RawMessage      string      `json:"raw_message"`
-	MessageID       int         `json:"message_id"`
-	GroupID         int64       `json:"group_id"` // Can be either string or int depending on p.Settings.CompleteFields
-	MessageType     string      `json:"message_type"`
-	PostType        string      `json:"post_type"`
-	SelfID          int64       `json:"self_id"` // Can be either string or int
-	Sender          Sender      `json:"sender"`
-	SubType         string      `json:"sub_type"`
-	Time            int64       `json:"time"`
-	Avatar          string      `json:"avatar,omitempty"`
-	Echo            string      `json:"echo,omitempty"`
-	Message         interface{} `json:"message"` // For array format
-	MessageSeq      int         `json:"message_seq"`
-	Font            int         `json:"font"`
-	UserID          int64       `json:"user_id"`
-	RealMessageType string      `json:"real_message_type,omitempty"`  //当前信息的真实类型 group group_private guild guild_private
-	IsBindedGroupId bool        `json:"is_binded_group_id,omitempty"` //当前群号是否是binded后的
-	IsBindedUserId  bool        `json:"is_binded_user_id,omitempty"`  //当前用户号号是否是binded后的
-}
+			// 确保移除后，历史记录仍然以user消息结尾
+			if len(history) > 0 && history[0].Role == "assistant" {
+				tokenCount -= len(history[0].Text)
+				history = history[1:]
+			}
+		}
+	}
 
-type Sender struct {
-	Nickname string `json:"nickname"`
-	TinyID   string `json:"tiny_id"`
-	UserID   int64  `json:"user_id"`
-	Role     string `json:"role,omitempty"`
-	Card     string `json:"card,omitempty"`
-	Sex      string `json:"sex,omitempty"`
-	Age      int32  `json:"age,omitempty"`
-	Area     string `json:"area,omitempty"`
-	Level    string `json:"level,omitempty"`
-	Title    string `json:"title,omitempty"`
-}
+	// 第二步：检查并移除包含空文本的QA对
+	for i := 0; i < len(history)-1; { // 注意这里去掉了自增部分
+		if history[i].Role == "user" && history[i+1].Role == "assistant" &&
+			(len(history[i].Text) == 0 || len(history[i+1].Text) == 0) {
+			fmtf.Println("文心-找到了空的对话: ", history[i].Text, history[i+1].Text)
+			history = append(history[:i], history[i+2:]...) // 移除这对QA
+		} else {
+			i++ // 只有在不删除元素时才增加i
+		}
+	}
 
-// 定义请求消息的结构体
-type WXMessage struct {
-	Content string `json:"content"`
-	Role    string `json:"role"`
-}
+	// 第三步：确保以assistant结尾
+	if len(history) > 0 && history[len(history)-1].Role == "user" {
+		for len(history) > 0 && history[len(history)-1].Role != "assistant" {
+			history = history[:len(history)-1]
+		}
+	}
 
-// 定义请求消息的结构体
-type WXMessageF struct {
-	Content      string         `json:"content"`
-	Role         string         `json:"role"`
-	FunctionCall WXFunctionCall `json:"function_call,omitempty"`
-}
-
-// 定义请求负载的结构体
-type WXRequestPayload struct {
-	Messages        []WXMessage `json:"messages"`
-	Stream          bool        `json:"stream,omitempty"`
-	Temperature     float64     `json:"temperature,omitempty"`
-	TopP            float64     `json:"top_p,omitempty"`
-	PenaltyScore    float64     `json:"penalty_score,omitempty"`
-	System          string      `json:"system,omitempty"`
-	Stop            []string    `json:"stop,omitempty"`
-	MaxOutputTokens int         `json:"max_output_tokens,omitempty"`
-	UserID          string      `json:"user_id,omitempty"`
-}
-
-// 定义请求负载的结构体
-type WXRequestPayloadF struct {
-	Messages        []WXMessage  `json:"messages"`
-	Functions       []WXFunction `json:"functions,omitempty"`
-	Stream          bool         `json:"stream,omitempty"`
-	Temperature     float64      `json:"temperature,omitempty"`
-	TopP            float64      `json:"top_p,omitempty"`
-	PenaltyScore    float64      `json:"penalty_score,omitempty"`
-	System          string       `json:"system,omitempty"`
-	Stop            []string     `json:"stop,omitempty"`
-	MaxOutputTokens int          `json:"max_output_tokens,omitempty"`
-	UserID          string       `json:"user_id,omitempty"`
-	ResponseFormat  string       `json:"response_format,omitempty"`
-	ToolChoice      ToolChoice   `json:"tool_choice,omitempty"`
-}
-
-// Function 描述了一个可调用的函数的细节
-type Function struct {
-	Name string `json:"name"` // 函数名
-}
-
-// ToolChoice 描述了要使用的工具和具体的函数选择
-type ToolChoice struct {
-	Type     string   `json:"type"`     // 工具类型，这里固定为"function"
-	Function Function `json:"function"` // 指定要使用的函数
-}
-
-type ChatGPTMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type ChatGPTRequest struct {
-	Model    string           `json:"model"`
-	Messages []ChatGPTMessage `json:"messages"`
-	SafeMode bool             `json:"safe_mode"`
-}
-
-type ChatGPTResponseChoice struct {
-	Message struct {
-		Content string `json:"content"`
-	} `json:"message"`
-}
-
-type ChatGPTResponse struct {
-	Choices []ChatGPTResponseChoice `json:"choices"`
-}
-
-// 定义事件数据的结构体，以匹配OpenAI返回的格式
-type GPTEventData struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int    `json:"created"`
-	Model   string `json:"model"`
-	Choices []struct {
-		Index int `json:"index"`
-		Delta struct {
-			Content string `json:"content"`
-		} `json:"delta"`
-	} `json:"choices"`
-}
-
-// 定义用于累积使用情况的结构（如果API提供此信息）
-type GPTUsageInfo struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
-}
-
-// InterfaceBody 结构体定义
-type InterfaceBody struct {
-	Content        string   `json:"content"`
-	State          int      `json:"state"`
-	PromptKeyboard []string `json:"prompt_keyboard"`
-	ActionButton   int      `json:"action_button"`
-	CallbackData   string   `json:"callback_data"`
-}
-
-// EmbeddingData 结构体用于解析embedding接口返回的数据
-type EmbeddingDataErnie struct {
-	Object    string    `json:"object"`
-	Embedding []float64 `json:"embedding"`
-	Index     int       `json:"index"`
-}
-
-// EmbeddingResponse 结构体用于解析整个API响应
-type EmbeddingResponseErnie struct {
-	ID     string               `json:"id"`
-	Object string               `json:"object"`
-	Data   []EmbeddingDataErnie `json:"data"`
-}
-
-// Function 描述了一个可调用的函数的结构
-type WXFunction struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
-	Responses   map[string]interface{} `json:"responses,omitempty"`
-	Examples    [][]WXExample          `json:"examples,omitempty"`
-}
-
-// Example 描述了函数调用的一个示例
-type WXExample struct {
-	Role         string          `json:"role"`
-	Content      string          `json:"content"`
-	Name         string          `json:"name,omitempty"`
-	FunctionCall *WXFunctionCall `json:"function_call,omitempty"`
-}
-
-// FunctionCall 描述了一个函数调用
-type WXFunctionCall struct {
-	Name      string                 `json:"name,omitempty"`
-	Arguments map[string]interface{} `json:"arguments,omitempty"`
-	Thought   string                 `json:"thought,omitempty"`
-}
-
-type Settings struct {
-	AllApi       bool     `yaml:"allApi"`
-	SecretId     string   `yaml:"secretId"`
-	SecretKey    string   `yaml:"secretKey"`
-	Region       string   `yaml:"region"`
-	UseSse       bool     `yaml:"useSse"`
-	Port         int      `yaml:"port"`
-	HttpPath     string   `yaml:"path"`
-	Lotus        string   `yaml:"lotus"`
-	PathToken    string   `yaml:"pathToken"`
-	SystemPrompt []string `yaml:"systemPrompt"`
-	IPWhiteList  []string `yaml:"iPWhiteList"`
-	ApiType      int      `yaml:"apiType"`
-	Proxy        string   `yaml:"proxy"`
-
-	HunyuanType      int `yaml:"hunyuanType"`
-	MaxTokensHunyuan int `yaml:"maxTokensHunyuan"`
-
-	WenxinAccessToken     string  `yaml:"wenxinAccessToken"`
-	WenxinApiPath         string  `yaml:"wenxinApiPath"`
-	MaxTokenWenxin        int     `yaml:"maxTokenWenxin"`
-	WenxinTopp            float64 `yaml:"wenxinTopp"`
-	WnxinPenaltyScore     float64 `yaml:"wenxinPenaltyScore"`
-	WenxinMaxOutputTokens int     `yaml:"wenxinMaxOutputTokens"`
-	WenxinEmbeddingUrl    string  `yaml:"wenxinEmbeddingUrl"`
-
-	GptModel        string `yaml:"gptModel"`
-	GptApiPath      string `yaml:"gptApiPath"`
-	GptToken        string `yaml:"gptToken"`
-	MaxTokenGpt     int    `yaml:"maxTokenGpt"`
-	GptSafeMode     bool   `yaml:"gptSafeMode"`
-	GptSseType      int    `yaml:"gptSseType"`
-	GptEmbeddingUrl string `yaml:"gptEmbeddingUrl"`
-	StandardGptApi  bool   `yaml:"standardGptApi"`
-
-	Groupmessage       bool `yaml:"groupMessage"`
-	SplitByPuntuations int  `yaml:"splitByPuntuations"`
-
-	FirstQ  []string `yaml:"firstQ"`
-	FirstA  []string `yaml:"firstA"`
-	SecondQ []string `yaml:"secondQ"`
-	SecondA []string `yaml:"secondA"`
-	ThirdQ  []string `yaml:"thirdQ"`
-	ThirdA  []string `yaml:"thirdA"`
-
-	SensitiveMode        bool     `yaml:"sensitiveMode"`
-	SensitiveModeType    int      `yaml:"sensitiveModeType"`
-	DefaultChangeWord    string   `yaml:"defaultChangeWord"`
-	AntiPromptAttackPath string   `yaml:"antiPromptAttackPath"`
-	ReverseUserPrompt    bool     `yaml:"reverseUserPrompt"`
-	IgnoreExtraTips      bool     `yaml:"ignoreExtraTips"`
-	SaveResponses        []string `yaml:"saveResponses"`
-	RestoreCommand       []string `yaml:"restoreCommand"`
-	RestoreResponses     []string `yaml:"restoreResponses"`
-	UsePrivateSSE        bool     `yaml:"usePrivateSSE"`
-	Promptkeyboard       []string `yaml:"promptkeyboard"`
-	Savelogs             bool     `yaml:"savelogs"`
-	AntiPromptLimit      float64  `yaml:"antiPromptLimit"`
-
-	UseCache       bool `yaml:"useCache"`
-	CacheThreshold int  `yaml:"cacheThreshold"`
-	CacheChance    int  `yaml:"cacheChance"`
-	EmbeddingType  int  `yaml:"embeddingType"`
-
-	PrintHanming  bool    `yaml:"printHanming"`
-	CacheK        float64 `yaml:"cacheK"`
-	CacheN        int64   `yaml:"cacheN"`
-	PrintVector   bool    `yaml:"printVector"`
-	VToBThreshold float64 `yaml:"vToBThreshold"`
-	GptModeration bool    `yaml:"gptModeration"`
-
-	VectorSensitiveFilter     bool     `yaml:"vectorSensitiveFilter"`
-	VertorSensitiveThreshold  int      `yaml:"vertorSensitiveThreshold"`
-	AllowedLanguages          []string `yaml:"allowedLanguages"`
-	LanguagesResponseMessages []string `yaml:"langResponseMessages"`
-	QuestionMaxLenth          int      `yaml:"questionMaxLenth"`
-	QmlResponseMessages       []string `yaml:"qmlResponseMessages"`
-	BlacklistResponseMessages []string `yaml:"blacklistResponseMessages"`
-	NoContext                 bool     `yaml:"noContext"`
-	WithdrawCommand           []string `yaml:"withdrawCommand"`
-	FunctionMode              bool     `yaml:"functionMode"`
-	FunctionPath              string   `yaml:"functionPath"`
-	UseFunctionPromptkeyboard bool     `yaml:"useFunctionPromptkeyboard"`
-	AIPromptkeyboardPath      string   `yaml:"AIPromptkeyboardPath"`
-	UseAIPromptkeyboard       bool     `yaml:"useAIPromptkeyboard"`
-	SplitByPuntuationsGroup   int      `yaml:"splitByPuntuationsGroup"`
-
-	RwkvApiPath          string   `yaml:"rwkvApiPath"`
-	RwkvMaxTokens        int      `yaml:"rwkvMaxTokens"`
-	RwkvTemperature      float64  `yaml:"rwkvTemperature"`
-	RwkvTopP             float64  `yaml:"rwkvTopP"`
-	RwkvPresencePenalty  float64  `yaml:"rwkvPresencePenalty"`
-	RwkvFrequencyPenalty float64  `yaml:"rwkvFrequencyPenalty"`
-	RwkvPenaltyDecay     float64  `yaml:"rwkvPenaltyDecay"`
-	RwkvTopK             int      `yaml:"rwkvTopK"`
-	RwkvGlobalPenalty    bool     `yaml:"rwkvGlobalPenalty"`
-	RwkvStream           bool     `yaml:"rwkvStream"`
-	RwkvStop             []string `yaml:"rwkvStop"`
-	RwkvUserName         string   `yaml:"rwkvUserName"`
-	RwkvAssistantName    string   `yaml:"rwkvAssistantName"`
-	RwkvSystemName       string   `yaml:"rwkvSystemName"`
-	RwkvPreSystem        bool     `yaml:"rwkvPreSystem"`
-	RwkvSseType          int      `yaml:"rwkvSseType"`
-	HideExtraLogs        bool     `yaml:"hideExtraLogs"`
-
-	WSServerToken string `yaml:"wsServerToken"`
-	WSPath        string `yaml:"wsPath"`
-
-	PromptMarkType        int      `yaml:"promptMarkType"`
-	PromptMarksLength     int      `yaml:"promptMarksLength"`
-	PromptMarks           []string `yaml:"promptMarks"`
-	EnhancedQA            bool     `yaml:"enhancedQA"`
-	PromptChoicesQ        []string `yaml:"promptChoicesQ"`
-	PromptChoicesA        []string `yaml:"promptChoicesA"`
-	EnhancedPromptChoices bool     `yaml:"enhancedPromptChoices"`
-	SwitchOnQ             []string `yaml:"switchOnQ"`
-	SwitchOnA             []string `yaml:"switchOnA"`
-	ExitOnQ               []string `yaml:"exitOnQ"`
-	ExitOnA               []string `yaml:"exitOnA"`
-}
-
-type MetaEvent struct {
-	PostType      string `json:"post_type"`
-	MetaEventType string `json:"meta_event_type"`
-	Time          int64  `json:"time"`
-	SelfID        int64  `json:"self_id"`
-	Interval      int    `json:"interval"`
-	Status        struct {
-		AppEnabled     bool  `json:"app_enabled"`
-		AppGood        bool  `json:"app_good"`
-		AppInitialized bool  `json:"app_initialized"`
-		Good           bool  `json:"good"`
-		Online         bool  `json:"online"`
-		PluginsGood    *bool `json:"plugins_good"`
-		Stat           struct {
-			PacketReceived  int   `json:"packet_received"`
-			PacketSent      int   `json:"packet_sent"`
-			PacketLost      int   `json:"packet_lost"`
-			MessageReceived int   `json:"message_received"`
-			MessageSent     int   `json:"message_sent"`
-			DisconnectTimes int   `json:"disconnect_times"`
-			LostTimes       int   `json:"lost_times"`
-			LastMessageTime int64 `json:"last_message_time"`
-		} `json:"stat"`
-	} `json:"status"`
-}
-
-type NoticeEvent struct {
-	GroupID    int64  `json:"group_id"`
-	NoticeType string `json:"notice_type"`
-	OperatorID int64  `json:"operator_id"`
-	PostType   string `json:"post_type"`
-	SelfID     int64  `json:"self_id"`
-	SubType    string `json:"sub_type"`
-	Time       int64  `json:"time"`
-	UserID     int64  `json:"user_id"`
-}
-
-type RobotStatus struct {
-	SelfID          int64  `json:"self_id"`
-	Date            string `json:"date"`
-	Online          bool   `json:"online"`
-	MessageReceived int    `json:"message_received"`
-	MessageSent     int    `json:"message_sent"`
-	LastMessageTime int64  `json:"last_message_time"`
-	InvitesReceived int    `json:"invites_received"`
-	KicksReceived   int    `json:"kicks_received"`
-	DailyDAU        int    `json:"daily_dau"`
-}
-
-type OnebotActionMessage struct {
-	Action string                 `json:"action"`
-	Params map[string]interface{} `json:"params"`
-	Echo   interface{}            `json:"echo,omitempty"`
-}
-
-type CustomRecord struct {
-	UserID        int64
-	PromptStr     string
-	PromptStrStat int        // New integer field for storing promptstr_stat
-	Strs          [10]string // Array to store str1 to str10
+	return history
 }
