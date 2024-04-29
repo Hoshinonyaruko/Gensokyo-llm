@@ -183,17 +183,21 @@ YAML 文件的配置格式请参考 **YAML配置文件格式** 部分。以下�
 - [x]  promptChoicesA: ["1:饿/我想吃饭/-难受/哄哄我"]
 - [x]  switchOnQ : ["1:不想/故事退出分支"]
 - [x]  switchOnA : ["1:时间不早了/晚上分支"]
+- [x]  exitOnQ : ["1:退出/忘了吧/重置/无聊"]
+- [x]  exitOnA : ["1:退出/我是一个AI/我是一个人工/我是一个基于"]
 - [x]  enhancedPromptChoices: true
 
 设计一个数组，可以修改当前附加到用户的当前Q的部分，默认是最后一个Q，但是也可以是多个。多个的话，可以自己指定1: 2: 3:做渐进式。
 
 含义解释，以上参数均位于多配置文件的settings部分，你可以决定每个场景的提示词长度，每个场景的长度promptMarksLength,来控制剧情的颗粒度。
 
-故事模式触发条件，你需要使用支持onebotv11标准的机器人框架和ob11插件应用端，以及本项目（3者联用），本项目面向的是有一定开发和试错能力的对话机器人开发者。
+故事模式触发方式一，中间件控制,需要使用支持onebotv11标准的机器人框架和ob11插件应用端，以及本项目（3者联用），本项目面向的是有一定开发和试错能力的对话机器人开发者。
 
 使用反向ws，使用ob11插件应用端与obv11机器人框架连接，当ob11插件应用端收到反向ws事件时，自行编写插件拦截ws的json，
 
 通过json中的用户id，message内容，调用gsk-llm（本项目）的http /gensokyo端口，在这个环节，自行判断用户条件（如好感度），在/gensokyo端口附加不同的prompt参数，
+
+故事模式触发方式二,通过配置默认配置文件config.yml的switchOnQ和switchOnA,可以根据关键词切换分支,
 
 结合prompt参数中配置文件的自己推进故事走向的能力，可以实现基础的，以提示词为主的ai故事情节，此外还需要为每一个prompt.yml设计对应的-keyboard.yml，生成气泡。
 
@@ -224,6 +228,8 @@ promptChoicesA: []                            #规则同上,对llm的A生效.我
 enhancedPromptChoices: false                  #当设为true时,promptChoices的格式变化为"轮次编号:附加文本/触发词1/触发词2/触发词3-附加文本/触发词4/触发词5/触发词6"，如"1:hello/aaa/bbb/ccc-goodbye/ddd/eee/fff"。在指定轮次，根据触发词的匹配数量选择最适合的文本添加，匹配越多触发词的组合附加的文本越优先被选择。
 
 switchOnQ代表在Q中寻找到匹配文本时切换当前分支,A同理,其语法和promptChoices一致.
+
+exitOnQ需要enhancedPromptChoices=true,其实enhancedPromptChoices最好就是true的,其/左侧固定为退出(这里任意,右侧是触发词,退出没有具体作用)
 
 配置控制流简单直观，通过配置文件来管理对话逻辑，配置文件易于维护，非技术人员，如剧情编写者，可以直接学习配置文件规则，修改配置文件来更新对话逻辑，不需要编程知识。
 

@@ -424,38 +424,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 构建并发送请求到conversation接口
-		port := config.GetPort()
-		portStr := fmt.Sprintf(":%d", port)
-
-		// 初始化URL，根据api参数动态调整路径
-		basePath := "/conversation"
-		if api != "" {
-			fmtf.Printf("收到api参数: %s\n", api)
-			basePath = "/" + api // 动态替换conversation部分为api参数值
-		}
-		var baseURL string
-		if config.GetLotus(promptstr) == "" {
-			baseURL = "http://127.0.0.1" + portStr + basePath
-		} else {
-			baseURL = config.GetLotus(promptstr) + basePath
-		}
-
-		// 使用net/url包来构建和编码URL
-		urlParams := url.Values{}
-		if promptstr != "" {
-			urlParams.Add("prompt", promptstr)
-		}
-
-		// 将查询参数编码后附加到基本URL上
-		fullURL := baseURL
-		if len(urlParams) > 0 {
-			fullURL += "?" + urlParams.Encode()
-		}
-
-		fmtf.Printf("Generated URL:%v\n", fullURL)
-
-		// 请求模型还是使用原文请求
+		// 请求模型使用原文请求,并应用安全策略
 		requestmsg := message.Message.(string)
 
 		if config.GetPrintHanming() {
@@ -473,6 +442,116 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			requestmsg = acnode.CheckWordIN(requestmsg)
 		}
 
+		// 关键词退出部分
+		exitChoices := config.GetExitOnQ(promptstr)
+		if len(exitChoices) != 0 {
+			// 获取用户剧情存档中的当前状态
+			CustomRecord, err := app.FetchCustomRecord(message.UserID)
+			if err != nil {
+				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
+				return
+			}
+
+			// 获取当前场景的总对话长度
+			PromptMarksLength := config.GetPromptMarksLength(promptstr)
+
+			// 计算当前对话轮次
+			currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
+			fmtf.Printf("关键词判断退出分支:当前对话轮次Q %v", currentRound)
+
+			enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
+			if enhancedChoices {
+				// 遍历所有的promptChoices配置项
+				for _, choice := range exitChoices {
+					parts := strings.Split(choice, ":")
+					roundNumberStr, triggerGroups := parts[0], parts[1]
+					// 将字符串轮次号转换为整数
+					roundNumber, err := strconv.Atoi(roundNumberStr)
+					if err != nil {
+						fmt.Printf("Error converting round number: %v\n", err)
+						continue // 如果转换出错，跳过当前循环
+					}
+					// 检查当前轮次是否符合条件
+					if roundNumber == currentRound {
+						triggerSets := strings.Split(triggerGroups, "-")
+						bestMatchCount := 0
+						bestText := ""
+						// 遍历每组触发词设置
+						for _, triggerSet := range triggerSets {
+							triggerDetails := strings.Split(triggerSet, "/")
+							addedText := triggerDetails[0] // 提取附加文本
+							triggers := triggerDetails[1:] // 提取所有触发词
+							matchCount := 0
+							// 计算当前消息中包含的触发词数量
+							for _, trigger := range triggers {
+								if strings.Contains(requestmsg, trigger) {
+									matchCount++
+								}
+							}
+							// 如果当前组的匹配数量最高，更新最佳文本
+							if matchCount > bestMatchCount {
+								bestMatchCount = matchCount
+								bestText = addedText
+							}
+						}
+						// 如果找到了有效的触发词组合，退出分支
+						if bestMatchCount > 0 {
+							// 退出分支
+							fmtf.Printf("处理重置操作on:%v", bestText)
+							app.migrateUserToNewContext(message.UserID)
+							RestoreResponse := config.GetRandomRestoreResponses()
+							if message.RealMessageType == "group_private" || message.MessageType == "private" {
+								if !config.GetUsePrivateSSE() {
+									utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid)
+								} else {
+									utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse)
+								}
+							} else {
+								utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
+							}
+							// 处理故事情节的重置
+							app.deleteCustomRecord(message.UserID)
+							return
+						}
+					}
+				}
+			} else {
+				// 当enhancedChoices为false时的处理逻辑
+				for _, choice := range exitChoices {
+					parts := strings.Split(choice, ":")
+					roundNumberStr, addedTexts := parts[0], parts[1]
+					roundNumber, err := strconv.Atoi(roundNumberStr)
+					if err != nil {
+						fmt.Printf("Error converting round number: %v\n", err)
+						continue // 如果轮次号转换出错，跳过当前循环
+					}
+					// 如果当前轮次符合条件，随机选择一个分支跳转
+					if roundNumber == currentRound {
+						texts := strings.Split(addedTexts, "-")
+						if len(texts) > 0 {
+							selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
+							//退出分支
+							fmtf.Printf("处理重置操作on:%v", selectedText)
+							app.migrateUserToNewContext(message.UserID)
+							RestoreResponse := config.GetRandomRestoreResponses()
+							if message.RealMessageType == "group_private" || message.MessageType == "private" {
+								if !config.GetUsePrivateSSE() {
+									utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid)
+								} else {
+									utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse)
+								}
+							} else {
+								utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
+							}
+							// 处理故事情节的重置
+							app.deleteCustomRecord(message.UserID)
+							return
+						}
+					}
+				}
+			}
+		}
+
 		// promptstr 随 switchOnQ 变化
 		promptstrChoices := config.GetSwitchOnQ(promptstr)
 		if len(promptstrChoices) != 0 {
@@ -488,9 +567,10 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 			// 计算当前对话轮次
 			currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
-			fmtf.Printf("关键词切换分支状态:当前对话轮次Q %v", currentRound)
+			fmtf.Printf("关键词切换分支状态:当前对话轮次Q %v,当前promptstr:%v", currentRound, promptstr)
 
 			enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
+			fmtf.Printf("关键词切换分支状态:%v", enhancedChoices)
 			if enhancedChoices {
 				// 遍历所有的promptChoices配置项
 				for _, choice := range promptstrChoices {
@@ -673,6 +753,39 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			fmtf.Printf("Error marshalling request: %v\n", err)
 			return
 		}
+
+		// 构建URL并发送请求到conversation接口
+		port := config.GetPort()
+		portStr := fmt.Sprintf(":%d", port)
+
+		// 初始化URL，根据api参数动态调整路径
+		basePath := "/conversation"
+		if api != "" {
+			fmtf.Printf("收到api参数: %s\n", api)
+			basePath = "/" + api // 动态替换conversation部分为api参数值
+		}
+
+		var baseURL string
+
+		if config.GetLotus(promptstr) == "" {
+			baseURL = "http://127.0.0.1" + portStr + basePath
+		} else {
+			baseURL = config.GetLotus(promptstr) + basePath
+		}
+
+		// 使用net/url包来构建和编码URL
+		urlParams := url.Values{}
+		if promptstr != "" {
+			urlParams.Add("prompt", promptstr)
+		}
+
+		// 将查询参数编码后附加到基本URL上
+		fullURL := baseURL
+		if len(urlParams) > 0 {
+			fullURL += "?" + urlParams.Encode()
+		}
+
+		fmtf.Printf("Generated URL:%v\n", fullURL)
 
 		resp, err := http.Post(fullURL, "application/json", bytes.NewBuffer(requestBody))
 		if err != nil {
@@ -1000,6 +1113,116 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// 发送响应
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Request received and processed Q:" + newmsg + " A:" + response))
+
+		// 关键词退出部分A
+		exitChoices = config.GetExitOnA(promptstr)
+		if len(exitChoices) != 0 {
+			// 获取用户剧情存档中的当前状态
+			CustomRecord, err := app.FetchCustomRecord(message.UserID)
+			if err != nil {
+				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
+				return
+			}
+
+			// 获取当前场景的总对话长度
+			PromptMarksLength := config.GetPromptMarksLength(promptstr)
+
+			// 计算当前对话轮次
+			currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
+			fmtf.Printf("关键词判断退出分支:当前对话轮次A %v", currentRound)
+
+			enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
+			if enhancedChoices {
+				// 遍历所有的promptChoices配置项
+				for _, choice := range exitChoices {
+					parts := strings.Split(choice, ":")
+					roundNumberStr, triggerGroups := parts[0], parts[1]
+					// 将字符串轮次号转换为整数
+					roundNumber, err := strconv.Atoi(roundNumberStr)
+					if err != nil {
+						fmt.Printf("Error converting round number: %v\n", err)
+						continue // 如果转换出错，跳过当前循环
+					}
+					// 检查当前轮次是否符合条件
+					if roundNumber == currentRound {
+						triggerSets := strings.Split(triggerGroups, "-")
+						bestMatchCount := 0
+						bestText := ""
+						// 遍历每组触发词设置
+						for _, triggerSet := range triggerSets {
+							triggerDetails := strings.Split(triggerSet, "/")
+							addedText := triggerDetails[0] // 提取附加文本
+							triggers := triggerDetails[1:] // 提取所有触发词
+							matchCount := 0
+							// 计算当前消息中包含的触发词数量
+							for _, trigger := range triggers {
+								if strings.Contains(response, trigger) {
+									matchCount++
+								}
+							}
+							// 如果当前组的匹配数量最高，更新最佳文本
+							if matchCount > bestMatchCount {
+								bestMatchCount = matchCount
+								bestText = addedText
+							}
+						}
+						// 如果找到了有效的触发词组合，退出分支
+						if bestMatchCount > 0 {
+							// 退出分支
+							fmtf.Printf("处理重置操作on:%v", bestText)
+							app.migrateUserToNewContext(message.UserID)
+							RestoreResponse := config.GetRandomRestoreResponses()
+							if message.RealMessageType == "group_private" || message.MessageType == "private" {
+								if !config.GetUsePrivateSSE() {
+									utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid)
+								} else {
+									utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse)
+								}
+							} else {
+								utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
+							}
+							// 处理故事情节的重置
+							app.deleteCustomRecord(message.UserID)
+							return
+						}
+					}
+				}
+			} else {
+				// 当enhancedChoices为false时的处理逻辑
+				for _, choice := range exitChoices {
+					parts := strings.Split(choice, ":")
+					roundNumberStr, addedTexts := parts[0], parts[1]
+					roundNumber, err := strconv.Atoi(roundNumberStr)
+					if err != nil {
+						fmt.Printf("Error converting round number: %v\n", err)
+						continue // 如果轮次号转换出错，跳过当前循环
+					}
+					// 如果当前轮次符合条件，随机选择一个分支跳转
+					if roundNumber == currentRound {
+						texts := strings.Split(addedTexts, "-")
+						if len(texts) > 0 {
+							selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
+							//退出分支
+							fmtf.Printf("处理重置操作on:%v", selectedText)
+							app.migrateUserToNewContext(message.UserID)
+							RestoreResponse := config.GetRandomRestoreResponses()
+							if message.RealMessageType == "group_private" || message.MessageType == "private" {
+								if !config.GetUsePrivateSSE() {
+									utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid)
+								} else {
+									utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse)
+								}
+							} else {
+								utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
+							}
+							// 处理故事情节的重置
+							app.deleteCustomRecord(message.UserID)
+							return
+						}
+					}
+				}
+			}
+		}
 
 		// 这里的代码也会继续运行,不会影响本次请求的返回值
 		// promptstr 随 switchOnQ 变化
