@@ -123,7 +123,7 @@ settings:
 
 示例请求：
 ```http
-GET /gensokyo?prompt=example&api=/conversation_ernie
+GET /gensokyo?prompt=example&api=conversation_ernie
 ```
 
 ## 请求 `/conversation` 端点
@@ -138,6 +138,8 @@ GET /conversation?prompt=example
 ## `prompt` 参数解析
 
 提供的 `prompt` 参数将引用可执行文件目录下的 `/prompts` 文件夹中相应的 YAML 文件（例如 `xxxx.yml`，其中 `xxxx` 是 `prompt` 参数的值）。
+
+通过编写大量的prompts的yml文件，你可以实现角色卡切换，同一角色下，你可以实现故事情节和不同场景切换。
 
 ## YAML 配置文件
 
