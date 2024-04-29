@@ -119,6 +119,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// MARK: 提示词之间流转 匹配关键字 可能有BUG
+		app.ProcessQA(message.UserID, message.Message.(string), promptstr)
+
 		// 提示词之间流转 达到信号量
 		markType := config.GetPromptMarkType(promptstr)
 		if (markType == 0 || markType == 1) && (CustomRecord.PromptStrStat-1 <= 0) {
@@ -1006,7 +1009,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								}
 							}
 							// 处理故事模式
-							app.ProcessAnswer(message.UserID, response, promptstr)
+							app.ProcessQA(message.UserID, response, promptstr)
 							// 清空之前加入缓存
 							// 缓存省钱部分 这里默认不被覆盖,如果主配置开了缓存,始终缓存.
 							if config.GetUseCache() {

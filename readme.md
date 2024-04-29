@@ -117,7 +117,7 @@ settings:
 
 ## 多配置文件支持
 
-### 请求 `/gensokyo` 端点
+## 请求 `/gensokyo` 端点
 
 当向 `/gensokyo` 端点发起请求时，系统支持附加 `prompt` 参数和 `api` 参数。`api` 参数允许指定如 `/conversation_ernie` 这类的完整端点。启用此功能需在配置中开启 `allapi` 选项。
 
@@ -126,7 +126,7 @@ settings:
 GET /gensokyo?prompt=example&api=/conversation_ernie
 ```
 
-### 请求 `/conversation` 端点
+## 请求 `/conversation` 端点
 
 与 `/gensokyo` 类似，`/conversation` 端点支持附加 `prompt` 参数。
 
@@ -135,11 +135,11 @@ GET /gensokyo?prompt=example&api=/conversation_ernie
 GET /conversation?prompt=example
 ```
 
-### `prompt` 参数解析
+## `prompt` 参数解析
 
 提供的 `prompt` 参数将引用可执行文件目录下的 `/prompts` 文件夹中相应的 YAML 文件（例如 `xxxx.yml`，其中 `xxxx` 是 `prompt` 参数的值）。
 
-### YAML 配置文件
+## YAML 配置文件
 
 YAML 文件的配置格式请参考 **YAML配置文件格式** 部分。以下列出的配置项支持在请求中动态覆盖：
 
@@ -165,7 +165,7 @@ YAML 文件的配置格式请参考 **YAML配置文件格式** 部分。以下�
 
 ---
 
-### 故事模式(测试中)
+## 故事模式(测试中 设计中)
 
 本项目实践了一个基础的，实验性的，提示词和上下文构造方式，基于本项目实现的多配置文件，本项目设计了几个额外的参数，结合数据库储存每个用户的状态，
 
@@ -173,22 +173,21 @@ YAML 文件的配置格式请参考 **YAML配置文件格式** 部分。以下�
 
 实现了让用户在多个提示词中，按照一些条件，有顺序，可选择的，在多套提示词中进行流转，实现类似文字恋爱游戏的非连续性多支线的故事剧情。
 
-有关的参数，
+有关的参数，思路来自**Inklewriter**的**ink**语言，一种用于描述非ai分支式故事的语言。将其与大模型ai进行了结合和简化。需要一定的学习，掌握后可以编写ai故事。
 
 - [x]  promptMarkType : 0
 - [x]  promptMarksLength : 1
-- [x]  promptMarks : ["去逛街路上"]
+- [x]  promptMarks : ["去逛街路上","在家准备"] #当promptMarkType==0 比较简单,达到promptMarksLength就会随机一个分支进行跳转
+- [x]  promptMarks : ["去逛街路上:坐车-走路-触发","在家准备:等一下-慢慢-准备"] #当promptMarkType==1 :后 是关键词,Q和A包含任意关键词就会跳转到 去逛街路上.yml 这个分支
 - [x]  enhancedQA : true
-- [x]  promptChoicesQ: ["1:回家吧/我累了/不想去了/-我们打车去/快点去/想去/早点-我们走着去/不着急-等下-拉手"]
-- [x]  promptChoicesA: ["1:饿/我想吃饭/-难受/哄哄我"]
-- [x]  switchOnQ : ["1:不想/故事退出分支"]
-- [x]  switchOnA : ["1:时间不早了/晚上分支"]
-- [x]  exitOnQ : ["1:退出/忘了吧/重置/无聊"]
+- [x]  promptChoicesQ: ["1:回家吧/我累了/不想去了/-我们打车去/快点去/想去/早点-我们走着去/不着急-等下-拉手"] #当用户本轮包含了我累了、不想去了，本轮用户Q会被叠加(回家吧)
+- [x]  promptChoicesA: ["1:饿/我想吃饭/-难受/哄哄我"] #当AI本轮回复包含了，我想吃饭，本轮AI回复会被附加（饿），如果希望无条件附加，可以在末尾多加一个/，饿这个分支就是多加了一个/
+- [x]  switchOnQ : ["1:故事退出分支/不想/累了-下一个分支/想/不累"]  #和promptMarks一样，可选,比promptMarks更具体，区分了Q和A，以及轮次1:
+- [x]  switchOnA : ["1:晚上分支/时间不早了"]
+- [x]  exitOnQ : ["1:退出/忘了吧/重置/无聊"] #捕获关键字来实现退出剧情,也可以使用全局的退出指令词。
 - [x]  exitOnA : ["1:退出/我是一个AI/我是一个人工/我是一个基于"]
-- [x]  enhancedPromptChoices: true
-
-设计一个数组，可以修改当前附加到用户的当前Q的部分，默认是最后一个Q，但是也可以是多个。多个的话，可以自己指定1: 2: 3:做渐进式。
-
+- [x]  enhancedPromptChoices: true  #promptChoicesQA  switchOnQA exitOnQA的语法，false时是随机模式 1:回家吧-不回家-原地休息 没有后方的/，随机一个分支跳转。true是具有关键词条件 1:回家吧/a/b/c-不回家/a/b/c
+ 
 含义解释，以上参数均位于多配置文件的settings部分，你可以决定每个场景的提示词长度，每个场景的长度promptMarksLength,来控制剧情的颗粒度。
 
 故事模式触发方式一，中间件控制,需要使用支持onebotv11标准的机器人框架和ob11插件应用端，以及本项目（3者联用），本项目面向的是有一定开发和试错能力的对话机器人开发者。
@@ -231,18 +230,27 @@ switchOnQ代表在Q中寻找到匹配文本时切换当前分支,A同理,其语�
 
 exitOnQ需要enhancedPromptChoices=true,其实enhancedPromptChoices最好就是true的,其/左侧固定为退出(这里任意,右侧是触发词,退出没有具体作用)
 
+promptMarks和switchOnQ、switchOnA在功能上是相同的，都是根据关键字跳转分支，promptMarks先执行，不分轮次不分QA，switchOnQ和switchOnA更具体，区分Q和A，区分轮次，实现细节跳转。
+
+## 为什么采用文本控制流而不是ai-agent？
+
 配置控制流简单直观，通过配置文件来管理对话逻辑，配置文件易于维护，非技术人员，如剧情编写者，可以直接学习配置文件规则，修改配置文件来更新对话逻辑，不需要编程知识。
 
 剧情确定性高：给定相同的输入和配置，剧情走向是大体一致的，这对于确保对话剧情的连贯性和可预测性非常重要。
+
+成本低，对上下文进行巧妙组合和替换，而不是多个ai同时处理，与普通对话消耗几乎等量的token，省钱。
+
+速度快，像生成普通对话QA一样生成结果，像写游戏脚本一样编写剧情。
 
 适用于个体开发者和小型开发团队的低成本ai故事、小说方案,低成本,高速度,高可控,效果随模型和提示词效果提升而直接提升。
 
 对于对话剧情聊天场景，如果剧情较为固定，对话路径预设，且更新频率不高，使用配置控制流更适合，因为它提供了高度的可控性和易于理解的管理方式。
 
 如果对话系统需要高度的互动性和个性化，或者剧情变化复杂，需要根据用户的具体反馈和行为动态调整，那么使用基于AI的agent方案可能更合适，它需要更高的技术投入和维护成本。
+
 ---
 
-### 终结点
+## 终结点
 
 本节介绍了与API通信的具体终结点信息。
 
@@ -251,7 +259,7 @@ exitOnQ需要enhancedPromptChoices=true,其实enhancedPromptChoices最好就是t
 | URL   | `http://localhost:46230/conversation`   |
 | 方法  | `POST`                                  |
 
-### 请求参数
+## 请求参数
 
 客户端应向服务器发送的请求体必须为JSON格式，以下表格详细列出了每个字段的数据类型及其描述。
 
@@ -261,7 +269,7 @@ exitOnQ需要enhancedPromptChoices=true,其实enhancedPromptChoices最好就是t
 | `conversationId`  | String | 当前对话会话的唯一标识符            |
 | `parentMessageId` | String | 与此消息关联的上一条消息的标识符    |
 
-#### 请求示例
+## 请求示例
 
 下面的JSON对象展示了向该API终结点发送请求时，请求体的结构：
 
@@ -277,7 +285,7 @@ exitOnQ需要enhancedPromptChoices=true,其实enhancedPromptChoices最好就是t
 
 ---
 
-#### 返回值示例
+## 返回值示例
 
 成功响应将返回状态码 `200` 和一个JSON对象，包含以下字段：
 
