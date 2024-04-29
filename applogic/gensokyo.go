@@ -552,97 +552,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// promptstr 随 switchOnQ 变化
-		promptstrChoices := config.GetSwitchOnQ(promptstr)
-		if len(promptstrChoices) != 0 {
-			// 获取用户剧情存档中的当前状态
-			CustomRecord, err := app.FetchCustomRecord(message.UserID)
-			if err != nil {
-				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
-				return
-			}
-
-			// 获取当前场景的总对话长度
-			PromptMarksLength := config.GetPromptMarksLength(promptstr)
-
-			// 计算当前对话轮次
-			currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
-			fmtf.Printf("关键词切换分支状态:当前对话轮次Q %v,当前promptstr:%v", currentRound, promptstr)
-
-			enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
-			fmtf.Printf("关键词切换分支状态:%v", enhancedChoices)
-			if enhancedChoices {
-				// 遍历所有的promptChoices配置项
-				for _, choice := range promptstrChoices {
-					parts := strings.Split(choice, ":")
-					roundNumberStr, triggerGroups := parts[0], parts[1]
-					// 将字符串轮次号转换为整数
-					roundNumber, err := strconv.Atoi(roundNumberStr)
-					if err != nil {
-						fmt.Printf("Error converting round number: %v\n", err)
-						continue // 如果转换出错，跳过当前循环
-					}
-					// 检查当前轮次是否符合条件
-					if roundNumber == currentRound {
-						triggerSets := strings.Split(triggerGroups, "-")
-						bestMatchCount := 0
-						bestText := ""
-						// 遍历每组触发词设置
-						for _, triggerSet := range triggerSets {
-							triggerDetails := strings.Split(triggerSet, "/")
-							addedText := triggerDetails[0] // 提取附加文本
-							triggers := triggerDetails[1:] // 提取所有触发词
-							matchCount := 0
-							// 计算当前消息中包含的触发词数量
-							for _, trigger := range triggers {
-								if strings.Contains(requestmsg, trigger) {
-									matchCount++
-								}
-							}
-							// 如果当前组的匹配数量最高，更新最佳文本
-							if matchCount > bestMatchCount {
-								bestMatchCount = matchCount
-								bestText = addedText
-							}
-						}
-						// 如果找到了有效的触发词组合，修改分支
-						if bestMatchCount > 0 {
-							promptstr = bestText
-							// 获取新的信号长度 刷新持久化数据库
-							PromptMarksLength := config.GetPromptMarksLength(promptstr)
-							app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
-							fmt.Printf("enhancedChoices=true,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
-						}
-					}
-				}
-			} else {
-				// 当enhancedChoices为false时的处理逻辑
-				for _, choice := range promptstrChoices {
-					parts := strings.Split(choice, ":")
-					roundNumberStr, addedTexts := parts[0], parts[1]
-					roundNumber, err := strconv.Atoi(roundNumberStr)
-					if err != nil {
-						fmt.Printf("Error converting round number: %v\n", err)
-						continue // 如果轮次号转换出错，跳过当前循环
-					}
-					// 如果当前轮次符合条件，随机选择一个分支跳转
-					if roundNumber == currentRound {
-						texts := strings.Split(addedTexts, "-")
-						if len(texts) > 0 {
-							selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-							promptstr = selectedText
-							// 获取新的信号长度 刷新持久化数据库
-							PromptMarksLength := config.GetPromptMarksLength(promptstr)
-							app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
-							fmt.Printf("enhancedChoices=false,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
-						}
-					}
-				}
-			}
-		}
-
 		// 故事模式规则
-
 		// 检查是否启用了EnhancedQA
 		if config.GetEnhancedQA(promptstr) {
 			promptChoices := config.GetPromptChoicesQ(promptstr)
@@ -754,6 +664,95 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						lastSystemMessage := systemHistory[len(systemHistory)-2] // 获取最后一个系统消息
 						// 将最后一个系统历史消息附加到用户消息后
 						requestmsg += "(" + lastSystemMessage.Text + ")"
+					}
+				}
+			}
+		}
+
+		// promptstr 随 switchOnQ 变化
+		promptstrChoices := config.GetSwitchOnQ(promptstr)
+		if len(promptstrChoices) != 0 {
+			// 获取用户剧情存档中的当前状态
+			CustomRecord, err := app.FetchCustomRecord(message.UserID)
+			if err != nil {
+				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
+				return
+			}
+
+			// 获取当前场景的总对话长度
+			PromptMarksLength := config.GetPromptMarksLength(promptstr)
+
+			// 计算当前对话轮次
+			currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
+			fmtf.Printf("关键词切换分支状态:当前对话轮次Q %v,当前promptstr:%v", currentRound, promptstr)
+
+			enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
+			fmtf.Printf("关键词切换分支状态:%v", enhancedChoices)
+			if enhancedChoices {
+				// 遍历所有的promptChoices配置项
+				for _, choice := range promptstrChoices {
+					parts := strings.Split(choice, ":")
+					roundNumberStr, triggerGroups := parts[0], parts[1]
+					// 将字符串轮次号转换为整数
+					roundNumber, err := strconv.Atoi(roundNumberStr)
+					if err != nil {
+						fmt.Printf("Error converting round number: %v\n", err)
+						continue // 如果转换出错，跳过当前循环
+					}
+					// 检查当前轮次是否符合条件
+					if roundNumber == currentRound {
+						triggerSets := strings.Split(triggerGroups, "-")
+						bestMatchCount := 0
+						bestText := ""
+						// 遍历每组触发词设置
+						for _, triggerSet := range triggerSets {
+							triggerDetails := strings.Split(triggerSet, "/")
+							addedText := triggerDetails[0] // 提取附加文本
+							triggers := triggerDetails[1:] // 提取所有触发词
+							matchCount := 0
+							// 计算当前消息中包含的触发词数量
+							for _, trigger := range triggers {
+								if strings.Contains(requestmsg, trigger) {
+									matchCount++
+								}
+							}
+							// 如果当前组的匹配数量最高，更新最佳文本
+							if matchCount > bestMatchCount {
+								bestMatchCount = matchCount
+								bestText = addedText
+							}
+						}
+						// 如果找到了有效的触发词组合，修改分支
+						if bestMatchCount > 0 {
+							promptstr = bestText
+							// 获取新的信号长度 刷新持久化数据库
+							PromptMarksLength := config.GetPromptMarksLength(promptstr)
+							app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
+							fmt.Printf("enhancedChoices=true,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
+						}
+					}
+				}
+			} else {
+				// 当enhancedChoices为false时的处理逻辑
+				for _, choice := range promptstrChoices {
+					parts := strings.Split(choice, ":")
+					roundNumberStr, addedTexts := parts[0], parts[1]
+					roundNumber, err := strconv.Atoi(roundNumberStr)
+					if err != nil {
+						fmt.Printf("Error converting round number: %v\n", err)
+						continue // 如果轮次号转换出错，跳过当前循环
+					}
+					// 如果当前轮次符合条件，随机选择一个分支跳转
+					if roundNumber == currentRound {
+						texts := strings.Split(addedTexts, "-")
+						if len(texts) > 0 {
+							selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
+							promptstr = selectedText
+							// 获取新的信号长度 刷新持久化数据库
+							PromptMarksLength := config.GetPromptMarksLength(promptstr)
+							app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
+							fmt.Printf("enhancedChoices=false,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
+						}
 					}
 				}
 			}
