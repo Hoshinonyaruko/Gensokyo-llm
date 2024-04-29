@@ -143,7 +143,8 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			// 处理增强QA逻辑
 			if config.GetEnhancedQA(promptstr) {
 				// 确保系统历史与用户或助手历史数量一致，如果不足，则补足空的历史记录
-				if len(systemHistory) > len(userHistory) {
+				// 因为最后一个成员让给当前QA,所以-1
+				if len(systemHistory)-2 > len(userHistory) {
 					difference := len(systemHistory) - len(userHistory)
 					for i := 0; i < difference; i++ {
 						userHistory = append(userHistory, structs.Message{Text: "", Role: "user"})
