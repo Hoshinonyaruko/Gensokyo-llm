@@ -193,6 +193,8 @@ func (app *App) ApplySwitchOnQ(promptstr string, requestmsg *string, message *st
 						PromptMarksLength := config.GetPromptMarksLength(promptstr)
 						app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
 						fmt.Printf("enhancedChoices=true,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
+						// 故事模式规则 应用 PromptChoiceQ 这一次是为了,替换了分支后,再次用新的分支的promptstr处理一次,因为原先的promptstr是跳转前,要用跳转后的再替换一次
+						app.ApplyPromptChoiceQ(promptstr, requestmsg, message)
 					}
 				}
 			}
@@ -216,6 +218,8 @@ func (app *App) ApplySwitchOnQ(promptstr string, requestmsg *string, message *st
 						PromptMarksLength := config.GetPromptMarksLength(promptstr)
 						app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
 						fmt.Printf("enhancedChoices=false,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", promptstr, PromptMarksLength)
+						// 故事模式规则 应用 PromptChoiceQ 这一次是为了,替换了分支后,再次用新的分支的promptstr处理一次,因为原先的promptstr是跳转前,要用跳转后的再替换一次
+						app.ApplyPromptChoiceQ(promptstr, requestmsg, message)
 					}
 				}
 			}
