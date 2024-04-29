@@ -934,7 +934,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											if EnhancedAContent == "" {
 												state = 11
 											} else {
-												state = 10
+												state = 1
 											}
 											messageSSE := structs.InterfaceBody{
 												Content: newPart,
@@ -967,9 +967,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											//判断是否最后一条
 											var state int
 											if EnhancedAContent == "" {
-												state = 11
+												state = 11 //准备结束 下一个就是20
 											} else {
-												state = 10
+												state = 1 //下一个是11 由末尾补充负责
 											}
 											messageSSE := structs.InterfaceBody{
 												Content: response,
