@@ -201,13 +201,37 @@ func IPWhiteList() []string {
 }
 
 // 获取最大上下文
-func GetMaxTokensHunyuan() int {
+func GetMaxTokensHunyuan(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.MaxTokensHunyuan
+	return getMaxTokensHunyuanInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getMaxTokensHunyuanInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.MaxTokensHunyuan
+		}
+		return 4096 // 默认值
 	}
-	return 4096
+
+	// 使用传入的 basename
+	basename := options[0]
+	maxTokensHunyuanInterface, err := prompt.GetSettingFromFilename(basename, "MaxTokensHunyuan")
+	if err != nil {
+		log.Println("Error retrieving MaxTokensHunyuan:", err)
+		return getMaxTokensHunyuanInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	maxTokensHunyuan, ok := maxTokensHunyuanInterface.(int)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for MaxTokensHunyuan, fetching default")
+		return getMaxTokensHunyuanInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return maxTokensHunyuan
 }
 
 // 获取Api类型
@@ -1537,4 +1561,174 @@ func getEnhancedQAInternal(options ...string) bool {
 	}
 
 	return enhancedQA
+}
+
+// 获取 PromptChoicesQ
+func GetPromptChoicesQ(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getPromptChoicesQInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getPromptChoicesQInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.PromptChoicesQ
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	promptChoicesInterface, err := prompt.GetSettingFromFilename(basename, "PromptChoicesQ")
+	if err != nil {
+		log.Println("Error retrieving PromptChoicesQ:", err)
+		return getPromptChoicesQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	promptChoices, ok := promptChoicesInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for PromptChoicesQ, fetching default")
+		return getPromptChoicesQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return promptChoices
+}
+
+// 获取 PromptChoicesA
+func GetPromptChoicesA(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getPromptChoicesAInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getPromptChoicesAInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.PromptChoicesA
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	promptChoicesInterface, err := prompt.GetSettingFromFilename(basename, "PromptChoicesA")
+	if err != nil {
+		log.Println("Error retrieving PromptChoicesA:", err)
+		return getPromptChoicesAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	promptChoices, ok := promptChoicesInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for PromptChoicesA, fetching default")
+		return getPromptChoicesAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return promptChoices
+}
+
+// 获取enhancedpromptChoices
+func GetEnhancedPromptChoices(options ...string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return getEnhancedPromptChoicesInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getEnhancedPromptChoicesInternal(options ...string) bool {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.EnhancedPromptChoices
+		}
+		return false // 如果实例或设置未定义，返回默认值false
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	enhancedPromptChoicesInterface, err := prompt.GetSettingFromFilename(basename, "EnhancedPromptChoices")
+	if err != nil {
+		log.Println("Error retrieving EnhancedPromptChoices:", err)
+		return getEnhancedPromptChoicesInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	enhancedPromptChoices, ok := enhancedPromptChoicesInterface.(bool)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for EnhancedPromptChoices, fetching default")
+		return getEnhancedPromptChoicesInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return enhancedPromptChoices
+}
+
+// 获取switchOnQ
+func GetSwitchOnQ(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getSwitchOnQInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getSwitchOnQInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.SwitchOnQ
+		}
+		return nil // 默认值为空数组
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	switchOnQInterface, err := prompt.GetSettingFromFilename(basename, "SwitchOnQ")
+	if err != nil {
+		log.Println("Error retrieving SwitchOnQ:", err)
+		return getSwitchOnQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	switchOnQ, ok := switchOnQInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for SwitchOnQ, fetching default")
+		return getSwitchOnQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return switchOnQ
+}
+
+// 获取switchOnA
+func GetSwitchOnA(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getSwitchOnAInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getSwitchOnAInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.SwitchOnA
+		}
+		return nil // 默认值为空数组
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	switchOnAInterface, err := prompt.GetSettingFromFilename(basename, "SwitchOnA")
+	if err != nil {
+		log.Println("Error retrieving SwitchOnA:", err)
+		return getSwitchOnAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	switchOnA, ok := switchOnAInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for SwitchOnA, fetching default")
+		return getSwitchOnAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return switchOnA
 }
