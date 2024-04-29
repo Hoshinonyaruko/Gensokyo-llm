@@ -129,6 +129,9 @@ func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr string) 
 	if markType == 1 {
 		// 获取 PromptMarks
 		PromptMarks := config.GetPromptMarks(promptStr)
+		maxMatchCount := 0
+		bestPromptStr := ""
+		bestPromptMarksLength := 0
 
 		for _, mark := range PromptMarks {
 			// 提取冒号右侧的文本，并转换为数组
@@ -138,27 +141,31 @@ func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr string) 
 			}
 			codes := strings.Split(parts[1], "-")
 
-			// 检查 QorA  是否包含数组中的任意一个成员
+			// 检查 QorA 是否包含数组中的任意一个成员
+			matchCount := 0
 			for _, code := range codes {
 				if strings.Contains(QorA, code) {
-					// 当找到匹配时，构建新的 promptStr
-					newPromptStr := parts[0]
-
-					// 获取 PromptMarksLength
-					PromptMarksLength := config.GetPromptMarksLength(newPromptStr)
-
-					// 插入记录到自定义表
-					err := app.InsertCustomTableRecord(userID, newPromptStr, PromptMarksLength)
-					if err != nil {
-						fmt.Println("Error inserting custom table record:", err)
-						return
-					}
-
-					// 输出结果
-					fmt.Printf("type1=流转prompt参数: %s, newPromptStrStat: %d\n", newPromptStr, PromptMarksLength)
-					return // 停止循环
+					matchCount++
 				}
 			}
+
+			// 更新找到含有最多匹配项的新 promptStr
+			if matchCount > maxMatchCount {
+				maxMatchCount = matchCount
+				bestPromptStr = parts[0]
+				bestPromptMarksLength = config.GetPromptMarksLength(bestPromptStr)
+			}
+		}
+
+		// 如果找到有效的匹配，则插入记录
+		if maxMatchCount > 0 {
+			err := app.InsertCustomTableRecord(userID, bestPromptStr, bestPromptMarksLength)
+			if err != nil {
+				fmt.Println("Error inserting custom table record:", err)
+				return
+			}
+			// 输出结果
+			fmt.Printf("type1=流转prompt参数: %s, newPromptStrStat: %d\n", bestPromptStr, bestPromptMarksLength)
 		}
 	}
 }
