@@ -451,7 +451,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		app.ApplyPromptChoiceQ(promptstr, &requestmsg, &message)
 
 		// promptstr 随 switchOnQ 变化 切换Q
-		app.ApplySwitchOnQ(promptstr, &requestmsg, &message)
+		app.ApplySwitchOnQ(&promptstr, &requestmsg, &message)
 
 		fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID, requestmsg)
 
@@ -747,7 +747,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 这里的代码也会继续运行,不会影响本次请求的返回值
 		// promptstr 随 switchOnA 变化 切换A
-		app.ApplySwitchOnA(promptstr, &requestmsg, &message)
+		app.ApplySwitchOnA(&promptstr, &requestmsg, &message)
 	case map[string]interface{}:
 		// message.Message是一个map[string]interface{}
 		fmtf.Println("Received map message, handling not implemented yet")
