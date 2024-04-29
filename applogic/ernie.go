@@ -163,6 +163,15 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		history = append(history, userHistory...)
 	}
 
+	// 如果使用增强的提示词顺序(需配置覆盖)
+	if config.GetEnhancedQA(promptstr) {
+		systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
+		if err != nil {
+			fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+		}
+		history = append(history, systemHistory...)
+	}
+
 	fmtf.Printf("文心上下文history:%v\n", history)
 
 	// 构建请求负载
