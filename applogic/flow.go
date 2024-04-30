@@ -483,6 +483,20 @@ func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *str
 func (app *App) ApplyPromptChoiceA(promptstr string, response string, message *structs.OnebotGroupMessage) string {
 	promptChoices := config.GetPromptChoicesA(promptstr)
 	if len(promptChoices) == 0 {
+		// 获取系统历史，但不包括系统消息
+		systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
+		if err != nil {
+			fmt.Printf("Error getting system history: %v\n", err)
+			return ""
+		}
+
+		// 如果有系统历史并且有至少一个消息
+		if len(systemHistory) > 0 {
+			lastSystemMessage := systemHistory[len(systemHistory)-1] // 获取最后一个消息 角色是assistant
+			// 将最后一个系统历史消息附加到用户消息后
+			return " (" + lastSystemMessage.Text + ")"
+		}
+		// 如果systemHistory没有内容 且 promptChoices 长度是0
 		return ""
 	}
 
