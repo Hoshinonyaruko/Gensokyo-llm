@@ -171,6 +171,8 @@ func FindFirstSystemMessage(history []structs.Message) (structs.Message, error) 
 }
 
 // 返回除了 "system" 角色之外的所有消息
+// GetMessagesExcludingSystem returns a list of messages that are not of "system" role,
+// randomly selecting from options separated by "||" in prompt contents.
 func GetMessagesExcludingSystem(basename string) ([]structs.Message, error) {
 	lock.RLock()
 	defer lock.RUnlock()
@@ -184,21 +186,12 @@ func GetMessagesExcludingSystem(basename string) ([]structs.Message, error) {
 	var history []structs.Message
 	for _, prompt := range promptFile.Prompts {
 		if prompt.Role != "system" && prompt.Role != "System" {
-			// Check if Content contains || and create a separate message for each part
-			if strings.Contains(prompt.Content, "||") {
-				contents := strings.Split(prompt.Content, "||")
-				for _, content := range contents {
-					history = append(history, structs.Message{
-						Text: strings.TrimSpace(content), // Trim spaces for clean message text
-						Role: prompt.Role,
-					})
-				}
-			} else {
-				history = append(history, structs.Message{
-					Text: prompt.Content,
-					Role: prompt.Role,
-				})
-			}
+			// Check if Content contains || and randomly select one part
+			content := chooseRandomContent(prompt.Content)
+			history = append(history, structs.Message{
+				Text: content,
+				Role: prompt.Role,
+			})
 		}
 	}
 
