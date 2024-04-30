@@ -3,9 +3,11 @@ package prompt
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -114,6 +116,7 @@ func loadFile(filename string) {
 	promptsCache[baseName] = prompts
 }
 
+// GetMessagesFromFilename returns a list of messages, each potentially with randomized content if '||' is used in prompts
 func GetMessagesFromFilename(basename string) ([]structs.Message, error) {
 	lock.RLock()
 	defer lock.RUnlock()
@@ -126,13 +129,25 @@ func GetMessagesFromFilename(basename string) ([]structs.Message, error) {
 
 	var history []structs.Message
 	for _, prompt := range promptFile.Prompts {
+		// Check for multiple choices in content and choose one randomly if present
+		content := chooseRandomContent(prompt.Content)
+
 		history = append(history, structs.Message{
-			Text: prompt.Content,
+			Text: content,
 			Role: prompt.Role,
 		})
 	}
 
 	return history, nil
+}
+
+// chooseRandomContent checks for '||' in the content string and randomly selects one option if present
+func chooseRandomContent(content string) string {
+	if strings.Contains(content, "||") {
+		contents := strings.Split(content, "||")
+		return contents[rand.Intn(len(contents))]
+	}
+	return content
 }
 
 // FindFirstSystemMessage 从消息列表中查找第一条角色为 "system" 的消息
@@ -142,6 +157,12 @@ func FindFirstSystemMessage(history []structs.Message) (structs.Message, error) 
 
 	for _, message := range history {
 		if message.Role == "system" || message.Role == "System" {
+			// 检查是否有多个消息内容
+			if strings.Contains(message.Text, "||") {
+				contents := strings.Split(message.Text, "||")
+				chosenContent := contents[rand.Intn(len(contents))] // 随机选择一个内容
+				message.Text = chosenContent                        // 更新消息内容为随机选中的一个
+			}
 			return message, nil
 		}
 	}
@@ -163,10 +184,21 @@ func GetMessagesExcludingSystem(basename string) ([]structs.Message, error) {
 	var history []structs.Message
 	for _, prompt := range promptFile.Prompts {
 		if prompt.Role != "system" && prompt.Role != "System" {
-			history = append(history, structs.Message{
-				Text: prompt.Content,
-				Role: prompt.Role,
-			})
+			// Check if Content contains || and create a separate message for each part
+			if strings.Contains(prompt.Content, "||") {
+				contents := strings.Split(prompt.Content, "||")
+				for _, content := range contents {
+					history = append(history, structs.Message{
+						Text: strings.TrimSpace(content), // Trim spaces for clean message text
+						Role: prompt.Role,
+					})
+				}
+			} else {
+				history = append(history, structs.Message{
+					Text: prompt.Content,
+					Role: prompt.Role,
+				})
+			}
 		}
 	}
 
@@ -174,6 +206,7 @@ func GetMessagesExcludingSystem(basename string) ([]structs.Message, error) {
 }
 
 // 返回第一条 "system" 角色的消息文本
+// GetFirstSystemMessage returns the first message with role "system", randomly selecting if split by ||
 func GetFirstSystemMessage(basename string) (string, error) {
 	lock.RLock()
 	defer lock.RUnlock()
@@ -186,6 +219,13 @@ func GetFirstSystemMessage(basename string) (string, error) {
 
 	for _, prompt := range promptFile.Prompts {
 		if prompt.Role == "system" || prompt.Role == "System" {
+			// Check if Content contains || and split if it does
+			if strings.Contains(prompt.Content, "||") {
+				contents := strings.Split(prompt.Content, "||")
+				// Choose a random content
+				randomContent := contents[rand.Intn(len(contents))]
+				return randomContent, nil
+			}
 			return prompt.Content, nil
 		}
 	}
