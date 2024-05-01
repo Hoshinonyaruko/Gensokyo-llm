@@ -148,7 +148,7 @@ func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *s
 
 		// 计算当前对话轮次
 		currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
-		fmt.Printf("关键词切换分支状态:当前对话轮次Q %v,当前promptstr:%v\n", currentRound, promptstr)
+		fmt.Printf("关键词切换分支状态:当前对话轮次Q %v,当前promptstr:%s\n", currentRound, *promptstr)
 
 		enhancedChoices := config.GetEnhancedPromptChoices(*promptstr)
 		fmt.Printf("关键词切换分支状态:%v\n", enhancedChoices)
@@ -246,7 +246,7 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 
 	// 计算当前对话轮次
 	currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
-	fmt.Printf("关键词判断退出分支:当前对话轮次Q %v", currentRound)
+	fmt.Printf("关键词判断退出分支:当前对话轮次Q %v\n", currentRound)
 
 	enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
 	if enhancedChoices {
@@ -340,7 +340,7 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 
 	// 计算当前对话轮次
 	currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
-	fmt.Printf("关键词判断退出分支:当前对话轮次A %v", currentRound)
+	fmt.Printf("关键词判断退出分支:当前对话轮次A %v\n", currentRound)
 
 	enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
 	if enhancedChoices {
@@ -418,7 +418,7 @@ func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *str
 		fmt.Printf("关键词[%v]切换分支状态:当前对话轮次A %v", *response, currentRound)
 
 		enhancedChoices := config.GetEnhancedPromptChoices(*promptstr)
-		fmt.Printf("关键词切换分支状态:%v", enhancedChoices)
+		fmt.Printf("关键词切换分支状态:%v\n", enhancedChoices)
 		if enhancedChoices {
 			for _, choice := range promptstrChoices {
 				parts := strings.Split(choice, ":")

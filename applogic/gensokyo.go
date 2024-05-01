@@ -119,7 +119,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// MARK: 提示词之间 整体切换Q
-		app.ProcessPromptMarks(message.UserID, message.Message.(string), promptstr)
+		app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
 
 		// 提示词之间流转 达到信号量
 		markType := config.GetPromptMarkType(promptstr)
@@ -154,6 +154,10 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("收到prompt参数: %s\n", promptstr)
 		}
 		PromptMarksLength := config.GetPromptMarksLength(promptstr)
+
+		// MARK: 提示词之间 整体切换Q 当用户没有存档时
+		app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
+
 		err = app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
 		if err != nil {
 			fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
@@ -453,6 +457,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// promptstr 随 switchOnQ 变化 切换Q
 		app.ApplySwitchOnQ(&promptstr, &requestmsg, &message)
 
+		// 生成场景
+		if config.GetEnvType() == 1 {
+			fmtf.Printf("ai生成背景type=1:%v", "Q"+newmsg)
+			GetAndSendEnv(requestmsg, promptstr, message, selfid)
+		}
+
 		fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID, requestmsg)
 
 		requestBody, err := json.Marshal(map[string]interface{}{
@@ -620,7 +630,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								}
 							}
 							// 提示词 整体切换A
-							app.ProcessPromptMarks(message.UserID, response, promptstr)
+							app.ProcessPromptMarks(message.UserID, response, &promptstr)
 							// 清空之前加入缓存
 							// 缓存省钱部分 这里默认不被覆盖,如果主配置开了缓存,始终缓存.
 							if config.GetUseCache() {
@@ -748,6 +758,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// 这里的代码也会继续运行,不会影响本次请求的返回值
 		// promptstr 随 switchOnA 变化 切换A
 		app.ApplySwitchOnA(&promptstr, &requestmsg, &message)
+
+		// 生成场景
+		if config.GetEnvType() == 2 {
+			fmtf.Printf("ai生成背景type=2:%v", "Q"+newmsg+"A"+response)
+			GetAndSendEnv("Q"+newmsg+"A"+response, promptstr, message, selfid)
+		}
 	case map[string]interface{}:
 		// message.Message是一个map[string]interface{}
 		fmtf.Println("Received map message, handling not implemented yet")
