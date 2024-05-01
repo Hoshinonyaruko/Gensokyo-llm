@@ -1800,3 +1800,37 @@ func getExitOnAInternal(options ...string) []string {
 
 	return exitOnA
 }
+
+// 获取EnvType
+func GetEnvType(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getEnvTypeInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getEnvTypeInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.EnvType
+		}
+		return 0 // 如果实例或设置未定义，返回默认值0
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	envTypeInterface, err := prompt.GetSettingFromFilename(basename, "EnvType")
+	if err != nil {
+		log.Println("Error retrieving EnvType:", err)
+		return getEnvTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	envType, ok := envTypeInterface.(int)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for EnvType, fetching default")
+		return getEnvTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return envType
+}

@@ -326,6 +326,7 @@ type Settings struct {
 	SwitchOnA             []string `yaml:"switchOnA"`
 	ExitOnQ               []string `yaml:"exitOnQ"`
 	ExitOnA               []string `yaml:"exitOnA"`
+	EnvType               int      `yaml:"envType"`
 }
 
 type MetaEvent struct {
