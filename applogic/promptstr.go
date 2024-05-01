@@ -116,9 +116,9 @@ func fieldIndex(field string) int {
 	return -1
 }
 
-func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr string) {
+func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr *string) {
 	// 根据 promptStr 获取 PromptMarkType
-	markType := config.GetPromptMarkType(promptStr)
+	markType := config.GetPromptMarkType(*promptStr)
 
 	// 如果 markType 是 0，则不执行任何操作
 	if markType == 0 {
@@ -128,7 +128,7 @@ func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr string) 
 	// 如果 markType 是 1，执行以下操作
 	if markType == 1 {
 		// 获取 PromptMarks
-		PromptMarks := config.GetPromptMarks(promptStr)
+		PromptMarks := config.GetPromptMarks(*promptStr)
 		maxMatchCount := 0
 		bestPromptStr := ""
 		bestPromptMarksLength := 0
@@ -166,6 +166,7 @@ func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr string) 
 			}
 			// 输出结果
 			fmt.Printf("type1=流转prompt参数: %s, newPromptStrStat: %d\n", bestPromptStr, bestPromptMarksLength)
+			*promptStr = bestPromptStr
 		}
 	}
 }
