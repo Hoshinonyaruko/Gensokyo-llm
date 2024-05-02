@@ -454,13 +454,16 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// 故事模式规则 应用 PromptChoiceQ
 		app.ApplyPromptChoiceQ(promptstr, &requestmsg, &message)
 
+		// 故事模式规则 应用 PromptCoverQ
+		app.ApplyPromptCoverQ(promptstr, &requestmsg, &message)
+
 		// promptstr 随 switchOnQ 变化 切换Q
 		app.ApplySwitchOnQ(&promptstr, &requestmsg, &message)
 
 		// 生成场景
-		if config.GetEnvType() == 1 {
+		if config.GetEnvType(promptstr) == 1 {
 			fmtf.Printf("ai生成背景type=1:%v", "Q"+newmsg)
-			GetAndSendEnv(requestmsg, promptstr, message, selfid)
+			app.GetAndSendEnv(requestmsg, promptstr, message, selfid)
 		}
 
 		fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID, requestmsg)
@@ -762,7 +765,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// 生成场景
 		if config.GetEnvType() == 2 {
 			fmtf.Printf("ai生成背景type=2:%v", "Q"+newmsg+"A"+response)
-			GetAndSendEnv("Q"+newmsg+"A"+response, promptstr, message, selfid)
+			app.GetAndSendEnv("Q"+newmsg+"A"+response, promptstr, message, selfid)
 		}
 	case map[string]interface{}:
 		// message.Message是一个map[string]interface{}

@@ -8,6 +8,7 @@ settings:
   allApi : false                                #以conversation_ernie conversation_hunyuan形式同时开启全部api,请设置好iPWhiteList避免被盗用.
   useSse : false                                #智能体场景开启,其他场景,比如普通onebotv11不开启
   port : 46233                                  #本程序监听端口,支持gensokyo http上报,   请在gensokyo的反向http配置加入 post_url: ["http://127.0.0.1:port/gensokyo"] 
+  selfPath : ""                                 #本程序监听地址,不包含http头,请放通port到公网,仅发图场景需要填写,可以是域名,暂不支持https.
   path : "http://123.123.123.123:11111"         #调用gensokyo api的地址,填入 gensokyo 的 正向http地址   http_address: "0.0.0.0:46231"  对应填入 "http://127.0.0.1:46231"
   lotus : ""                                    #当填写另一个gensokyo-llm的http地址时,将请求另一个的conversation端点,实现多个llm不需要多次配置,简化配置,单独使用请忽略留空.例:http://192.168.0.1:12345(包含http头和端口)
   pathToken : ""                                #gensokyo正向http-api的access_token(是onebotv11标准的)
@@ -41,6 +42,7 @@ settings:
   noContext : false                             #不开启上下文     
   withdrawCommand : ["撤回"]                    #撤回指令
   hideExtraLogs : false                         #忽略流信息的log,提高性能
+  urlSendPics : false                           #自己构造图床加速图片发送.需配置公网ip+放通port+设置正确的selfPath
 
   #Ws服务器配置
   wsServerToken : ""                            #ws密钥 可以由onebotv11反向ws接入
