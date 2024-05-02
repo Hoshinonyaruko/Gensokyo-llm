@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -85,6 +86,13 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	if err != nil {
 		fmt.Printf("Error unmarshalling nested response: %v\n", err)
 		return config.GetPromptkeyboard()
+	}
+
+	// 检查keyboardPrompts数量是否足够
+	if len(keyboardPrompts) < 3 {
+		promptkeyboard := config.GetPromptkeyboard()
+		randomIndex := rand.Intn(len(promptkeyboard))
+		keyboardPrompts = append(keyboardPrompts, promptkeyboard[randomIndex])
 	}
 
 	return keyboardPrompts

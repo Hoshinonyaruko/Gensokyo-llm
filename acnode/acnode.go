@@ -334,7 +334,7 @@ func CheckWordIN(word string) string {
 	if len([]rune(word)) > 5000 {
 		if strings.Contains(word, "[CQ:image,file=base64://") {
 			// 当word包含特定字符串时原样返回
-			fmtf.Printf("原样返回的文本：%s", word)
+			//fmtf.Printf("原样返回的文本：%s", word)
 			return word
 		}
 		log.Printf("错误请求：字符数超过最大限制（5000字符）。内容：%s", word)
@@ -360,7 +360,7 @@ func CheckWordOUT(word string) string {
 	if len([]rune(word)) > 5000 {
 		if strings.Contains(word, "[CQ:image,file=base64://") {
 			// 当word包含特定字符串时原样返回
-			fmtf.Printf("原样返回的文本：%s", word)
+			//fmtf.Printf("原样返回的文本：%s", word)
 			return word
 		}
 		log.Printf("错误请求：字符数超过最大限制（5000字符）。内容：%s", word)

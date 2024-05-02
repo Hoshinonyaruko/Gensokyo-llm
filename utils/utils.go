@@ -335,6 +335,86 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 	return nil
 }
 
+func SendPrivateMessageRaw(UserID int64, message string, selfid string) error {
+	if selfid != "" {
+		// 创建消息结构体
+		msg := map[string]interface{}{
+			"action": "send_private_msg",
+			"params": map[string]interface{}{
+				"user_id": UserID,
+				"message": message,
+			},
+			"echo": UserID,
+		}
+
+		// 发送消息
+		return server.SendMessageBySelfID(selfid, msg)
+	}
+	// 获取基础URL
+	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+
+	// 构建完整的URL
+	baseURL = baseURL + "/send_private_msg"
+
+	// 获取PathToken并检查其是否为空
+	pathToken := config.GetPathToken()
+	// 使用net/url包构建URL
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		panic("URL parsing failed: " + err.Error())
+	}
+
+	// 添加access_token参数
+	query := u.Query()
+	if pathToken != "" {
+		query.Set("access_token", pathToken)
+	}
+	u.RawQuery = query.Encode()
+
+	// 构造请求体
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"user_id": UserID,
+		"message": message,
+	})
+
+	if err != nil {
+		return fmtf.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// 发送POST请求
+	resp, err := http.Post(u.String(), "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmtf.Errorf("failed to send POST request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		return fmtf.Errorf("received non-OK response status: %s", resp.Status)
+	}
+
+	// 读取响应体
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 解析响应体以获取message_id
+	var responseData ResponseData
+	if err := json.Unmarshal(bodyBytes, &responseData); err != nil {
+		return fmt.Errorf("failed to unmarshal response data: %w", err)
+	}
+	messageID := responseData.Data.MessageID
+
+	// 添加messageID到全局变量
+	AddMessageID(UserID, messageID)
+
+	// 输出响应体，这一步是可选的
+	fmt.Println("Response Body:", string(bodyBytes))
+
+	return nil
+}
+
 func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 	// 获取基础URL
 	baseURL := config.GetHttpPath() // 假设config.GetHttpPath()返回基础URL
