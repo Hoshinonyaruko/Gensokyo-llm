@@ -169,6 +169,20 @@ func main() {
 		http.HandleFunc("/conversation_ernie", app.ChatHandlerErnie)
 		http.HandleFunc("/conversation_rwkv", app.ChatHandlerRwkv)
 	}
+	if config.GetSelfPath() != "" {
+		rateLimiter := server.NewRateLimiter()
+		http.HandleFunc("/uploadpic", server.UploadBase64ImageHandler(rateLimiter))
+		http.HandleFunc("/uploadrecord", server.UploadBase64RecordHandler(rateLimiter))
+		// 设置静态文件服务目录
+		// http.FileServer 返回一个处理器，该处理器会将 HTTP 请求
+		// 转发到指定的文件或目录（在这里是 "./channel_temp" 目录）
+		fileServer := http.FileServer(http.Dir("./channel_temp"))
+
+		// 使用 http.Handle 设置路由
+		// "/channel_temp/" 是 URL 路径前缀，所有以此路径前缀开始的请求
+		// 都会由 fileServer 处理器处理
+		http.Handle("/channel_temp/", http.StripPrefix("/channel_temp/", fileServer))
+	}
 
 	exePath, err := os.Executable()
 	if err != nil {

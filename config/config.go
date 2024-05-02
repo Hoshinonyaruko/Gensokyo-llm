@@ -126,6 +126,16 @@ func GetPort() int {
 	return 46230
 }
 
+// 获取GetSelfPath
+func GetSelfPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.SelfPath
+	}
+	return ""
+}
+
 // 获取getHttpPath
 func GetHttpPath() string {
 	mu.Lock()
@@ -440,6 +450,16 @@ func GetGptSafeMode() bool {
 	defer mu.Unlock()
 	if instance != nil {
 		return instance.Settings.GptSafeMode
+	}
+	return false
+}
+
+// UrlSendPics
+func GetUrlSendPics() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.UrlSendPics
 	}
 	return false
 }
@@ -1833,4 +1853,140 @@ func getEnvTypeInternal(options ...string) int {
 	}
 
 	return envType
+}
+
+// 获取 PromptCoverQ
+func GetPromptCoverQ(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getPromptCoverQInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getPromptCoverQInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.PromptCoverQ
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	promptCoverInterface, err := prompt.GetSettingFromFilename(basename, "PromptCoverQ")
+	if err != nil {
+		log.Println("Error retrieving PromptCoverQ:", err)
+		return getPromptCoverQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	promptCover, ok := promptCoverInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for PromptCoverQ, fetching default")
+		return getPromptCoverQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return promptCover
+}
+
+// 获取 PromptCoverA
+func GetPromptCoverA(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getPromptCoverAInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getPromptCoverAInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.PromptCoverA
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	promptCoverInterface, err := prompt.GetSettingFromFilename(basename, "PromptCoverA")
+	if err != nil {
+		log.Println("Error retrieving PromptCoverA:", err)
+		return getPromptCoverAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	promptCover, ok := promptCoverInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for PromptCoverA, fetching default")
+		return getPromptCoverAInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return promptCover
+}
+
+// 获取 EnvPics
+func GetEnvPics(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getEnvPicsInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getEnvPicsInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.EnvPics
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	envPicsInterface, err := prompt.GetSettingFromFilename(basename, "EnvPics")
+	if err != nil {
+		log.Println("Error retrieving EnvPics:", err)
+		return getEnvPicsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	envPics, ok := envPicsInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for EnvPics, fetching default")
+		return getEnvPicsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return envPics
+}
+
+// 获取 EnvContents
+func GetEnvContents(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getEnvContentsInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getEnvContentsInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.EnvContents
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	envContentsInterface, err := prompt.GetSettingFromFilename(basename, "EnvContents")
+	if err != nil {
+		log.Println("Error retrieving EnvContents:", err)
+		return getEnvContentsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	envContents, ok := envContentsInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for EnvContents, fetching default")
+		return getEnvContentsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return envContents
 }

@@ -214,6 +214,7 @@ type Settings struct {
 	Region       string   `yaml:"region"`
 	UseSse       bool     `yaml:"useSse"`
 	Port         int      `yaml:"port"`
+	SelfPath     string   `yaml:"selfPath"`
 	HttpPath     string   `yaml:"path"`
 	Lotus        string   `yaml:"lotus"`
 	PathToken    string   `yaml:"pathToken"`
@@ -221,6 +222,7 @@ type Settings struct {
 	IPWhiteList  []string `yaml:"iPWhiteList"`
 	ApiType      int      `yaml:"apiType"`
 	Proxy        string   `yaml:"proxy"`
+	UrlSendPics  bool     `yaml:"urlSendPics"` //自己构造图床加速图片发送
 
 	HunyuanType      int `yaml:"hunyuanType"`
 	MaxTokensHunyuan int `yaml:"maxTokensHunyuan"`
@@ -327,6 +329,10 @@ type Settings struct {
 	ExitOnQ               []string `yaml:"exitOnQ"`
 	ExitOnA               []string `yaml:"exitOnA"`
 	EnvType               int      `yaml:"envType"`
+	EnvPics               []string `yaml:"envPics"`     //ai太慢了,而且影响气泡了,只能手动了
+	EnvContents           []string `yaml:"envContents"` //ai太慢了,而且影响气泡了,只能手动了
+	PromptCoverQ          []string `yaml:"promptCoverQ"`
+	PromptCoverA          []string `yaml:"promptCoverA"` //暂时用不上 待实现
 }
 
 type MetaEvent struct {
