@@ -201,6 +201,8 @@ readme的说明较难懂,可到语雀查看[ai整理的文档](https://www.yuque
 - [x]  exitOnA : ["1:退出/我是一个AI/我是一个人工/我是一个基于"]
 - [x]  enhancedPromptChoices: true  #promptChoicesQA  switchOnQA exitOnQA的语法，false时是随机模式 1:回家吧-不回家-原地休息 没有后方的/，随机一个分支跳转。true是具有关键词条件 1:回家吧/a/b/c-不回家/a/b/c
 - [x]  envType : 0 #0=不使用场景描述,1=在本轮llm回复前发送场景描述,2=在本轮llm回复后发送场景描述,场景描述支持[image:xxx][pic:xxx][图片:xxx][背景:xxx]标签,xxx为相对或绝对路径,需在exe运行目录下
+- [x]  envPics : [] #现阶段ai速度太慢,人工指定,数组代表多个,每个数组成员以1: 2: 开始代表对应第几轮.
+- [x]  envContents : []
  
 含义解释，以上参数均位于多配置文件的settings部分，你可以决定每个场景的提示词长度，每个场景的长度promptMarksLength,来控制剧情的颗粒度。
 
