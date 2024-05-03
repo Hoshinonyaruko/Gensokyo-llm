@@ -29,7 +29,7 @@ type ResponseDataEnv struct {
 }
 
 // 分开发而且不使用sse
-func (app *App) GetAndSendEnv(msg string, promptstr string, message structs.OnebotGroupMessage, selfid string) {
+func (app *App) GetAndSendEnv(msg string, promptstr string, message structs.OnebotGroupMessage, selfid string, PromptStrStat int, PromptLength int) {
 	var responseData ResponseDataEnv
 	EnvContents := config.GetEnvContents(promptstr + "-env")
 	//如果没有人工写的EnvContents,使用ai生成,速度慢的感人,还影响对话效果和气泡keyboard
@@ -86,28 +86,7 @@ func (app *App) GetAndSendEnv(msg string, promptstr string, message structs.Oneb
 			return
 		}
 	} else {
-		// 获取 EnvContents 数组并从中随机选择一个
-		envContents := config.GetEnvContents(promptstr + "-env")
-		if len(envContents) > 0 {
-			randomContentIndex := rand.Intn(len(envContents))
-			selectedContent := envContents[randomContentIndex]
-
-			// 获取 EnvPics 数组并从中随机选择一个
-			envPics := config.GetEnvPics(promptstr + "-env")
-			if len(envPics) > 0 {
-				randomPicIndex := rand.Intn(len(envPics))
-				selectedPic := envPics[randomPicIndex]
-
-				// 组合内容和图片链接
-				responseData.Response = fmt.Sprintf("%s%s", selectedContent, selectedPic)
-			} else {
-				// 如果没有图片，只添加内容
-				responseData.Response = selectedContent
-			}
-		} else {
-			// 如果没有内容，可以选择返回默认字符串或错误处理
-			responseData.Response = "默认内容"
-		}
+		responseData.Response = processSelection(PromptStrStat, PromptLength, promptstr)
 
 		// 打印或处理 responseData
 		fmt.Println("最终env响应:", responseData.Response)
@@ -122,6 +101,74 @@ func (app *App) GetAndSendEnv(msg string, promptstr string, message structs.Oneb
 	} else {
 		utils.SendGroupMessage(message.GroupID, message.UserID, newResponse, selfid)
 	}
+}
+
+func selectBasedOnSenceId(envItems []string, senceId int) (selectedItems []string) {
+	prefix := fmt.Sprintf("%d:", senceId)
+	filtered := make([]string, 0)
+	defaults := make([]string, 0)
+
+	// 预编译正则表达式以匹配任何以数字和冒号开头的字符串
+	re, err := regexp.Compile(`^\d+:`)
+	if err != nil {
+		fmt.Println("Error compiling regex:", err)
+		return envItems // 在编译正则表达式出错时，返回原始数组
+	}
+
+	for _, item := range envItems {
+		if strings.HasPrefix(item, prefix) {
+			filtered = append(filtered, strings.TrimPrefix(item, prefix))
+		} else if !re.MatchString(item) {
+			defaults = append(defaults, item)
+		}
+	}
+
+	if len(filtered) > 0 {
+		return filtered
+	} else if len(defaults) > 0 {
+		return defaults
+	}
+	return envItems
+}
+
+func stripPrefix(s string) string {
+	colonIndex := strings.Index(s, ":")
+	if colonIndex != -1 && colonIndex < len(s)-1 && allDigits(s[:colonIndex]) {
+		return s[colonIndex+1:]
+	}
+	return s
+}
+
+func allDigits(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func getRandomItem(items []string) string {
+	if len(items) == 0 {
+		return "默认内容"
+	}
+	index := rand.Intn(len(items))
+	return items[index]
+}
+
+func processSelection(promptStrStat int, promptLength int, promptStr string) string {
+	senceId := promptLength - promptStrStat + 1
+
+	envContents := config.GetEnvContents(fmt.Sprintf("%s-env", promptStr))
+	selectedContent := stripPrefix(getRandomItem(selectBasedOnSenceId(envContents, senceId)))
+
+	envPics := config.GetEnvPics(fmt.Sprintf("%s-env", promptStr))
+	selectedPic := stripPrefix(getRandomItem(selectBasedOnSenceId(envPics, senceId)))
+
+	if selectedPic != "默认内容" {
+		return fmt.Sprintf("%s %s", selectedContent, selectedPic) // 添加空格分隔内容和图片链接
+	}
+	return selectedContent
 }
 
 // processResponseData 处理响应数据并返回处理后的字符串
