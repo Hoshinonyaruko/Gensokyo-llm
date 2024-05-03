@@ -460,10 +460,17 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// promptstr 随 switchOnQ 变化 切换Q
 		app.ApplySwitchOnQ(&promptstr, &requestmsg, &message)
 
+		// 从数据库读取用户的剧情存档
+		CustomRecord, err := app.FetchCustomRecord(message.UserID)
+		if err != nil {
+			fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
+		}
+
 		// 生成场景
 		if config.GetEnvType(promptstr) == 1 {
-			fmtf.Printf("ai生成背景type=1:%v", "Q"+newmsg)
-			app.GetAndSendEnv(requestmsg, promptstr, message, selfid)
+			fmtf.Printf("ai生成背景type=1:%v,当前场景stat:%v\n", "Q"+newmsg, CustomRecord.PromptStrStat)
+			PromptMarksLength := config.GetPromptMarksLength(promptstr)
+			app.GetAndSendEnv(requestmsg, promptstr, message, selfid, CustomRecord.PromptStrStat, PromptMarksLength)
 		}
 
 		fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID, requestmsg)
@@ -764,8 +771,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 生成场景
 		if config.GetEnvType() == 2 {
-			fmtf.Printf("ai生成背景type=2:%v", "Q"+newmsg+"A"+response)
-			app.GetAndSendEnv("Q"+newmsg+"A"+response, promptstr, message, selfid)
+			fmtf.Printf("ai生成背景type=2:%v,当前场景stat:%v\n", "Q"+newmsg+"A"+response, CustomRecord.PromptStrStat)
+			PromptMarksLength := config.GetPromptMarksLength(promptstr)
+			app.GetAndSendEnv("Q"+newmsg+"A"+response, promptstr, message, selfid, CustomRecord.PromptStrStat, PromptMarksLength)
 		}
 	case map[string]interface{}:
 		// message.Message是一个map[string]interface{}
