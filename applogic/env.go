@@ -95,6 +95,12 @@ func (app *App) GetAndSendEnv(msg string, promptstr string, message structs.Oneb
 	// 处理图片
 	newResponse := processResponseData(responseData)
 
+	// 当本轮文字是1: 图片也是 1: 时
+	if newResponse == "" {
+		fmt.Println("最终env响应为空")
+		return
+	}
+
 	// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 	if message.RealMessageType == "group_private" || message.MessageType == "private" {
 		utils.SendPrivateMessageRaw(message.UserID, newResponse, selfid)
