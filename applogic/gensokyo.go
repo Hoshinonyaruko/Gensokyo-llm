@@ -137,12 +137,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
-				// 刷新新的提示词给用户目前的状态
-				// 获取新的信号长度
-				PromptMarksLength := config.GetPromptMarksLength(newPromptStr)
-
-				app.InsertCustomTableRecord(message.UserID, newPromptStr, PromptMarksLength)
-				fmt.Printf("流转prompt参数: %s,newPromptStrStat:%d\n", newPromptStr, PromptMarksLength)
+				// 刷新新的提示词给用户目前的状态 新的场景应该从1开始
+				app.InsertCustomTableRecord(message.UserID, newPromptStr, 1)
+				fmt.Printf("流转prompt参数: %s,newPromptStrStat:%d\n", newPromptStr, 1)
 				promptstr = newPromptStr
 			}
 		}
@@ -156,11 +153,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// MARK: 提示词之间 整体切换Q 当用户没有存档时
 		app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
-
-		// 在切换分支后,再获取长度
-		PromptMarksLength := config.GetPromptMarksLength(promptstr)
-
-		err = app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
+		// 初始状态就是 1
+		err = app.InsertCustomTableRecord(message.UserID, promptstr, 1)
 		if err != nil {
 			fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
 		}
