@@ -163,7 +163,8 @@ func getRandomItem(items []string) string {
 }
 
 func processSelection(promptStrStat int, promptLength int, promptStr string) string {
-	senceId := promptLength - promptStrStat + 1
+	senceId := promptLength - promptStrStat
+	fmtf.Printf("processSelection senceId:%v", senceId)
 
 	envContents := config.GetEnvContents(fmt.Sprintf("%s-env", promptStr))
 	selectedContent := stripPrefix(getRandomItem(selectBasedOnSenceId(envContents, senceId)))
