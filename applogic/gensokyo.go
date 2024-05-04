@@ -153,10 +153,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			// 使用 prompt 变量进行后续处理
 			fmt.Printf("收到prompt参数: %s\n", promptstr)
 		}
-		PromptMarksLength := config.GetPromptMarksLength(promptstr)
 
 		// MARK: 提示词之间 整体切换Q 当用户没有存档时
 		app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
+
+		// 在切换分支后,再获取长度
+		PromptMarksLength := config.GetPromptMarksLength(promptstr)
 
 		err = app.InsertCustomTableRecord(message.UserID, promptstr, PromptMarksLength)
 		if err != nil {
