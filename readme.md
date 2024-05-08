@@ -248,6 +248,14 @@ exitOnQ需要enhancedPromptChoices=true,其实enhancedPromptChoices最好就是t
 
 promptMarks和switchOnQ、switchOnA在功能上是相同的，都是根据关键字跳转分支，promptMarks先执行，不分轮次不分QA，switchOnQ和switchOnA更具体，区分Q和A，区分轮次，实现细节跳转。
 
+## 已知问题
+
+如果有固定且不需要切换的分支,请设置该yml的promptMarksLength为99999
+
+promptMarksLength : 99999
+
+以避免错误的切换到不存在的分支,导致会话报错.
+
 ## 为什么采用文本控制流而不是ai-agent？
 
 配置控制流简单直观，通过配置文件来管理对话逻辑，配置文件易于维护，非技术人员，如剧情编写者，可以直接学习配置文件规则，修改配置文件来更新对话逻辑，不需要编程知识。
