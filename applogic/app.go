@@ -322,7 +322,7 @@ func (app *App) getHistory(conversationID, parentMessageID string) ([]structs.Me
 			Role: msg.Role,
 			Text: msg.Text,
 		}
-		fmtf.Printf("加入:%v\n", historyEntry)
+		//fmtf.Printf("加入:%v\n", historyEntry)
 		history = append(history, historyEntry)
 	}
 	return history, nil

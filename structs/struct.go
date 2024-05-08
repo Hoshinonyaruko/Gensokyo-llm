@@ -208,21 +208,22 @@ type WXFunctionCall struct {
 }
 
 type Settings struct {
-	AllApi       bool     `yaml:"allApi"`
-	SecretId     string   `yaml:"secretId"`
-	SecretKey    string   `yaml:"secretKey"`
-	Region       string   `yaml:"region"`
-	UseSse       bool     `yaml:"useSse"`
-	Port         int      `yaml:"port"`
-	SelfPath     string   `yaml:"selfPath"`
-	HttpPath     string   `yaml:"path"`
-	Lotus        string   `yaml:"lotus"`
-	PathToken    string   `yaml:"pathToken"`
-	SystemPrompt []string `yaml:"systemPrompt"`
-	IPWhiteList  []string `yaml:"iPWhiteList"`
-	ApiType      int      `yaml:"apiType"`
-	Proxy        string   `yaml:"proxy"`
-	UrlSendPics  bool     `yaml:"urlSendPics"` //自己构造图床加速图片发送
+	AllApi                  bool     `yaml:"allApi"`
+	SecretId                string   `yaml:"secretId"`
+	SecretKey               string   `yaml:"secretKey"`
+	Region                  string   `yaml:"region"`
+	UseSse                  bool     `yaml:"useSse"`
+	Port                    int      `yaml:"port"`
+	SelfPath                string   `yaml:"selfPath"`
+	HttpPath                string   `yaml:"path"`
+	Lotus                   string   `yaml:"lotus"`
+	PathToken               string   `yaml:"pathToken"`
+	SystemPrompt            []string `yaml:"systemPrompt"`
+	IPWhiteList             []string `yaml:"iPWhiteList"`
+	ApiType                 int      `yaml:"apiType"`
+	Proxy                   string   `yaml:"proxy"`
+	UrlSendPics             bool     `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
+	MdPromptKeyboardAtGroup bool     `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
 
 	HunyuanType      int `yaml:"hunyuanType"`
 	MaxTokensHunyuan int `yaml:"maxTokensHunyuan"`
@@ -265,6 +266,7 @@ type Settings struct {
 	RestoreResponses     []string `yaml:"restoreResponses"`
 	UsePrivateSSE        bool     `yaml:"usePrivateSSE"`
 	Promptkeyboard       []string `yaml:"promptkeyboard"`
+	No4Promptkeyboard    bool     `yaml:"no4Promptkeyboard"`
 	Savelogs             bool     `yaml:"savelogs"`
 	AntiPromptLimit      float64  `yaml:"antiPromptLimit"`
 

@@ -153,8 +153,15 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// MARK: 提示词之间 整体切换Q 当用户没有存档时
 		app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
-		// 初始状态就是 1
-		err = app.InsertCustomTableRecord(message.UserID, promptstr, 1)
+		var newstat int
+		if config.GetPromptMarksLength(promptstr) > 1000 {
+			newstat = config.GetPromptMarksLength(promptstr)
+		} else {
+			newstat = 1
+		}
+
+		// 初始状态就是 1 设置了1000以上长度的是固有场景,不可切换
+		err = app.InsertCustomTableRecord(message.UserID, promptstr, newstat)
 		if err != nil {
 			fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
 		}
@@ -566,7 +573,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						// 提取response字段
 						if response, ok = responseData["response"].(string); ok {
 							// 获取按照关键词补充的PromptChoiceA
-							EnhancedAContent = app.ApplyPromptChoiceA(promptstr, response, &message)
+							if config.GetEnhancedQA(promptstr) {
+								EnhancedAContent = app.ApplyPromptChoiceA(promptstr, response, &message)
+							}
 							// 如果accumulatedMessage是response的子串，则提取新的部分并发送
 							if exists && strings.HasPrefix(response, accumulatedMessage) {
 								newPart := response[len(accumulatedMessage):]
@@ -591,7 +600,21 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 										}
 									} else {
-										utils.SendGroupMessage(message.GroupID, message.UserID, newPart, selfid)
+										if !config.GetMdPromptKeyboardAtGroup() {
+											// 如果没有 EnhancedAContent
+											if EnhancedAContent == "" {
+												utils.SendGroupMessage(message.GroupID, message.UserID, newPart, selfid)
+											} else {
+												utils.SendGroupMessage(message.GroupID, message.UserID, EnhancedAContent+response, selfid)
+											}
+										} else {
+											// 如果没有 EnhancedAContent
+											if EnhancedAContent == "" {
+												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, response, selfid, newmsg, response, promptstr)
+											} else {
+												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, EnhancedAContent+response, selfid, newmsg, response, promptstr)
+											}
+										}
 									}
 								} else {
 									//流的最后一次是完整结束的
@@ -626,12 +649,22 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 										}
 									} else {
-										// 如果没有 EnhancedAContent
-										if EnhancedAContent == "" {
-											utils.SendGroupMessage(message.GroupID, message.UserID, response, selfid)
+										if !config.GetMdPromptKeyboardAtGroup() {
+											// 如果没有 EnhancedAContent
+											if EnhancedAContent == "" {
+												utils.SendGroupMessage(message.GroupID, message.UserID, response, selfid)
+											} else {
+												utils.SendGroupMessage(message.GroupID, message.UserID, EnhancedAContent+response, selfid)
+											}
 										} else {
-											utils.SendGroupMessage(message.GroupID, message.UserID, EnhancedAContent+response, selfid)
+											// 如果没有 EnhancedAContent
+											if EnhancedAContent == "" {
+												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, response, selfid, newmsg, response, promptstr)
+											} else {
+												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, EnhancedAContent+response, selfid, newmsg, response, promptstr)
+											}
 										}
+
 									}
 								}
 							}
@@ -684,7 +717,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if message.RealMessageType == "group_private" || message.MessageType == "private" {
 					if config.GetUsePrivateSSE() {
 
-						//发气泡和按钮
+						// 发气泡和按钮
 						var promptkeyboard []string
 						if !config.GetUseAIPromptkeyboard() {
 							promptkeyboard = config.GetPromptkeyboard()
@@ -696,6 +729,21 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						// 使用acnode.CheckWordOUT()过滤promptkeyboard中的每个字符串
 						for i, item := range promptkeyboard {
 							promptkeyboard[i] = acnode.CheckWordOUT(item)
+						}
+
+						// 添加第四个气泡
+						if config.GetNo4Promptkeyboard() {
+							RestoreResponses := config.GetRestoreCommand()
+							if len(RestoreResponses) > 0 {
+								selectedRestoreResponse := RestoreResponses[rand.Intn(len(RestoreResponses))]
+								if len(promptkeyboard) > 0 {
+									// 在promptkeyboard的末尾添加selectedRestoreResponse
+									promptkeyboard = append(promptkeyboard, selectedRestoreResponse)
+								} else {
+									// 如果promptkeyboard为空，我们也应当初始化它，并添加选中的恢复命令
+									promptkeyboard = []string{selectedRestoreResponse}
+								}
+							}
 						}
 
 						//最后一条了
@@ -867,6 +915,8 @@ func handleWithdrawMessage(message structs.OnebotGroupMessage) {
 	case "group_private", "guild_private":
 		id = message.UserID
 	case "group", "guild":
+		id = message.GroupID
+	case "interaction":
 		id = message.GroupID
 	default:
 		fmt.Println("Unsupported message type for withdrawal:", message.RealMessageType)

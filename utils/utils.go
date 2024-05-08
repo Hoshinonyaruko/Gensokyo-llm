@@ -3,6 +3,7 @@ package utils
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -200,6 +201,245 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 		"group_id": groupID,
 		"user_id":  userID,
 		"message":  message,
+	})
+	fmtf.Printf("发群信息请求:%v", string(requestBody))
+	fmtf.Printf("实际发送信息:%v", message)
+	if err != nil {
+		return fmtf.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// 发送POST请求
+	resp, err := http.Post(u.String(), "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmtf.Errorf("failed to send POST request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		return fmtf.Errorf("received non-OK response status: %s", resp.Status)
+	}
+
+	// 读取响应体
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 解析响应体以获取message_id
+	var responseData ResponseData
+	if err := json.Unmarshal(bodyBytes, &responseData); err != nil {
+		return fmt.Errorf("failed to unmarshal response data: %w", err)
+	}
+	messageID := responseData.Data.MessageID
+
+	// 添加messageID到全局变量
+	AddMessageID(userID, messageID)
+
+	// 输出响应体，这一步是可选的
+	fmt.Println("Response Body:", string(bodyBytes))
+
+	return nil
+}
+
+func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message string, selfid string, newmsg string, response string, promptstr string) error {
+	//TODO: 用userid作为了echo,在ws收到回调信息的时候,加入到全局撤回数组,AddMessageID,实现反向ws连接时候的撤回
+	if selfid != "" {
+		// 创建消息结构体
+		msg := map[string]interface{}{
+			"action": "send_group_msg",
+			"params": map[string]interface{}{
+				"group_id": groupID,
+				"user_id":  userID,
+				"message":  message,
+			},
+			"echo": userID,
+		}
+
+		// 发送消息
+		return server.SendMessageBySelfID(selfid, msg)
+	}
+	// 获取基础URL
+	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+
+	// 构建完整的URL
+	baseURL = baseURL + "/send_group_msg"
+
+	// 获取PathToken并检查其是否为空
+	pathToken := config.GetPathToken()
+	// 使用net/url包构建URL
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		panic("URL parsing failed: " + err.Error())
+	}
+
+	// 添加access_token参数
+	query := u.Query()
+	if pathToken != "" {
+		query.Set("access_token", pathToken)
+	}
+	u.RawQuery = query.Encode()
+
+	if config.GetSensitiveModeType() == 1 {
+		message = acnode.CheckWordOUT(message)
+	}
+
+	// 去除末尾的换行符 不去除会导致不好看
+	message = removeTrailingCRLFs(message)
+
+	// 繁体转换简体 安全策略 防止用户诱导ai发繁体绕过替换规则
+	message, err = ConvertTraditionalToSimplified(message)
+	if err != nil {
+		fmtf.Printf("繁体转换简体失败:%v", err)
+	}
+
+	// 首先获取当前的keyboard
+	var promptkeyboard []string
+	if !config.GetUseAIPromptkeyboard() {
+		promptkeyboard = config.GetPromptkeyboard()
+	} else {
+		fmtf.Printf("ai生成气泡:%v", "Q"+newmsg+"A"+response)
+		promptkeyboard = GetPromptKeyboardAI("Q"+newmsg+"A"+response, promptstr)
+	}
+
+	// 使用acnode.CheckWordOUT()过滤promptkeyboard中的每个字符串
+	for i, item := range promptkeyboard {
+		promptkeyboard[i] = acnode.CheckWordOUT(item)
+	}
+
+	// 这里把message构造成一个cq,md码
+
+	// 构建Markdown内容，对promptkeyboard的内容进行URL编码
+	// mdContent := fmt.Sprintf(
+	// 	"%s\r[%s](mqqapi://aio/inlinecmd?command=%s&reply=true&enter=true)\r[%s](mqqapi://aio/inlinecmd?command=%s&reply=true&enter=true)\r[%s](mqqapi://aio/inlinecmd?command=%s&reply=true&enter=true)\r",
+	// 	//message,
+	// 	"123",
+	// 	promptkeyboard[0], url.QueryEscape(promptkeyboard[0]),
+	// 	promptkeyboard[1], url.QueryEscape(promptkeyboard[1]),
+	// 	promptkeyboard[2], url.QueryEscape(promptkeyboard[2]),
+	// )
+	mdContent := message
+
+	fmt.Println(mdContent)
+
+	// 构建Buttons
+	// buttons := make([]structs.Button, len(promptkeyboard))
+	// for i, label := range []string{"重置", "撤回", "重发"} {
+	// 	buttons[i] = structs.Button{
+	// 		ID: fmt.Sprintf("%d", i+1),
+	// 		RenderData: structs.RenderData{
+	// 			Label:        label,
+	// 			VisitedLabel: label,
+	// 			Style:        1,
+	// 		},
+	// 		Action: structs.Action{
+	// 			Type: 1,
+	// 			Permission: structs.Permission{
+	// 				Type:           2,
+	// 				SpecifyRoleIDs: []string{"1", "2", "3"},
+	// 			},
+	// 			Data:          label,
+	// 			UnsupportTips: "请升级新版手机QQ",
+	// 		},
+	// 	}
+	// }
+
+	// // 构建完整的PromptKeyboardMarkdown对象
+	// promptKeyboardMd := structs.PromptKeyboardMarkdown{
+	// 	Markdown: markdown,
+	// 	Keyboard: structs.Keyboard{
+	// 		Content: structs.KeyboardContent{
+	// 			Rows: []structs.Row{{Buttons: buttons}},
+	// 		},
+	// 	},
+	// 	Content: "keyboard",
+	// 	// MsgID:     "123",
+	// 	// Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
+	// 	// MsgType:   2,
+	// }
+
+	// 构建Buttons
+	buttons := []structs.Button{}
+	// 添加promptkeyboard的按钮，每个按钮一行
+	for i, label := range promptkeyboard {
+		buttons = append(buttons, structs.Button{
+			ID: fmt.Sprintf("%d", i+1),
+			RenderData: structs.RenderData{
+				Label:        label,
+				VisitedLabel: label,
+				Style:        1,
+			},
+			Action: structs.Action{
+				Type: 2,
+				Permission: structs.Permission{
+					Type:           2,
+					SpecifyRoleIDs: []string{"1", "2", "3"},
+				},
+				Data:          label,
+				UnsupportTips: "请升级新版手机QQ",
+				Enter:         true,
+				Reply:         true,
+			},
+		})
+	}
+
+	// 添加"重置", "撤回", "重发"按钮，它们在一个单独的行
+	rowWithThreeButtons := []structs.Button{}
+	for i, label := range []string{"重置", "忽略", "重发"} {
+		rowWithThreeButtons = append(rowWithThreeButtons, structs.Button{
+			ID: fmt.Sprintf("%d", i+4), // 确保ID不重复
+			RenderData: structs.RenderData{
+				Label:        label,
+				VisitedLabel: label,
+				Style:        1,
+			},
+			Action: structs.Action{
+				Type: 1,
+				Permission: structs.Permission{
+					Type:           2,
+					SpecifyRoleIDs: []string{"1", "2", "3"},
+				},
+				Data:          label,
+				UnsupportTips: "请升级新版手机QQ",
+			},
+		})
+	}
+
+	// 构建完整的PromptKeyboardMarkdown对象
+	promptKeyboardMd := structs.PromptKeyboardMarkdown{
+		Markdown: structs.Markdown{Content: mdContent},
+		Keyboard: structs.Keyboard{
+			Content: structs.KeyboardContent{
+				Rows: []structs.Row{
+					{Buttons: []structs.Button{buttons[0]}},
+					{Buttons: []structs.Button{buttons[1]}},
+					{Buttons: []structs.Button{buttons[2]}},
+					{Buttons: rowWithThreeButtons},
+				},
+			},
+		},
+		Content:   "keyboard",
+		MsgID:     "123",
+		Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
+		MsgType:   2,
+	}
+
+	// 序列化成JSON
+	mdContentBytes, err := json.Marshal(promptKeyboardMd)
+	if err != nil {
+		fmt.Printf("Error marshaling to JSON: %v", err)
+		return nil
+	}
+
+	// 编码成Base64
+	encoded := base64.StdEncoding.EncodeToString(mdContentBytes)
+	segmentContent := "[CQ:markdown,data=base64://" + encoded + "]"
+
+	// 构造请求体
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"group_id": groupID,
+		"user_id":  userID,
+		"message":  segmentContent,
 	})
 	fmtf.Printf("发群信息请求:%v", string(requestBody))
 	fmtf.Printf("实际发送信息:%v", message)
@@ -1003,6 +1243,8 @@ func DeleteLatestMessage(messageType string, id int64, userid int64) error {
 		requestBody["channel_id"] = id
 	case "guild_private":
 		requestBody["guild_id"] = id
+	case "interaction":
+		requestBody["group_id"] = id
 	default:
 		return fmt.Errorf("unsupported message type: %s", messageType)
 	}
