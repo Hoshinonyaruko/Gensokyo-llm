@@ -22,7 +22,7 @@ func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message
 			// 获取系统历史，但不包括系统消息
 			systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
 			if err != nil {
-				fmt.Printf("Error getting system history: %v\n", err)
+				fmt.Printf("Error getting system history ApplyPromptChoiceQ: %v\n", err)
 				return
 			}
 
@@ -116,7 +116,7 @@ func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message
 				// 获取系统历史，但不包括系统消息
 				systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
 				if err != nil {
-					fmt.Printf("Error getting system history: %v\n", err)
+					fmt.Printf("Error getting system history GetMessagesExcludingSystem: %v\n", err)
 					return
 				}
 
@@ -223,7 +223,7 @@ func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message 
 				// 获取系统历史，但不包括系统消息
 				systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
 				if err != nil {
-					fmt.Printf("Error getting system history: %v\n", err)
+					fmt.Printf("Error getting system history GetMessagesExcludingSystem: %v\n", err)
 					return
 				}
 
@@ -593,7 +593,7 @@ func (app *App) ApplyPromptChoiceA(promptstr string, response string, message *s
 		// 获取系统历史，但不包括系统消息
 		systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
 		if err != nil {
-			fmt.Printf("Error getting system history: %v\n", err)
+			fmt.Printf("Error getting system history GetMessagesExcludingSystem: %v\n", err)
 			return ""
 		}
 
