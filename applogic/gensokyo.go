@@ -600,19 +600,20 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
 										}
 									} else {
+										// 这里发送的是newPart api最后补充的部分
 										if !config.GetMdPromptKeyboardAtGroup() {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
 												utils.SendGroupMessage(message.GroupID, message.UserID, newPart, selfid)
 											} else {
-												utils.SendGroupMessage(message.GroupID, message.UserID, EnhancedAContent+response, selfid)
+												utils.SendGroupMessage(message.GroupID, message.UserID, EnhancedAContent+newPart, selfid)
 											}
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, response, selfid, newmsg, response, promptstr)
+												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, newPart, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, EnhancedAContent+response, selfid, newmsg, response, promptstr)
+												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, EnhancedAContent+newPart, selfid, newmsg, response, promptstr)
 											}
 										}
 									}
