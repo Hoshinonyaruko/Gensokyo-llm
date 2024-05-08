@@ -606,14 +606,14 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											if EnhancedAContent == "" {
 												utils.SendGroupMessage(message.GroupID, message.UserID, newPart, selfid)
 											} else {
-												utils.SendGroupMessage(message.GroupID, message.UserID, EnhancedAContent+newPart, selfid)
+												utils.SendGroupMessage(message.GroupID, message.UserID, newPart+EnhancedAContent, selfid)
 											}
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
 												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, newPart, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, EnhancedAContent+newPart, selfid, newmsg, response, promptstr)
+												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, newPart+EnhancedAContent, selfid, newmsg, response, promptstr)
 											}
 										}
 									}
@@ -633,7 +633,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											if EnhancedAContent == "" {
 												utils.SendPrivateMessage(message.UserID, response, selfid)
 											} else {
-												utils.SendPrivateMessage(message.UserID, EnhancedAContent+response, selfid)
+												utils.SendPrivateMessage(message.UserID, response+EnhancedAContent, selfid)
 											}
 										} else {
 											//判断是否最后一条
@@ -655,14 +655,14 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											if EnhancedAContent == "" {
 												utils.SendGroupMessage(message.GroupID, message.UserID, response, selfid)
 											} else {
-												utils.SendGroupMessage(message.GroupID, message.UserID, EnhancedAContent+response, selfid)
+												utils.SendGroupMessage(message.GroupID, message.UserID, response+EnhancedAContent, selfid)
 											}
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
 												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, response, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, EnhancedAContent+response, selfid, newmsg, response, promptstr)
+												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, response+EnhancedAContent, selfid, newmsg, response, promptstr)
 											}
 										}
 
