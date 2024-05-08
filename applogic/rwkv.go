@@ -156,7 +156,7 @@ func (app *App) ChatHandlerRwkv(w http.ResponseWriter, r *http.Request) {
 			// 获取系统级预埋的系统自定义QA对
 			systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
 			if err != nil {
-				fmtf.Printf("Error getting system history: %v\n", err)
+				fmtf.Printf("Error getting system history: %v,promptstr[%v]\n", err, promptstr)
 				return
 			}
 

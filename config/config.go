@@ -1990,3 +1990,23 @@ func getEnvContentsInternal(options ...string) []string {
 
 	return envContents
 }
+
+// 群内md气泡
+func GetMdPromptKeyboardAtGroup() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.MdPromptKeyboardAtGroup
+	}
+	return false
+}
+
+// 第四个气泡
+func GetNo4Promptkeyboard() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.No4Promptkeyboard
+	}
+	return false
+}
