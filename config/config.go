@@ -26,30 +26,51 @@ type Config struct {
 	Settings structs.Settings `yaml:"settings"`
 }
 
-// LoadConfig 从文件中加载配置并初始化单例配置
+// // 防抖
+// type ConfigFileLoader struct {
+// 	EventDelay time.Duration
+// 	LastLoad   time.Time
+// }
+
+// // 防抖
+// func (fl *ConfigFileLoader) LoadConfigF(path string) (*Config, error) {
+// 	now := time.Now()
+// 	if now.Sub(fl.LastLoad) < fl.EventDelay {
+// 		return instance, nil
+// 	}
+// 	fl.LastLoad = now
+
+// 	return LoadConfig(path)
+// }
+
 func LoadConfig(path string) (*Config, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// 如果单例已经被初始化了，直接返回
-	if instance != nil {
-		return instance, nil
+	conf, err := loadConfigFromFile(path)
+	if err != nil {
+		return nil, err
 	}
 
+	instance = conf
+	return instance, nil
+}
+
+func loadConfigFromFile(path string) (*Config, error) {
 	configData, err := os.ReadFile(path)
 	if err != nil {
+		log.Println("Failed to read file:", err)
 		return nil, err
 	}
 
 	conf := &Config{}
-	err = yaml.Unmarshal(configData, conf)
-	if err != nil {
+	if err := yaml.Unmarshal(configData, conf); err != nil {
+		log.Println("Failed to unmarshal YAML:", err)
 		return nil, err
 	}
 
-	// 设置单例实例
-	instance = conf
-	return instance, nil
+	log.Printf("成功加载配置文件 %s\n", path)
+	return conf, nil
 }
 
 // 获取secretId
