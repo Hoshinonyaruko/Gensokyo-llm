@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/fsnotify/fsnotify"
 	_ "github.com/mattn/go-sqlite3" // 只导入，作为驱动
 
 	"github.com/hoshinonyaruko/gensokyo-llm/applogic"
@@ -38,32 +39,22 @@ func main() {
 
 	// 检查配置文件是否存在
 	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
-		if *ymlPath == "" {
-			// 用户没有指定-yml参数，按照默认行为处理
-			err = os.WriteFile(configFilePath, []byte(template.ConfigTemplate), 0644)
-			if err != nil {
-				fmtf.Println("Error writing config.yml:", err)
-				return
-			}
-			fmtf.Println("请配置config.yml然后再次运行.")
-			fmtf.Print("按下 Enter 继续...")
-			bufio.NewReader(os.Stdin).ReadBytes('\n')
-			os.Exit(0)
-		} else {
-			// 用户指定了-yml参数，但指定的文件不存在
-			fmtf.Println("指定的配置文件不存在:", *ymlPath)
-			return
-		}
+		handleMissingConfigFile(ymlPath, configFilePath)
 	} else {
 		if *ymlPath != "" {
-			fmtf.Println("载入成功:", *ymlPath)
+			fmt.Println("配置载入成功:", *ymlPath)
 		}
 	}
+
 	// 加载配置
 	conf, err := config.LoadConfig(configFilePath)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
+
+	// 设置配置文件监视器
+	go setupConfigWatcher(configFilePath)
+
 	// 日志落地
 	if config.GetSavelogs() {
 		fmtf.SetEnableFileLog(true)
@@ -243,4 +234,61 @@ func main() {
 
 	// 启动HTTP服务器
 	log.Fatal(http.ListenAndServe(portStr, nil))
+}
+
+func handleMissingConfigFile(ymlPath *string, configFilePath string) {
+	if *ymlPath == "" {
+		// 用户没有指定-yml参数，按照默认行为处理
+		err := os.WriteFile(configFilePath, []byte(template.ConfigTemplate), 0644)
+		if err != nil {
+			fmt.Println("Error writing config.yml:", err)
+			return
+		}
+		fmt.Println("请配置config.yml然后再次运行.")
+		fmt.Print("按下 Enter 继续...")
+		bufio.NewReader(os.Stdin).ReadBytes('\n')
+		os.Exit(0)
+	} else {
+		// 用户指定了-yml参数，但指定的文件不存在
+		fmt.Println("指定的配置文件不存在:", *ymlPath)
+		os.Exit(0)
+	}
+}
+
+func setupConfigWatcher(configFilePath string) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatalf("Error setting up watcher: %v", err)
+	}
+
+	// 添加一个100毫秒的Debouncing
+	//fileLoader := &config.ConfigFileLoader{EventDelay: 100 * time.Millisecond}
+
+	// Start the goroutine to handle file system events.
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return // Exit if channel is closed.
+				}
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					fmt.Println("检测到配置文件变动:", event.Name)
+					//fileLoader.LoadConfigF(configFilePath)
+					config.LoadConfig(configFilePath)
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return // Exit if channel is closed.
+				}
+				log.Println("Watcher error:", err)
+			}
+		}
+	}()
+
+	// Add the config file to the list of watched files.
+	err = watcher.Add(configFilePath)
+	if err != nil {
+		log.Fatalf("Error adding watcher: %v", err)
+	}
 }
