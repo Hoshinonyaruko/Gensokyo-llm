@@ -2031,3 +2031,200 @@ func GetNo4Promptkeyboard() bool {
 	}
 	return false
 }
+
+// 获取TYQW API路径
+func GetTyqwApiPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwApiPath
+	}
+	return "" // 默认值或错误处理
+}
+
+// 获取TYQW最大Token数量，可接受basename作为参数
+func GetTyqwMaxTokens(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getTyqwMaxTokensInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTyqwMaxTokensInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TyqwMaxTokens
+		}
+		return 0 // 默认值或错误处理
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	maxTokensInterface, err := prompt.GetSettingFromFilename(basename, "TyqwMaxTokens")
+	if err != nil {
+		log.Println("Error retrieving TyqwMaxTokens:", err)
+		return getTyqwMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	maxTokens, ok := maxTokensInterface.(int)
+	if !ok { // 检查类型断言是否失败
+		fmt.Println("Type assertion failed for TyqwMaxTokens, fetching default")
+		return getTyqwMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return maxTokens
+}
+
+// 获取TYQW温度设置
+func GetTyqwTemperature() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwTemperature
+	}
+	return 0.0 // 默认值或错误处理
+}
+
+// 获取TYQW Top P
+func GetTyqwTopP() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwTopP
+	}
+	return 0.0 // 默认值或错误处理
+}
+
+// 获取TYQW Top K
+func GetTyqwTopK() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwTopK
+	}
+	return 0 // 默认值或错误处理
+}
+
+// 获取TYQW SSE类型
+func GetTyqwSseType() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwSseType
+	}
+	return 0 // 默认值或错误处理
+}
+
+// 获取TYQW用户名
+func GetTyqwUserName() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwUserName
+	}
+	return "" // 默认值或错误处理
+}
+
+// 获取TYQW助手名称
+func GetTyqwAssistantName() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwAssistantName
+	}
+	return "" // 默认值或错误处理
+}
+
+// 获取TYQW系统名称
+func GetTyqwSystemName() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwSystemName
+	}
+	return "" // 默认值或错误处理
+}
+
+// 获取TYQW是否在系统层面进行预处理
+func GetTyqwPreSystem() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwPreSystem
+	}
+	return false // 默认值或错误处理
+}
+
+// 获取TYQW重复度惩罚因子
+func GetTyqwRepetitionPenalty() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwRepetitionPenalty
+	}
+	return 1.0 // 默认值或错误处理
+}
+
+// 获取TYQW停止标记
+func GetTyqwStopTokens() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwStop
+	}
+	return nil // 默认值或错误处理
+}
+
+// 获取TYQW随机数种子
+func GetTyqwSeed() int64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwSeed
+	}
+	return 0 // 默认值或错误处理
+}
+
+// 获取TYQW是否启用互联网搜索
+func GetTyqwEnableSearch() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwEnableSearch
+	}
+	return false // 默认值或错误处理
+}
+
+// 获取TYQW模型名称
+func GetTyqwModel() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwModel
+	}
+	return "default-model" // 默认值或错误处理
+}
+
+// 获取TYQW API Key
+func GetTyqwKey() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.TyqwApiKey
+	}
+	return "" // 默认值或错误处理，表示没有找到有效的API Key
+}
+
+// 获取TYQW Workspace
+func GetTyqworkspace() (string, error) {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		if instance.Settings.TyqwWorkspace == "" {
+			return "", fmt.Errorf("workspace is not configured") // 错误处理，当workspace未配置时
+		}
+		return instance.Settings.TyqwWorkspace, nil
+	}
+	return "", fmt.Errorf("configuration instance is not initialized") // 错误处理，当配置实例未初始化时
+}
