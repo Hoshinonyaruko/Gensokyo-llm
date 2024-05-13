@@ -171,6 +171,26 @@ type TyqwSSEData struct {
 	RequestID string `json:"request_id"`
 }
 
+// GlmSSEData 结构体用于解析GLM模型的流式输出
+type GlmSSEData struct {
+	ID      string `json:"id"`
+	Created int    `json:"created"`
+	Model   string `json:"model"`
+	Choices []struct {
+		Index int `json:"index"`
+		Delta struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"delta"`
+		FinishReason string `json:"finish_reason,omitempty"` // 使用omitempty使得该字段在为空时不会被序列化
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage,omitempty"` // 使用omitempty以便在字段为空时不包含在JSON中
+}
+
 // 定义用于累积使用情况的结构（如果API提供此信息）
 type GPTUsageInfo struct {
 	PromptTokens     int `json:"prompt_tokens"`
@@ -242,6 +262,7 @@ type Settings struct {
 	Proxy                   string   `yaml:"proxy"`
 	UrlSendPics             bool     `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
 	MdPromptKeyboardAtGroup bool     `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
+	GroupHintWords          []string `yaml:"groupHintWords"`
 
 	HunyuanType      int `yaml:"hunyuanType"`
 	MaxTokensHunyuan int `yaml:"maxTokensHunyuan"`
@@ -355,6 +376,20 @@ type Settings struct {
 	TyqwModel             string   `yaml:"tyqwModel"`
 	TyqwApiKey            string   `yaml:"tyqwApiKey"`
 	TyqwWorkspace         string   `yaml:"tyqwWorkspace"`
+
+	GlmApiPath     string   `yaml:"glmApiPath"`     // 模型地址
+	GlmModel       string   `yaml:"glmModel"`       // 模型编码
+	GlmApiKey      string   `yaml:"glmApiKey"`      // 模型密钥
+	GlmRequestID   string   `yaml:"glmRequestID"`   // 请求的唯一标识，可选
+	GlmDoSample    bool     `yaml:"glmDoSample"`    // 是否启用采样策略
+	GlmStream      bool     `yaml:"glmStream"`      // 是否启用流式返回
+	GlmTemperature float64  `yaml:"glmTemperature"` // 采样温度
+	GlmTopP        float64  `yaml:"glmTopP"`        // 核取样概率
+	GlmMaxTokens   int      `yaml:"glmMaxTokens"`   // 最大输出token数
+	GlmStop        []string `yaml:"glmStop"`        // 停止生成的词
+	GlmTools       []string `yaml:"glmTools"`       // 可调用的工具列表
+	GlmToolChoice  string   `yaml:"glmToolChoice"`  // 工具选择策略
+	GlmUserID      string   `yaml:"glmUserID"`      // 用户ID
 
 	WSServerToken string `yaml:"wsServerToken"`
 	WSPath        string `yaml:"wsPath"`

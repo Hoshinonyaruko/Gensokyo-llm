@@ -470,7 +470,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 						}
 						tempResponseJSON, _ := json.Marshal(tempResponseMap)
 						fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
-						fmt.Printf("测试返回:%v\n", string(tempResponseJSON))
+						//fmt.Printf("测试返回:%v\n", string(tempResponseJSON))
 						flusher.Flush()
 					}
 				}

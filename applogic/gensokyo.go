@@ -54,6 +54,24 @@ func ResetIndex(s string) {
 	stringToIndexMap[s] = 0
 }
 
+// checkMessageForHints 检查消息中是否包含给定的提示词
+func checkMessageForHints(message string) bool {
+	// 从配置中获取提示词数组
+	hintWords := config.GetGroupHintWords()
+	if len(hintWords) == 0 {
+		return true // 未设置,直接返回0
+	}
+	// 遍历每个提示词，检查它们是否出现在消息中
+	for _, hint := range hintWords {
+		if strings.Contains(message, hint) {
+			return true // 如果消息包含任一提示词，返回true
+		}
+	}
+	// 如果没有找到任何提示词，记录日志并返回false
+	fmtf.Println("No hint words found in the message:", message)
+	return false
+}
+
 func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	// 只处理POST请求
 	if r.Method != http.MethodPost {
@@ -90,6 +108,15 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		fmtf.Printf("Error parsing request body: %+v\n", string(body))
 		http.Error(w, "Error parsing request body", http.StatusInternalServerError)
 		return
+	}
+
+	// 判断是否是群聊 然后判断触发词
+	if message.RealMessageType != "group_private" && message.MessageType != "private" {
+		if !checkMessageForHints(message.RawMessage) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Group message not hint words."))
+			return
+		}
 	}
 
 	// 从数据库读取用户的剧情存档
@@ -187,6 +214,13 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	// 打印消息和其他相关信息
 	fmtf.Printf("Received message: %v\n", message.Message)
 	fmtf.Printf("Full message details: %+v\n", message)
+
+	// 进行array转换
+	// 检查并解析消息类型
+	if _, ok := message.Message.(string); !ok {
+		// 如果不是字符串，处理消息以转换为字符串,强制转换
+		message.Message = ParseMessageContent(message.Message)
+	}
 
 	// 判断message.Message的类型
 	switch msg := message.Message.(type) {
@@ -515,6 +549,11 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			urlParams.Add("prompt", promptstr)
 		}
 
+		// glm会根据userid参数来封禁用户
+		if config.GetApiType() == 5 {
+			urlParams.Add("userid", strconv.FormatInt(message.UserID, 10))
+		}
+
 		// 将查询参数编码后附加到基本URL上
 		fullURL := baseURL
 		if len(urlParams) > 0 {
@@ -822,11 +861,13 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	case map[string]interface{}:
 		// message.Message是一个map[string]interface{}
+		// 理论上不应该执行到这里，因为我们已确保它是字符串
 		fmtf.Println("Received map message, handling not implemented yet")
 		// 处理map类型消息的逻辑（TODO）
 
 	default:
 		// message.Message是一个未知类型
+		// 理论上不应该执行到这里，因为我们已确保它是字符串
 		fmtf.Printf("Received message of unexpected type: %T\n", msg)
 		return
 	}

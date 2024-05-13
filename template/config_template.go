@@ -43,6 +43,7 @@ settings:
   withdrawCommand : ["撤回"]                    #撤回指令
   hideExtraLogs : false                         #忽略流信息的log,提高性能
   urlSendPics : false                           #自己构造图床加速图片发送.需配置公网ip+放通port+设置正确的selfPath
+  groupHintWords : []                           #当机器人位于群内时,需满足包含groupHintWords数组任意内容如[CQ:at,qq=2] 机器人的名字 等
 
   #Ws服务器配置
   wsServerToken : ""                            #ws密钥 可以由onebotv11反向ws接入
@@ -164,6 +165,21 @@ settings:
   tyqwPreSystem: false                              # 是否在系统层面进行预处理
   tyqwEnableSearch : false                          # 是否使用网络搜索
 
+  # GLM 模型配置文件，为确保与API接口兼容，请符合相应的API资质要求。
+  glmApiPath: "https://open.bigmodel.cn/api/paas/v4/chat/completions"  # GLM API的地址，用于调用模型生成文本
+  glmApiKey : ""                                   # glm的api密钥          
+  glmModel: ""                                     # 指定用于调用的模型编码，根据您的需求选择合适的模型,可选 glm-3-turbo glm-4
+  glmRequestID: ""                                 # 请求的唯一标识，用于追踪和调试请求
+  glmDoSample: true                                # 是否启用采样策略，默认为true，采样开启
+  glmTemperature: 0.95                             # 控制输出随机性的采样温度，值越大输出越随机
+  glmTopP: 0.9                                     # 采用核取样策略，从概率最高的令牌中选择top P的比例
+  glmMaxTokens: 1024                               # 模型输出的最大token数，控制输出长度
+  glmStop:                                         # 模型输出时遇到以下标记将停止生成
+    - "stop_token"                                 # 可以列出多个停止标记
+  glmTools:                                        # 列出模型可以调用的工具列表
+    - "web_search"                                 # 默认启用网络搜索工具
+  glmToolChoice: "auto"                            # 工具选择策略，目前支持auto，自动选择最合适的工具
+  glmUserID: ""                                    # 用户唯一标识，用于跟踪和分析用户行为
 `
 
 const Logo = `

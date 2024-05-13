@@ -62,6 +62,22 @@ Rwkv runner
 
 ---
 
+## 支持对接多种聊天机器人平台
+
+[Gensokyo框架-QQ开放平台](https://github.com/Hoshinonyaruko/Gensokyo) 
+
+[Gensokyo框架-Discord](https://github.com/Hoshinonyaruko/Gensokyo-discord) 
+
+[Gensokyo框架-Kook](https://github.com/Hoshinonyaruko/Gensokyo-kook) 
+
+[Gensokyo框架-微信订阅号\公众号](https://github.com/Hoshinonyaruko/Gensokyo-wxmp) 
+
+[Gensokyo框架-Telegram](https://github.com/Hoshinonyaruko/Gensokyo-Telegram) 
+
+[所有Onebotv11实现](https://onebot.dev/ecosystem.html#%E5%BA%94%E7%94%A8%E6%A1%88%E4%BE%8B) 
+
+---
+
 ## 安全性
 
 多重完备安全措施,尽可能保证开发者和llm应用安全.
