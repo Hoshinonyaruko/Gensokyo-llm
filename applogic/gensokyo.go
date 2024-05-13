@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
@@ -20,7 +21,8 @@ import (
 )
 
 var newmsgToStringMap = make(map[string]string)
-var stringToIndexMap = make(map[string]int)
+var stringToIndexMap sync.Map
+var processMessageMu sync.Mutex
 
 // RecordStringById 根据id记录一个string
 func RecordStringByNewmsg(id, value string) {
@@ -38,20 +40,30 @@ func GetStringByNewmsg(newmsg string) string {
 
 // IncrementIndex 为给定的字符串递增索引
 func IncrementIndex(s string) int {
-	// 检查map中是否已经有这个字符串的索引
-	if _, exists := stringToIndexMap[s]; !exists {
-		// 如果不存在，初始化为0
-		stringToIndexMap[s] = 0
+	// 尝试从map中获取值，如果不存在则初始化为0
+	val, loaded := stringToIndexMap.LoadOrStore(s, 0)
+	if !loaded {
+		// 如果这是一个新的键，我们现在将其值设置为1
+		stringToIndexMap.Store(s, 1)
+		return 1
 	}
-	// 递增索引
-	stringToIndexMap[s]++
-	// 返回新的索引值
-	return stringToIndexMap[s]
+
+	// 如果已存在，递增索引
+	newVal := val.(int) + 1
+	stringToIndexMap.Store(s, newVal)
+	return newVal
 }
 
-// ResetIndex 将给定字符串的索引归零
+// ResetIndex 重置或删除给定字符串的索引
 func ResetIndex(s string) {
-	stringToIndexMap[s] = 0
+	// 直接从map中删除指定的键
+	stringToIndexMap.Delete(s)
+}
+
+// ResetAllIndexes 清空整个索引map
+func ResetAllIndexes() {
+	// 重新初始化stringToIndexMap，因为sync.Map没有提供清空所有条目的直接方法
+	stringToIndexMap = sync.Map{}
 }
 
 // checkMessageForHints 检查消息中是否包含给定的提示词
@@ -607,7 +619,11 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						lastMessageID = id // 更新lastMessageID
 						// 检查是否有未发送的消息部分
 						key := utils.GetKey(message.GroupID, message.UserID)
-						accumulatedMessage, exists := groupUserMessages[key]
+						accumulatedMessageInterface, exists := groupUserMessages.Load(key)
+						var accumulatedMessage string
+						if exists {
+							accumulatedMessage = accumulatedMessageInterface.(string)
+						}
 
 						// 提取response字段
 						if response, ok = responseData["response"].(string); ok {
@@ -721,8 +737,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								}
 							}
 
-							// 清空映射中对应的累积消息
-							groupUserMessages[key] = ""
+							// 清空key的值
+							groupUserMessages.Store(key, "")
 						}
 					} else {
 						//发送信息
@@ -909,7 +925,16 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 			// 达到标点符号，发送累积的整个消息
 			if messageBuilder.Len() > 0 {
 				accumulatedMessage := messageBuilder.String()
-				groupUserMessages[key] += accumulatedMessage
+				// 锁定
+				processMessageMu.Lock()
+				// 从sync.map读取当前的value
+				valueInterface, _ := groupUserMessages.Load(key)
+				value, _ := valueInterface.(string)
+				// 添加当前messageBuilder中的新内容
+				value += accumulatedMessage
+				// 储存新的内容到sync.map
+				groupUserMessages.Store(key, value)
+				processMessageMu.Unlock() // 完成更新后时解锁
 
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 				if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
