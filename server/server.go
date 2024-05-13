@@ -164,7 +164,7 @@ func processWSMessage(msg []byte, selfid string) {
 
 		}
 	} else {
-		log.Printf("Unknown message type or missing post type\n")
+		log.Printf("Unknown message type or missing post type:[%v]\n", string(msg))
 	}
 }
 
