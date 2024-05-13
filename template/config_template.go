@@ -12,7 +12,7 @@ settings:
   path : "http://123.123.123.123:11111"         #调用gensokyo api的地址,填入 gensokyo 的 正向http地址   http_address: "0.0.0.0:46231"  对应填入 "http://127.0.0.1:46231"
   lotus : ""                                    #当填写另一个gensokyo-llm的http地址时,将请求另一个的conversation端点,实现多个llm不需要多次配置,简化配置,单独使用请忽略留空.例:http://192.168.0.1:12345(包含http头和端口)
   pathToken : ""                                #gensokyo正向http-api的access_token(是onebotv11标准的)
-  apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt
+  apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt 3=rwkv 4=通义千问 5=智谱AI
   iPWhiteList : ["192.168.0.102"]               #接口调用,安全ip白名单,gensokyo的ip地址,或调用api的程序的ip地址
   systemPrompt : [""]                           #人格提示词,或多个随机
   firstQ : [""]                                 #强化思想钢印,在每次对话的system之前固定一个QA,需都填写内容,会增加token消耗,可一定程度提高人格提示词效果,或抵抗催眠
@@ -139,6 +139,31 @@ settings:
   rwkvAssistantName: "Assistant"                   # 助手名称
   rwkvSystemName: "System"                         # 系统名称
   rwkvPreSystem: false                             # 是否在系统层面进行预处理
+
+  # TYQW 模型配置文件，适用于对接您的平台。请遵守并符合相应的API资质要求。
+  tyqwApiPath: "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"       # 符合 TYQW 标准的 API 地址，是否以流形式取决于UseSSE配置
+  tyqwMaxTokens: 1500                               # 最大的输出 Token 数量
+  tyqwModel : ""                                    # 指定用于对话的通义千问模型名，目前可选择qwen-turbo、qwen-plus、qwen-max、qwen-max-0403、qwen-max-0107、qwen-max-1201和qwen-max-longcontext。
+  tyqwApiKey : ""                                   # api的key
+  tyqwWorkspace : ""                                # 指明本次调用需要使用的workspace；需要注意的是，对于子账号Apikey调用，此参数为必选项，子账号必须归属于某个workspace才能调用；对于主账号Apikey此项为可选项，添加则使用对应的workspace身份，不添加则使用主账号身份。
+  tyqwTemperature: 0.85                             # 生成的随机性控制
+  tyqwTopP: 0.9                                     # 累积概率最高的令牌进行采样的界限
+  tyqwPresencePenalty: 0.2                          # 当前上下文中令牌出现的频率惩罚
+  tyqwFrequencyPenalty: 0.2                         # 全局令牌出现的频率惩罚
+  tyqwPenaltyDecay: 0.99                            # 惩罚值的衰减率
+  tyqwRepetitionPenalty : 1.1                       # 用于控制模型生成时的重复度。提高repetition_penalty时可以降低模型生成的重复度。1.0表示不做惩罚，默认为1.1。没有严格的取值范围。
+  tyqwTopK: 40                                      # 从概率最高的K个令牌中采样
+  tyqwSeed : 1234                                   # 生成时使用的随机数种子，用户控制模型生成内容的随机性。seed支持无符号64位整数，默认值为1234。在使用seed时，模型将尽可能生成相同或相似的结果，但目前不保证每次生成的结果完全相同。
+  tyqwSseType: 1                                    # 同gptSseType, 例如0代表不使用, 1代表使用
+  tyqwGlobalPenalty: false                          # 是否在全局上应用频率惩罚
+  tyqwStop:                                         # 停止生成的标记列表
+    - "\n\nUser"                                    
+  tyqwUserName: "User"                              # 用户名称
+  tyqwAssistantName: "Assistant"                    # 助手名称
+  tyqwSystemName: "System"                          # 系统名称
+  tyqwPreSystem: false                              # 是否在系统层面进行预处理
+  tyqwEnableSearch : false                          # 是否使用网络搜索
+
 `
 
 const Logo = `

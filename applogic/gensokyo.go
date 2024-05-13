@@ -618,7 +618,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										}
 									}
 								} else {
-									//流的最后一次是完整结束的
+									// 流的最后一次是完整结束的
 									fmtf.Printf("A完整信息: %s(sse完整结束)\n", response)
 								}
 

@@ -22,7 +22,7 @@ _✨ 适用于Gensokyo以及Onebotv11的大模型一键端 ✨_
 
 基于sqlite数据库自动维系上下文，对话模式中，使用重置 命令即可重置
 
-可设置system，角色卡,上下文长度,内置多种模型,混元,文心,chatgpt
+可设置system，角色卡,上下文长度,
 
 同时对外提供带有自动上下文的openai原始风味api(经典3参数,id,parent id,messgae)
 
@@ -33,11 +33,32 @@ _✨ 适用于Gensokyo以及Onebotv11的大模型一键端 ✨_
 并发环境下的sse内存安全，支持维持多用户同时双向sse传输
 
 ---
+
 ## 效果
 
 ![效果图](/pic/3.png)
 
 ![效果图](/pic/4.png)
+
+---
+
+## 支持llm平台
+
+腾讯混元
+
+百度文心
+
+阿里通义
+
+清华智谱
+
+OpenAI
+
+Rwkv runner
+
+将这些平台的api转换为统一的api结构,并提供了上下文,支持sse方式返回
+
+通过在yml设置相应平台的token,设置AllApi=true,可以同时进行切换调用.
 
 ---
 

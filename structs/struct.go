@@ -153,6 +153,24 @@ type GPTEventData struct {
 	} `json:"choices"`
 }
 
+type TyqwSSEData struct {
+	Output struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+				Role    string `json:"role"`
+			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
+		} `json:"choices"`
+	} `json:"output"`
+	Usage struct {
+		TotalTokens  int `json:"total_tokens"`
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
+	RequestID string `json:"request_id"`
+}
+
 // 定义用于累积使用情况的结构（如果API提供此信息）
 type GPTUsageInfo struct {
 	PromptTokens     int `json:"prompt_tokens"`
@@ -315,6 +333,28 @@ type Settings struct {
 	RwkvPreSystem        bool     `yaml:"rwkvPreSystem"`
 	RwkvSseType          int      `yaml:"rwkvSseType"`
 	HideExtraLogs        bool     `yaml:"hideExtraLogs"`
+
+	TyqwApiPath           string   `yaml:"tyqwApiPath"`
+	TyqwMaxTokens         int      `yaml:"tyqwMaxTokens"`
+	TyqwTemperature       float64  `yaml:"tyqwTemperature"`
+	TyqwTopP              float64  `yaml:"tyqwTopP"`
+	TyqwPresencePenalty   float64  `yaml:"tyqwPresencePenalty"`
+	TyqwFrequencyPenalty  float64  `yaml:"tyqwFrequencyPenalty"`
+	TyqwPenaltyDecay      float64  `yaml:"tyqwPenaltyDecay"`
+	TyqwTopK              int      `yaml:"tyqwTopK"`
+	TyqwGlobalPenalty     bool     `yaml:"tyqwGlobalPenalty"`
+	TyqwStop              []string `yaml:"tyqwStop"`
+	TyqwUserName          string   `yaml:"tyqwUserName"`
+	TyqwAssistantName     string   `yaml:"tyqwAssistantName"`
+	TyqwSystemName        string   `yaml:"tyqwSystemName"`
+	TyqwPreSystem         bool     `yaml:"tyqwPreSystem"`
+	TyqwSseType           int      `yaml:"tyqwSseType"`
+	TyqwRepetitionPenalty float64  `yaml:"tyqwRepetitionPenalty"`
+	TyqwSeed              int64    `yaml:"tyqwSeed"`
+	TyqwEnableSearch      bool     `yaml:"tyqwEnableSearch"`
+	TyqwModel             string   `yaml:"tyqwModel"`
+	TyqwApiKey            string   `yaml:"tyqwApiKey"`
+	TyqwWorkspace         string   `yaml:"tyqwWorkspace"`
 
 	WSServerToken string `yaml:"wsServerToken"`
 	WSPath        string `yaml:"wsPath"`
