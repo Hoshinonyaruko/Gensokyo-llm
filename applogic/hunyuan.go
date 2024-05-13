@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
@@ -15,7 +16,7 @@ import (
 )
 
 var messageBuilder strings.Builder
-var groupUserMessages = make(map[string]string)
+var groupUserMessages sync.Map
 
 func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
