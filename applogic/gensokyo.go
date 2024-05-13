@@ -84,24 +84,6 @@ func checkMessageForHints(message string) bool {
 	return false
 }
 
-// checkMessageForHints 检查消息中是否包含给定的提示词
-func checkMessageForHints(message string) bool {
-	// 从配置中获取提示词数组
-	hintWords := config.GetGroupHintWords()
-	if len(hintWords) == 0 {
-		return true // 未设置,直接返回0
-	}
-	// 遍历每个提示词，检查它们是否出现在消息中
-	for _, hint := range hintWords {
-		if strings.Contains(message, hint) {
-			return true // 如果消息包含任一提示词，返回true
-		}
-	}
-	// 如果没有找到任何提示词，记录日志并返回false
-	fmtf.Println("No hint words found in the message:", message)
-	return false
-}
-
 func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	// 只处理POST请求
 	if r.Method != http.MethodPost {
