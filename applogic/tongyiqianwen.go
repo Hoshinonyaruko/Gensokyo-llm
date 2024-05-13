@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/prompt"
@@ -21,14 +21,12 @@ import (
 // 用于存储每个conversationId的最后一条消息内容
 var (
 	// lastResponses 存储每个真实 conversationId 的最后响应文本
-	lastResponses sync.Map
-	// conversationMap 存储 msg.ConversationID 到真实 conversationId 的映射
-	conversationMap       sync.Map
-	lastCompleteResponses sync.Map // 存储每个conversationId的完整累积信息
-	mutexchatgpt          sync.Mutex
+	lastResponsesTyqw         sync.Map
+	lastCompleteResponsesTyqw sync.Map // 存储每个conversationId的完整累积信息
+	mutexTyqw                 sync.Mutex
 )
 
-func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
+func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
@@ -122,9 +120,22 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		history, err = prompt.GetMessagesFromFilename(promptstr)
-		if err != nil {
-			fmtf.Printf("prompt.GetMessagesFromFilename error: %v\n", err)
+		// 默认执行 正常提示词顺序
+		if !config.GetEnhancedQA(promptstr) {
+			history, err = prompt.GetMessagesFromFilename(promptstr)
+			if err != nil {
+				fmtf.Printf("prompt.GetMessagesFromFilename error: %v\n", err)
+			}
+		} else {
+			// 只获取系统提示词
+			systemMessage, err := prompt.FindFirstSystemMessage(history)
+			if err != nil {
+				fmt.Println("Error:", err)
+			} else {
+				// 如果找到system消息，将其添加到历史数组中
+				history = append(history, systemMessage)
+				fmt.Println("Added system message back to history.")
+			}
 		}
 	}
 
@@ -137,7 +148,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 截断历史信息
-		userHistory := truncateHistoryGpt(userhistory, msg.Text, promptstr)
+		userHistory := truncateHistoryTyqw(userhistory, msg.Text, promptstr)
 
 		if promptstr != "" {
 			// 注意追加的顺序，确保问题在系统提示词之后
@@ -145,7 +156,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			// 获取系统级预埋的系统自定义QA对
 			systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
 			if err != nil {
-				fmtf.Printf("Error getting system history: %v\n", err)
+				fmtf.Printf("Error getting system history: %v,promptstr[%v]\n", err, promptstr)
 				return
 			}
 
@@ -184,12 +195,10 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		history = append(history, userHistory...)
 	}
 
-	fmtf.Printf("CLOSE-AI上下文history:%v\n", history)
+	fmtf.Printf("Tyqw上下文history:%v\n", history)
 
-	// 构建请求到ChatGPT API
-	model := config.GetGptModel(promptstr)
-	apiURL := config.GetGptApiPath(promptstr)
-	token := config.GetGptToken(promptstr)
+	// 构建请求到Tyqw API
+	apiURL := config.GetTyqwApiPath()
 
 	// 构造消息历史和当前消息
 	messages := []map[string]interface{}{}
@@ -199,68 +208,75 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			"content": hMsg.Text,
 		})
 	}
+
+	// 添加当前用户消息
 	messages = append(messages, map[string]interface{}{
 		"role":    "user",
 		"content": msg.Text,
 	})
 
-	//是否安全模式
-	safemode := config.GetGptSafeMode()
-	useSSe := config.GetuseSse(promptstr)
-	// 腾讯云审核 by api2d
-	gptModeration := config.GetGptModeration()
-	var gptModerationStop bool
-	if gptModeration {
-		gptModerationStop = true
+	var isIncrementalOutput bool
+	if config.GetTyqwSseType() == 1 {
+		isIncrementalOutput = true
 	}
-
-	// 构建请求体
+	// 获取配置信息
+	useSSE := config.GetuseSse(promptstr)
+	apiKey := config.GetTyqwKey()
 	var requestBody map[string]interface{}
-
-	if config.GetStandardGptApi() {
+	if useSSE {
+		// 构建请求体，根据提供的文档重新调整
 		requestBody = map[string]interface{}{
-			"model":    model,
-			"messages": messages,
-			"stream":   useSSe,
+			"parameters": map[string]interface{}{
+				"max_tokens":         config.GetTyqwMaxTokens(),         // 最大生成的token数
+				"temperature":        config.GetTyqwTemperature(),       // 控制随机性和多样性的温度
+				"top_p":              config.GetTyqwTopP(),              // 核采样方法的概率阈值
+				"top_k":              config.GetTyqwTopK(),              // 采样候选集的大小
+				"repetition_penalty": config.GetTyqwRepetitionPenalty(), // 控制重复度的惩罚因子
+				"stop":               config.GetTyqwStopTokens(),        // 停止标记
+				"seed":               config.GetTyqwSeed(),              // 随机数种子
+				"result_format":      "message",                         // 返回结果的格式
+				"enable_search":      config.GetTyqwEnableSearch(),      // 是否启用互联网搜索
+				"incremental_output": isIncrementalOutput,               // 是否使用增量SSE模式,使用增量模式会更快,rwkv和openai不支持增量模式
+			},
+			"model": config.GetTyqwModel(), // 指定对话模型
+			"input": map[string]interface{}{
+				"messages": messages, // 用户与模型的对话历史
+			},
+			"user_name":      config.GetTyqwUserName(),      // 用户名
+			"assistant_name": config.GetTyqwAssistantName(), // 助手名
+			"system_name":    config.GetTyqwSystemName(),    // 系统名
+			"presystem":      config.GetTyqwPreSystem(),     // 预系统处理信息
 		}
 	} else {
+		// 构建请求体，根据提供的文档重新调整
 		requestBody = map[string]interface{}{
-			"model":           model,
-			"messages":        messages,
-			"safe_mode":       safemode,
-			"stream":          useSSe,
-			"moderation":      gptModeration,
-			"moderation_stop": gptModerationStop,
+			"parameters": map[string]interface{}{
+				"max_tokens":         config.GetTyqwMaxTokens(),         // 最大生成的token数
+				"temperature":        config.GetTyqwTemperature(),       // 控制随机性和多样性的温度
+				"top_p":              config.GetTyqwTopP(),              // 核采样方法的概率阈值
+				"top_k":              config.GetTyqwTopK(),              // 采样候选集的大小
+				"repetition_penalty": config.GetTyqwRepetitionPenalty(), // 控制重复度的惩罚因子
+				"stop":               config.GetTyqwStopTokens(),        // 停止标记
+				"seed":               config.GetTyqwSeed(),              // 随机数种子
+				"result_format":      "message",                         // 返回结果的格式
+				"enable_search":      config.GetTyqwEnableSearch(),      // 是否启用互联网搜索
+			},
+			"model": config.GetTyqwModel(), // 指定对话模型
+			"input": map[string]interface{}{
+				"messages": messages, // 用户与模型的对话历史
+			},
+			"user_name":      config.GetTyqwUserName(),      // 用户名
+			"assistant_name": config.GetTyqwAssistantName(), // 助手名
+			"system_name":    config.GetTyqwSystemName(),    // 系统名
+			"presystem":      config.GetTyqwPreSystem(),     // 预系统处理信息
 		}
 	}
 
-	fmtf.Printf("chatgpt requestBody :%v", requestBody)
+	fmtf.Printf("tyqw requestBody :%v", requestBody)
 	requestBodyJSON, _ := json.Marshal(requestBody)
 
-	// 获取代理服务器地址
-	proxyURL := config.GetProxy(promptstr)
-	if err != nil {
-		http.Error(w, fmtf.Sprintf("Failed to get proxy: %v", err), http.StatusInternalServerError)
-		return
-	}
-
+	// 准备HTTP请求
 	client := &http.Client{}
-
-	// 检查是否有有效的代理地址
-	if proxyURL != "" {
-		proxy, err := url.Parse(proxyURL)
-		if err != nil {
-			http.Error(w, fmtf.Sprintf("Failed to parse proxy URL: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		// 配置客户端使用代理
-		client.Transport = &http.Transport{
-			Proxy: http.ProxyURL(proxy),
-		}
-	}
-
-	// 创建HTTP请求
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(requestBodyJSON))
 	if err != nil {
 		http.Error(w, fmtf.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
@@ -268,12 +284,30 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmtf.Sprintf("Bearer %s", token))
+
+	// 设置Content-Type和Authorization
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	// 根据是否使用SSE来设置Accept和X-DashScope-SSE
+	if useSSE {
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("X-DashScope-SSE", "enable")
+	}
+
+	// 设置工作区
+	workspace, err := config.GetTyqworkspace() // 假设这是获取workspace的函数
+	if err != nil {
+		fmt.Println("Error getting workspace:", err)
+	}
+	if workspace != "" {
+		req.Header.Set("X-DashScope-WorkSpace", workspace)
+	}
 
 	// 发送请求
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, fmtf.Sprintf("Error sending request to ChatGPT API: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmtf.Sprintf("Error sending request to tyqw API: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
@@ -282,62 +316,72 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		// 处理响应
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			http.Error(w, fmtf.Sprintf("Failed to read response body: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed to read response body: %v", err), http.StatusInternalServerError)
 			return
 		}
-		fmtf.Printf("chatgpt返回:%v", string(responseBody))
-		// 假设已经成功发送请求并获得响应，responseBody是响应体的字节数据
-		var apiResponse struct {
-			Choices []struct {
-				Message struct {
-					Content string `json:"content"`
-				} `json:"message"`
-			} `json:"choices"`
+		fmt.Printf("TYQW 返回: %v", string(responseBody))
+
+		var tyqwApiResponse struct {
+			Output struct {
+				Choices []struct {
+					FinishReason string `json:"finish_reason"`
+					Message      struct {
+						Role    string `json:"role"`
+						Content string `json:"content"`
+					} `json:"message"`
+				} `json:"choices"`
+			} `json:"output"`
+			Usage struct {
+				TotalTokens  int `json:"total_tokens"`
+				OutputTokens int `json:"output_tokens"`
+				InputTokens  int `json:"input_tokens"`
+			} `json:"usage"`
+			RequestID string `json:"request_id"`
 		}
-		if err := json.Unmarshal(responseBody, &apiResponse); err != nil {
-			http.Error(w, fmtf.Sprintf("Error unmarshaling API response: %v", err), http.StatusInternalServerError)
+
+		if err := json.Unmarshal(responseBody, &tyqwApiResponse); err != nil {
+			http.Error(w, fmt.Sprintf("Error unmarshaling response: %v", err), http.StatusInternalServerError)
 			return
 		}
 
 		// 从API响应中获取回复文本
-		responseText := ""
-		if len(apiResponse.Choices) > 0 {
-			responseText = apiResponse.Choices[0].Message.Content
-		}
+		if len(tyqwApiResponse.Output.Choices) > 0 {
+			responseText := tyqwApiResponse.Output.Choices[0].Message.Content
 
-		// 添加助理消息
-		assistantMessageID, err := app.addMessage(structs.Message{
-			ConversationID:  msg.ConversationID,
-			ParentMessageID: userMessageID,
-			Text:            responseText,
-			Role:            "assistant",
-		})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+			// 添加助理消息
+			assistantMessageID, err := app.addMessage(structs.Message{
+				ConversationID:  msg.ConversationID,
+				ParentMessageID: userMessageID,
+				Text:            responseText,
+				Role:            "assistant",
+			})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		// 构造响应数据，包括回复文本、对话ID、消息ID，以及使用情况（用例中未计算，可根据需要添加）
-		responseMap := map[string]interface{}{
-			"response":       responseText,
-			"conversationId": msg.ConversationID,
-			"messageId":      assistantMessageID,
-			// 在此实际使用情况中，应该有逻辑来填充totalUsage
-			// 此处仅为示例，根据实际情况来调整
-			"details": map[string]interface{}{
-				"usage": structs.UsageInfo{
-					PromptTokens:     0, // 示例值，需要根据实际情况计算
-					CompletionTokens: 0, // 示例值，需要根据实际情况计算
+			// 构造响应数据，包括回复文本、对话ID、消息ID，以及使用情况
+			responseMap := map[string]interface{}{
+				"response":       responseText,
+				"conversationId": msg.ConversationID,
+				"messageId":      assistantMessageID,
+				"details": map[string]interface{}{
+					"usage": structs.UsageInfo{
+						PromptTokens:     tyqwApiResponse.Usage.InputTokens,  // 实际值
+						CompletionTokens: tyqwApiResponse.Usage.OutputTokens, // 实际值
+					},
 				},
-			},
-		}
+			}
 
-		// 设置响应头部为JSON格式
-		w.Header().Set("Content-Type", "application/json")
-		// 将响应数据编码为JSON并发送
-		if err := json.NewEncoder(w).Encode(responseMap); err != nil {
-			http.Error(w, fmtf.Sprintf("Error encoding response: %v", err), http.StatusInternalServerError)
-			return
+			// 设置响应头部为JSON格式
+			w.Header().Set("Content-Type", "application/json")
+			// 将响应数据编码为JSON并发送
+			if err := json.NewEncoder(w).Encode(responseMap); err != nil {
+				http.Error(w, fmt.Sprintf("Error encoding response: %v", err), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			http.Error(w, "No response data available from TYQW API", http.StatusInternalServerError)
 		}
 	} else {
 		// 设置SSE相关的响应头部
@@ -351,10 +395,16 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// 生成一个随机的UUID
+		randomUUID, err := uuid.NewRandom()
+		if err != nil {
+			http.Error(w, "Failed to generate UUID", http.StatusInternalServerError)
+			return
+		}
+
 		reader := bufio.NewReader(resp.Body)
-		var responseTextBuilder strings.Builder
 		var totalUsage structs.GPTUsageInfo
-		if config.GetGptSseType() == 1 {
+		if config.GetTyqwSseType() == 1 {
 			for {
 				line, err := reader.ReadString('\n')
 				if err != nil {
@@ -362,37 +412,37 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 						break // 流结束
 					}
 					// 处理错误
-					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("读取流数据时发生错误: %v", err))
+					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("读取流数据时发生错误: %v", err))
 					flusher.Flush()
 					continue
 				}
-
-				if strings.HasPrefix(line, "data: ") {
+				if strings.HasPrefix(line, "data:") {
 					eventDataJSON := line[5:] // 去掉"data: "前缀
-
 					// 解析JSON数据
-					var eventData structs.GPTEventData
+					var eventData structs.TyqwSSEData
 					if err := json.Unmarshal([]byte(eventDataJSON), &eventData); err != nil {
-						fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("解析事件数据出错: %v", err))
+						fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("解析事件数据出错: %v", err))
 						flusher.Flush()
 						continue
 					}
 
-					// 遍历choices数组，累积所有文本内容
-					for _, choice := range eventData.Choices {
-						responseTextBuilder.WriteString(choice.Delta.Content)
-					}
-
 					// 如果存在需要发送的临时响应数据（例如，在事件流中间点）
-					// 注意：这里暂时省略了使用信息的处理，因为示例输出中没有包含这部分数据
 					tempResponseMap := map[string]interface{}{
-						"response":       responseTextBuilder.String(),
+						"response":       eventData.Output.Choices[0].Message.Content,
 						"conversationId": msg.ConversationID, // 确保msg.ConversationID已经定义并初始化
 						// "details" 字段留待进一步处理，如有必要
 					}
 					tempResponseJSON, _ := json.Marshal(tempResponseMap)
-					fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
+					fmt.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
 					flusher.Flush()
+
+					// 维护累加信息,发送最后事件
+					conversationId := msg.ConversationID + randomUUID.String()
+					// 读取完整信息
+					completeResponse, _ := lastCompleteResponsesTyqw.LoadOrStore(conversationId, "")
+					// 更新存储的完整累积信息
+					updatedCompleteResponse := completeResponse.(string) + eventData.Output.Choices[0].Message.Content
+					lastCompleteResponsesTyqw.Store(conversationId, updatedCompleteResponse)
 				}
 			}
 		} else {
@@ -402,65 +452,66 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 					if err == io.EOF {
 						break // 流结束
 					}
-					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("读取流数据时发生错误: %v", err))
+					fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("读取流数据时发生错误: %v", err))
 					flusher.Flush()
 					continue
 				}
 
-				if strings.HasPrefix(line, "data: ") {
+				if strings.HasPrefix(line, "data:") {
 					eventDataJSON := line[5:] // 去掉"data: "前缀
-					if eventDataJSON[1] != '{' {
-						fmtf.Println("非JSON数据,跳过:", eventDataJSON)
+					if eventDataJSON[0] != '{' {
+						fmt.Println("非JSON数据,跳过:", eventDataJSON)
 						continue
 					}
 
-					var eventData structs.GPTEventData
+					// 解析JSON数据
+					var eventData structs.TyqwSSEData
 					if err := json.Unmarshal([]byte(eventDataJSON), &eventData); err != nil {
-						fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("解析事件数据出错: %v", err))
+						fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("解析事件数据出错: %v", err))
 						flusher.Flush()
 						continue
 					}
 
 					// 在修改共享资源之前锁定Mutex
-					mutexchatgpt.Lock()
+					mutexTyqw.Lock()
 
-					conversationId := eventData.ID // 假设conversationId从事件数据的ID字段获取
-					conversationMap.Store(msg.ConversationID, conversationId)
+					conversationId := msg.ConversationID + randomUUID.String()
 					//读取完整信息
-					completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
+					completeResponse, _ := lastCompleteResponsesTyqw.LoadOrStore(conversationId, "")
 
 					// 检索上一次的响应文本
-					lastResponse, _ := lastResponses.LoadOrStore(conversationId, "")
+					lastResponse, _ := lastResponsesTyqw.LoadOrStore(conversationId, "")
 					lastResponseText := lastResponse.(string)
 
 					newContent := ""
-					for _, choice := range eventData.Choices {
+					for _, choice := range eventData.Output.Choices {
+						content := choice.Message.Content
 						// 如果新内容以旧内容开头
-						if strings.HasPrefix(choice.Delta.Content, lastResponseText) {
+						if strings.HasPrefix(content, lastResponseText) {
 							// 特殊情况：当新内容和旧内容完全相同时，处理逻辑应当与新内容不以旧内容开头时相同
-							if choice.Delta.Content == lastResponseText {
-								newContent += choice.Delta.Content
+							if content == lastResponseText {
+								newContent += content
 							} else {
 								// 剔除旧内容部分，只保留新增的部分
-								newContent += choice.Delta.Content[len(lastResponseText):]
+								newContent += content[len(lastResponseText):]
 							}
 						} else {
 							// 如果新内容不以旧内容开头，可能是并发情况下的新消息，直接使用新内容
-							newContent += choice.Delta.Content
+							newContent += content
 						}
 					}
 
 					// 更新存储的完整累积信息
 					updatedCompleteResponse := completeResponse.(string) + newContent
-					lastCompleteResponses.Store(conversationId, updatedCompleteResponse)
+					lastCompleteResponsesTyqw.Store(conversationId, updatedCompleteResponse)
 
 					// 使用累加的新内容更新存储的最后响应状态
 					if newContent != "" {
-						lastResponses.Store(conversationId, newContent)
+						lastResponsesTyqw.Store(conversationId, newContent)
 					}
 
 					// 完成修改后解锁Mutex
-					mutexchatgpt.Unlock()
+					mutexTyqw.Unlock()
 
 					// 发送新增的内容
 					if newContent != "" {
@@ -469,16 +520,16 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 							"conversationId": conversationId,
 						}
 						tempResponseJSON, _ := json.Marshal(tempResponseMap)
-						fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
-						fmt.Printf("测试返回:%v\n", string(tempResponseJSON))
+						fmt.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
 						flusher.Flush()
 					}
 				}
 			}
 		}
+
 		//一点点奇怪的转换
-		conversationId, _ := conversationMap.LoadOrStore(msg.ConversationID, "")
-		completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
+		conversationId := msg.ConversationID + randomUUID.String()
+		completeResponse, _ := lastCompleteResponsesTyqw.LoadOrStore(conversationId, "")
 		// 在所有事件处理完毕后发送最终响应
 		assistantMessageID, err := app.addMessage(structs.Message{
 			ConversationID:  msg.ConversationID,
@@ -494,27 +545,25 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 
 		// 在所有事件处理完毕后发送最终响应
 		// 首先从 conversationMap 获取真实的 conversationId
-		if actualConversationId, ok := conversationMap.Load(msg.ConversationID); ok {
-			if finalContent, ok := lastCompleteResponses.Load(actualConversationId); ok {
-				finalResponseMap := map[string]interface{}{
-					"response":       finalContent,
-					"conversationId": actualConversationId,
-					"messageId":      assistantMessageID,
-					"details": map[string]interface{}{
-						"usage": totalUsage,
-					},
-				}
-				finalResponseJSON, _ := json.Marshal(finalResponseMap)
-				fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
-				flusher.Flush()
+		if finalContent, ok := lastCompleteResponsesTyqw.Load(conversationId); ok {
+			finalResponseMap := map[string]interface{}{
+				"response":       finalContent,
+				"conversationId": conversationId,
+				"messageId":      assistantMessageID,
+				"details": map[string]interface{}{
+					"usage": totalUsage,
+				},
 			}
+			finalResponseJSON, _ := json.Marshal(finalResponseMap)
+			fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+			flusher.Flush()
 		}
-
 	}
+
 }
 
-func truncateHistoryGpt(history []structs.Message, prompt string, promptstr string) []structs.Message {
-	MAX_TOKENS := config.GetMaxTokenGpt(promptstr)
+func truncateHistoryTyqw(history []structs.Message, prompt string, promptstr string) []structs.Message {
+	MAX_TOKENS := config.GetTyqwMaxTokens(promptstr)
 
 	tokenCount := len(prompt)
 	for _, msg := range history {
