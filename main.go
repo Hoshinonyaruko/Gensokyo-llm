@@ -152,6 +152,9 @@ func main() {
 	case 4:
 		// 如果API类型是4，使用app.chatHandlerTyqw
 		http.HandleFunc("/conversation", app.ChatHandlerTyqw)
+	case 5:
+		// 如果API类型是5，使用app.chatHandlerGlm
+		http.HandleFunc("/conversation", app.ChatHandlerGlm)
 	default:
 		// 如果是其他值，可以选择一个默认的处理器或者记录一个错误
 		log.Printf("Unknown API type: %d", apiType)
@@ -163,6 +166,7 @@ func main() {
 		http.HandleFunc("/conversation_ernie", app.ChatHandlerErnie)
 		http.HandleFunc("/conversation_rwkv", app.ChatHandlerRwkv)
 		http.HandleFunc("/conversation_tyqw", app.ChatHandlerTyqw)
+		http.HandleFunc("/conversation_glm", app.ChatHandlerGlm)
 	}
 	if config.GetSelfPath() != "" {
 		rateLimiter := server.NewRateLimiter()

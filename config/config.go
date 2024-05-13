@@ -2228,3 +2228,157 @@ func GetTyqworkspace() (string, error) {
 	}
 	return "", fmt.Errorf("configuration instance is not initialized") // 错误处理，当配置实例未初始化时
 }
+
+// GetGlmApiPath 获取GLM API路径
+func GetGlmApiPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmApiPath
+	}
+	return "" // 默认值或错误处理
+}
+
+// GetGlmModel 获取模型编码
+func GetGlmModel() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmModel
+	}
+	return ""
+}
+
+// GetGlmApiKey 获取模型编码
+func GetGlmApiKey() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmApiKey
+	}
+	return ""
+}
+
+// GetGlmMaxTokens 获取模型输出的最大tokens数，可接受basename作为参数
+func GetGlmMaxTokens(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getGlmMaxTokensInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGlmMaxTokensInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GlmMaxTokens
+		}
+		return 1024 // 默认值或错误处理
+	}
+
+	// 使用传入的 basename 来查找特定配置
+	basename := options[0]
+	maxTokensInterface, err := prompt.GetSettingFromFilename(basename, "GlmMaxTokens")
+	if err != nil {
+		log.Println("Error retrieving GlmMaxTokens:", err)
+		return getGlmMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	maxTokens, ok := maxTokensInterface.(int)
+	if !ok { // 检查类型断言是否失败
+		fmt.Println("Type assertion failed for GlmMaxTokens, fetching default")
+		return getGlmMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return maxTokens
+}
+
+// GetGlmTemperature 获取模型的采样温度
+func GetGlmTemperature() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmTemperature
+	}
+	return 0.95 // 返回默认值
+}
+
+// GetGlmDoSample 获取是否启用采样策略
+func GetGlmDoSample() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmDoSample
+	}
+	return true // 返回默认值
+}
+
+// GetGlmToolChoice 获取工具选择策略
+func GetGlmToolChoice() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmToolChoice
+	}
+	return "auto" // 返回默认值
+}
+
+// GetGlmUserID 获取终端用户的唯一ID
+func GetGlmUserID() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmUserID
+	}
+	return "" // 如果没有配置则返回空字符串
+}
+
+// GetGlmRequestID 获取请求的唯一标识
+func GetGlmRequestID() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmRequestID
+	}
+	return "" // 返回默认值，表示没有设置
+}
+
+// GetGlmTopP 获取核取样概率
+func GetGlmTopP() float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmTopP
+	}
+	return 0.7 // 返回默认值
+}
+
+// GetGlmStop 获取停止生成的词列表
+func GetGlmStop() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmStop
+	}
+	return nil // 返回空切片，表示没有设置停止词
+}
+
+// GetGlmTools 获取可调用的工具列表
+func GetGlmTools() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GlmTools
+	}
+	return []string{} // 返回空切片，表示没有工具设置
+}
+
+// 获取GroupHintWords列表
+func GetGroupHintWords() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GroupHintWords
+	}
+	return nil
+}
