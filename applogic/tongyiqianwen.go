@@ -198,7 +198,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 	fmtf.Printf("Tyqw上下文history:%v\n", history)
 
 	// 构建请求到Tyqw API
-	apiURL := config.GetTyqwApiPath()
+	apiURL := config.GetTyqwApiPath(promptstr)
 
 	// 构造消息历史和当前消息
 	messages := []map[string]interface{}{}
@@ -216,29 +216,29 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 	})
 
 	var isIncrementalOutput bool
-	if config.GetTyqwSseType() == 1 {
+	if config.GetTyqwSseType(promptstr) == 1 {
 		isIncrementalOutput = true
 	}
 	// 获取配置信息
 	useSSE := config.GetuseSse(promptstr)
-	apiKey := config.GetTyqwKey()
+	apiKey := config.GetTyqwKey(promptstr)
 	var requestBody map[string]interface{}
 	if useSSE {
 		// 构建请求体，根据提供的文档重新调整
 		requestBody = map[string]interface{}{
 			"parameters": map[string]interface{}{
-				"max_tokens":         config.GetTyqwMaxTokens(),         // 最大生成的token数
-				"temperature":        config.GetTyqwTemperature(),       // 控制随机性和多样性的温度
-				"top_p":              config.GetTyqwTopP(),              // 核采样方法的概率阈值
-				"top_k":              config.GetTyqwTopK(),              // 采样候选集的大小
-				"repetition_penalty": config.GetTyqwRepetitionPenalty(), // 控制重复度的惩罚因子
-				"stop":               config.GetTyqwStopTokens(),        // 停止标记
-				"seed":               config.GetTyqwSeed(),              // 随机数种子
-				"result_format":      "message",                         // 返回结果的格式
-				"enable_search":      config.GetTyqwEnableSearch(),      // 是否启用互联网搜索
-				"incremental_output": isIncrementalOutput,               // 是否使用增量SSE模式,使用增量模式会更快,rwkv和openai不支持增量模式
+				"max_tokens":         config.GetTyqwMaxTokens(promptstr),   // 最大生成的token数
+				"temperature":        config.GetTyqwTemperature(promptstr), // 控制随机性和多样性的温度
+				"top_p":              config.GetTyqwTopP(promptstr),        // 核采样方法的概率阈值
+				"top_k":              config.GetTyqwTopK(promptstr),        // 采样候选集的大小
+				"repetition_penalty": config.GetTyqwRepetitionPenalty(),    // 控制重复度的惩罚因子
+				"stop":               config.GetTyqwStopTokens(),           // 停止标记
+				"seed":               config.GetTyqwSeed(),                 // 随机数种子
+				"result_format":      "message",                            // 返回结果的格式
+				"enable_search":      config.GetTyqwEnableSearch(),         // 是否启用互联网搜索
+				"incremental_output": isIncrementalOutput,                  // 是否使用增量SSE模式,使用增量模式会更快,rwkv和openai不支持增量模式
 			},
-			"model": config.GetTyqwModel(), // 指定对话模型
+			"model": config.GetTyqwModel(promptstr), // 指定对话模型
 			"input": map[string]interface{}{
 				"messages": messages, // 用户与模型的对话历史
 			},
@@ -251,17 +251,17 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 		// 构建请求体，根据提供的文档重新调整
 		requestBody = map[string]interface{}{
 			"parameters": map[string]interface{}{
-				"max_tokens":         config.GetTyqwMaxTokens(),         // 最大生成的token数
-				"temperature":        config.GetTyqwTemperature(),       // 控制随机性和多样性的温度
-				"top_p":              config.GetTyqwTopP(),              // 核采样方法的概率阈值
-				"top_k":              config.GetTyqwTopK(),              // 采样候选集的大小
-				"repetition_penalty": config.GetTyqwRepetitionPenalty(), // 控制重复度的惩罚因子
-				"stop":               config.GetTyqwStopTokens(),        // 停止标记
-				"seed":               config.GetTyqwSeed(),              // 随机数种子
-				"result_format":      "message",                         // 返回结果的格式
-				"enable_search":      config.GetTyqwEnableSearch(),      // 是否启用互联网搜索
+				"max_tokens":         config.GetTyqwMaxTokens(promptstr),   // 最大生成的token数
+				"temperature":        config.GetTyqwTemperature(promptstr), // 控制随机性和多样性的温度
+				"top_p":              config.GetTyqwTopP(promptstr),        // 核采样方法的概率阈值
+				"top_k":              config.GetTyqwTopK(promptstr),        // 采样候选集的大小
+				"repetition_penalty": config.GetTyqwRepetitionPenalty(),    // 控制重复度的惩罚因子
+				"stop":               config.GetTyqwStopTokens(),           // 停止标记
+				"seed":               config.GetTyqwSeed(),                 // 随机数种子
+				"result_format":      "message",                            // 返回结果的格式
+				"enable_search":      config.GetTyqwEnableSearch(),         // 是否启用互联网搜索
 			},
-			"model": config.GetTyqwModel(), // 指定对话模型
+			"model": config.GetTyqwModel(promptstr), // 指定对话模型
 			"input": map[string]interface{}{
 				"messages": messages, // 用户与模型的对话历史
 			},
@@ -402,7 +402,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 
 		reader := bufio.NewReader(resp.Body)
 		var totalUsage structs.GPTUsageInfo
-		if config.GetTyqwSseType() == 1 {
+		if config.GetTyqwSseType(promptstr) == 1 {
 			for {
 				line, err := reader.ReadString('\n')
 				if err != nil {

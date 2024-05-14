@@ -2032,14 +2032,38 @@ func GetNo4Promptkeyboard() bool {
 	return false
 }
 
-// 获取TYQW API路径
-func GetTyqwApiPath() string {
+// GetTyqwApiPath 获取TYQW API路径，可接受basename作为参数
+func GetTyqwApiPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwApiPath
+	return getTyqwApiPathInternal(options...)
+}
+
+// getTyqwApiPathInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTyqwApiPathInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TyqwApiPath
+		}
+		return "" // 默认值或错误处理
 	}
-	return "" // 默认值或错误处理
+
+	// 使用传入的 basename
+	basename := options[0]
+	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "TyqwApiPath")
+	if err != nil {
+		log.Println("Error retrieving TyqwApiPath:", err)
+		return getTyqwApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	apiPath, ok := apiPathInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for TyqwApiPath, fetching default")
+		return getTyqwApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return apiPath
 }
 
 // 获取TYQW最大Token数量，可接受basename作为参数
@@ -2076,44 +2100,140 @@ func getTyqwMaxTokensInternal(options ...string) int {
 	return maxTokens
 }
 
-// 获取TYQW温度设置
-func GetTyqwTemperature() float64 {
+// GetTyqwTemperature 获取TYQW温度设置，可接受basename作为参数
+func GetTyqwTemperature(options ...string) float64 {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwTemperature
-	}
-	return 0.0 // 默认值或错误处理
+	return getTyqwTemperatureInternal(options...)
 }
 
-// 获取TYQW Top P
-func GetTyqwTopP() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwTopP
+// getTyqwTemperatureInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTyqwTemperatureInternal(options ...string) float64 {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TyqwTemperature
+		}
+		return 0.0 // 默认值或错误处理
 	}
-	return 0.0 // 默认值或错误处理
+
+	// 使用传入的 basename
+	basename := options[0]
+	temperatureInterface, err := prompt.GetSettingFromFilename(basename, "TyqwTemperature")
+	if err != nil {
+		log.Println("Error retrieving TyqwTemperature:", err)
+		return getTyqwTemperatureInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	temperature, ok := temperatureInterface.(float64)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for TyqwTemperature, fetching default")
+		return getTyqwTemperatureInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return temperature
 }
 
-// 获取TYQW Top K
-func GetTyqwTopK() int {
+// GetTyqwTopP 获取TYQW Top P值，可接受basename作为参数
+func GetTyqwTopP(options ...string) float64 {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwTopK
-	}
-	return 0 // 默认值或错误处理
+	return getTyqwTopPInternal(options...)
 }
 
-// 获取TYQW SSE类型
-func GetTyqwSseType() int {
+// getTyqwTopPInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTyqwTopPInternal(options ...string) float64 {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TyqwTopP
+		}
+		return 0.0 // 默认值或错误处理
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	topPInterface, err := prompt.GetSettingFromFilename(basename, "TyqwTopP")
+	if err != nil {
+		log.Println("Error retrieving TyqwTopP:", err)
+		return getTyqwTopPInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	topP, ok := topPInterface.(float64)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for TyqwTopP, fetching default")
+		return getTyqwTopPInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return topP
+}
+
+// GetTyqwTopK 获取TYQW Top K设置，可接受basename作为参数
+func GetTyqwTopK(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwSseType
+	return getTyqwTopKInternal(options...)
+}
+
+// getTyqwTopKInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTyqwTopKInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TyqwTopK
+		}
+		return 0 // 默认值或错误处理
 	}
-	return 0 // 默认值或错误处理
+
+	// 使用传入的 basename
+	basename := options[0]
+	topKInterface, err := prompt.GetSettingFromFilename(basename, "TyqwTopK")
+	if err != nil {
+		log.Println("Error retrieving TyqwTopK:", err)
+		return getTyqwTopKInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	topK, ok := topKInterface.(int)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for TyqwTopK, fetching default")
+		return getTyqwTopKInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return topK
+}
+
+// GetTyqwSseType 获取TYQW SSE类型，可接受basename作为参数
+func GetTyqwSseType(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getTyqwSseTypeInternal(options...)
+}
+
+// getTyqwSseTypeInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTyqwSseTypeInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TyqwSseType
+		}
+		return 0 // 默认值或错误处理
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	sseTypeInterface, err := prompt.GetSettingFromFilename(basename, "TyqwSseType")
+	if err != nil {
+		log.Println("Error retrieving TyqwSseType:", err)
+		return getTyqwSseTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	sseType, ok := sseTypeInterface.(int)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for TyqwSseType, fetching default")
+		return getTyqwSseTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return sseType
 }
 
 // 获取TYQW用户名
@@ -2196,24 +2316,72 @@ func GetTyqwEnableSearch() bool {
 	return false // 默认值或错误处理
 }
 
-// 获取TYQW模型名称
-func GetTyqwModel() string {
+// GetTyqwModel 获取TYQW模型名称，可接受basename作为参数
+func GetTyqwModel(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwModel
-	}
-	return "default-model" // 默认值或错误处理
+	return getTyqwModelInternal(options...)
 }
 
-// 获取TYQW API Key
-func GetTyqwKey() string {
+// getTyqwModelInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTyqwModelInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TyqwModel
+		}
+		return "default-model" // 默认值或错误处理
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	modelInterface, err := prompt.GetSettingFromFilename(basename, "TyqwModel")
+	if err != nil {
+		log.Println("Error retrieving TyqwModel:", err)
+		return getTyqwModelInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	model, ok := modelInterface.(string)
+	if !ok || model == "" { // 检查类型断言是否失败或结果为空字符串
+		log.Println("Type assertion failed or empty string for TyqwModel, fetching default")
+		return getTyqwModelInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return model
+}
+
+// GetTyqwKey 获取TYQW API Key，可接受basename作为参数
+func GetTyqwKey(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwApiKey
+	return getTyqwKeyInternal(options...)
+}
+
+// getTyqwKeyInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTyqwKeyInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TyqwApiKey
+		}
+		return "" // 默认值或错误处理，表示没有找到有效的API Key
 	}
-	return "" // 默认值或错误处理，表示没有找到有效的API Key
+
+	// 使用传入的 basename
+	basename := options[0]
+	apiKeyInterface, err := prompt.GetSettingFromFilename(basename, "TyqwApiKey")
+	if err != nil {
+		log.Println("Error retrieving TyqwApiKey:", err)
+		return getTyqwKeyInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	apiKey, ok := apiKeyInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for TyqwApiKey, fetching default")
+		return getTyqwKeyInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return apiKey
 }
 
 // 获取TYQW Workspace
@@ -2229,34 +2397,106 @@ func GetTyqworkspace() (string, error) {
 	return "", fmt.Errorf("configuration instance is not initialized") // 错误处理，当配置实例未初始化时
 }
 
-// GetGlmApiPath 获取GLM API路径
-func GetGlmApiPath() string {
+// GetGlmApiPath 获取GLM API路径，可接受basename作为参数
+func GetGlmApiPath(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmApiPath
-	}
-	return "" // 默认值或错误处理
+	return getGlmApiPathInternal(options...)
 }
 
-// GetGlmModel 获取模型编码
-func GetGlmModel() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmModel
+// getGlmApiPathInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGlmApiPathInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GlmApiPath
+		}
+		return "" // 默认值或错误处理
 	}
-	return ""
+
+	// 使用传入的 basename
+	basename := options[0]
+	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "GlmApiPath")
+	if err != nil {
+		log.Println("Error retrieving GlmApiPath:", err)
+		return getGlmApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	apiPath, ok := apiPathInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for GlmApiPath, fetching default")
+		return getGlmApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return apiPath
 }
 
-// GetGlmApiKey 获取模型编码
-func GetGlmApiKey() string {
+// GetGlmModel 获取模型编码，可接受basename作为参数
+func GetGlmModel(options ...string) string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmApiKey
+	return getGlmModelInternal(options...)
+}
+
+// getGlmModelInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGlmModelInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GlmModel
+		}
+		return "" // 默认值或错误处理
 	}
-	return ""
+
+	// 使用传入的 basename
+	basename := options[0]
+	modelInterface, err := prompt.GetSettingFromFilename(basename, "GlmModel")
+	if err != nil {
+		log.Println("Error retrieving GlmModel:", err)
+		return getGlmModelInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	model, ok := modelInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for GlmModel, fetching default")
+		return getGlmModelInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return model
+}
+
+// GetGlmApiKey 获取glm密钥，可接受basename作为参数
+func GetGlmApiKey(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getGlmApiKeyInternal(options...)
+}
+
+// getGlmApiKeyInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGlmApiKeyInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GlmApiKey
+		}
+		return "" // 默认值或错误处理
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	apiKeyInterface, err := prompt.GetSettingFromFilename(basename, "GlmApiKey")
+	if err != nil {
+		log.Println("Error retrieving GlmApiKey:", err)
+		return getGlmApiKeyInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	apiKey, ok := apiKeyInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for GlmApiKey, fetching default")
+		return getGlmApiKeyInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return apiKey
 }
 
 // GetGlmMaxTokens 获取模型输出的最大tokens数，可接受basename作为参数
@@ -2293,14 +2533,38 @@ func getGlmMaxTokensInternal(options ...string) int {
 	return maxTokens
 }
 
-// GetGlmTemperature 获取模型的采样温度
-func GetGlmTemperature() float64 {
+// GetGlmTemperature 获取模型的采样温度，可接受basename作为参数
+func GetGlmTemperature(options ...string) float64 {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmTemperature
+	return getGlmTemperatureInternal(options...)
+}
+
+// getGlmTemperatureInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGlmTemperatureInternal(options ...string) float64 {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GlmTemperature
+		}
+		return 0.95 // 默认值或错误处理
 	}
-	return 0.95 // 返回默认值
+
+	// 使用传入的 basename
+	basename := options[0]
+	temperatureInterface, err := prompt.GetSettingFromFilename(basename, "GlmTemperature")
+	if err != nil {
+		log.Println("Error retrieving GlmTemperature:", err)
+		return getGlmTemperatureInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	temperature, ok := temperatureInterface.(float64)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for GlmTemperature, fetching default")
+		return getGlmTemperatureInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return temperature
 }
 
 // GetGlmDoSample 获取是否启用采样策略
@@ -2343,14 +2607,38 @@ func GetGlmRequestID() string {
 	return "" // 返回默认值，表示没有设置
 }
 
-// GetGlmTopP 获取核取样概率
-func GetGlmTopP() float64 {
+// GetGlmTopP 获取核取样概率，可接受basename作为参数
+func GetGlmTopP(options ...string) float64 {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmTopP
+	return getGlmTopPInternal(options...)
+}
+
+// getGlmTopPInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGlmTopPInternal(options ...string) float64 {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GlmTopP
+		}
+		return 0.7 // 默认值或错误处理
 	}
-	return 0.7 // 返回默认值
+
+	// 使用传入的 basename
+	basename := options[0]
+	topPInterface, err := prompt.GetSettingFromFilename(basename, "GlmTopP")
+	if err != nil {
+		log.Println("Error retrieving GlmTopP:", err)
+		return getGlmTopPInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	topP, ok := topPInterface.(float64)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for GlmTopP, fetching default")
+		return getGlmTopPInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return topP
 }
 
 // GetGlmStop 获取停止生成的词列表
@@ -2373,12 +2661,36 @@ func GetGlmTools() []string {
 	return []string{} // 返回空切片，表示没有工具设置
 }
 
-// 获取GroupHintWords列表
-func GetGroupHintWords() []string {
+// GetGroupHintWords 获取GroupHintWords列表，可接受basename作为参数
+func GetGroupHintWords(options ...string) []string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GroupHintWords
+	return getGroupHintWordsInternal(options...)
+}
+
+// getGroupHintWordsInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGroupHintWordsInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GroupHintWords
+		}
+		return nil // 默认值或错误处理
 	}
-	return nil
+
+	// 使用传入的 basename
+	basename := options[0]
+	hintWordsInterface, err := prompt.GetSettingFromFilename(basename, "GroupHintWords")
+	if err != nil {
+		log.Println("Error retrieving GroupHintWords:", err)
+		return getGroupHintWordsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	hintWords, ok := hintWordsInterface.([]string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for GroupHintWords, fetching default")
+		return getGroupHintWordsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return hintWords
 }
