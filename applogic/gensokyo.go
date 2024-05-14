@@ -264,7 +264,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if utils.BlacklistIntercept(message, selfid) {
-			fmtf.Printf("userid:[%v]这位用户在黑名单中,被拦截", message.UserID)
+			fmtf.Printf("userid:[%v]groupid:[%v]这位用户或群在黑名单中,被拦截", message.UserID, message.GroupID)
 			return
 		}
 
