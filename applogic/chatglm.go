@@ -225,16 +225,16 @@ func (app *App) ChatHandlerGlm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 获取配置信息
-	apiKey := config.GetGlmApiKey()
+	apiKey := config.GetGlmApiKey(promptstr)
 	// 创建请求体的映射结构
 	requestBody := map[string]interface{}{
-		"model":       config.GetGlmModel(),
+		"model":       config.GetGlmModel(promptstr),
 		"messages":    messages,
 		"do_sample":   config.GetGlmDoSample(),
 		"stream":      config.GetuseSse(promptstr),
 		"temperature": config.GetGlmTemperature(),
 		"top_p":       config.GetGlmTopP(),
-		"max_tokens":  config.GetGlmMaxTokens(),
+		"max_tokens":  config.GetGlmMaxTokens(promptstr),
 		"stop":        config.GetGlmStop(),
 		//"tools":       config.GetGlmTools(), 不太清楚参数格式
 		"tool_choice": config.GetGlmToolChoice(),
