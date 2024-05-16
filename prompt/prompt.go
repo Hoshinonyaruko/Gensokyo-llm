@@ -192,6 +192,29 @@ func FindFirstSystemMessage(history []structs.Message) (structs.Message, error) 
 	return structs.Message{}, fmt.Errorf("no system message found in history")
 }
 
+// GetFirstSystemMessage returns the first message that is of "system" role.
+func GetFirstSystemMessageStruct(basename string) (structs.Message, error) {
+	lock.RLock()
+	defer lock.RUnlock()
+
+	filename := basename + ".yml"
+	promptFile, exists := promptsCache[filename]
+	if !exists {
+		return structs.Message{}, fmt.Errorf("no data for file: %s", filename)
+	}
+
+	for _, prompt := range promptFile.Prompts {
+		if prompt.Role == "system" || prompt.Role == "System" {
+			return structs.Message{
+				Text: prompt.Content,
+				Role: prompt.Role,
+			}, nil
+		}
+	}
+
+	return structs.Message{}, fmt.Errorf("no system message found in file: %s", filename)
+}
+
 // 返回除了 "system" 角色之外的所有消息
 // GetMessagesExcludingSystem returns a list of messages that are not of "system" role,
 // randomly selecting from options separated by "||" in prompt contents.
