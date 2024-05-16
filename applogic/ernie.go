@@ -133,12 +133,17 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 			// 处理增强QA逻辑
 			if config.GetEnhancedQA(promptstr) {
 				// 确保系统历史与用户或助手历史数量一致，如果不足，则补足空的历史记录
-				// 因为最后一个成员让给当前QA,所以-1
-				if len(systemHistory)-2 > len(userHistory) {
-					difference := len(systemHistory) - len(userHistory)
+				// 计算需要补足的历史记录数量
+				neededHistoryCount := len(systemHistory) - 2 // 最后两条留给当前QA处理
+				if neededHistoryCount > len(userHistory) {
+					// 补足用户或助手历史
+					difference := neededHistoryCount - len(userHistory)
 					for i := 0; i < difference; i++ {
-						userHistory = append(userHistory, structs.Message{Text: "", Role: "user"})
-						userHistory = append(userHistory, structs.Message{Text: "", Role: "assistant"})
+						if i%2 != 0 {
+							userHistory = append(userHistory, structs.Message{Text: "", Role: "user"})
+						} else {
+							userHistory = append(userHistory, structs.Message{Text: "", Role: "assistant"})
+						}
 					}
 				}
 

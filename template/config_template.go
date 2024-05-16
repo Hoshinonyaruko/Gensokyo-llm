@@ -155,7 +155,7 @@ settings:
   tyqwRepetitionPenalty : 1.1                       # 用于控制模型生成时的重复度。提高repetition_penalty时可以降低模型生成的重复度。1.0表示不做惩罚，默认为1.1。没有严格的取值范围。
   tyqwTopK: 40                                      # 从概率最高的K个令牌中采样
   tyqwSeed : 1234                                   # 生成时使用的随机数种子，用户控制模型生成内容的随机性。seed支持无符号64位整数，默认值为1234。在使用seed时，模型将尽可能生成相同或相似的结果，但目前不保证每次生成的结果完全相同。
-  tyqwSseType: 1                                    # 同gptSseType, 例如0代表不使用, 1代表使用
+  tyqwSseType: 1                                    # 1=默认,sse发新内容 2=sse内容递增(不推荐)
   tyqwGlobalPenalty: false                          # 是否在全局上应用频率惩罚
   tyqwStop:                                         # 停止生成的标记列表
     - "\n\nUser"                                    

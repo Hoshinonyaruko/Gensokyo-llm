@@ -128,7 +128,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			// 只获取系统提示词
-			systemMessage, err := prompt.FindFirstSystemMessage(history)
+			systemMessage, err := prompt.GetFirstSystemMessageStruct(promptstr)
 			if err != nil {
 				fmt.Println("Error:", err)
 			} else {
@@ -138,7 +138,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
+	// TODO: msgid是空的开始第一句也要处理 插入
 	// 获取历史信息
 	if msg.ParentMessageID != "" {
 		userhistory, err := app.getHistory(msg.ConversationID, msg.ParentMessageID)
@@ -159,28 +159,33 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 				fmtf.Printf("Error getting system history: %v,promptstr[%v]\n", err, promptstr)
 				return
 			}
-
-			// 处理增强QA逻辑
 			if config.GetEnhancedQA(promptstr) {
-				// 确保系统历史与用户或助手历史数量一致，如果不足，则补足空的历史记录
-				// 因为最后一个成员让给当前QA,所以-1
-				if len(systemHistory)-2 > len(userHistory) {
-					difference := len(systemHistory) - len(userHistory)
+				systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
+				if err != nil {
+					fmt.Printf("Error getting system history: %v\n", err)
+					return
+				}
+
+				// 计算需要补足的历史记录数量
+				neededHistoryCount := len(systemHistory) - 2 // 最后两条留给当前QA处理
+				if neededHistoryCount > len(userHistory) {
+					// 补足用户或助手历史
+					difference := neededHistoryCount - len(userHistory)
 					for i := 0; i < difference; i++ {
-						userHistory = append(userHistory, structs.Message{Text: "", Role: "user"})
-						userHistory = append(userHistory, structs.Message{Text: "", Role: "assistant"})
+						if i%2 != 0 {
+							userHistory = append(userHistory, structs.Message{Text: "", Role: "user"})
+						} else {
+							userHistory = append(userHistory, structs.Message{Text: "", Role: "assistant"})
+						}
 					}
 				}
 
-				// 如果系统历史中只有一个成员，跳过覆盖逻辑，留给后续处理
-				if len(systemHistory) > 1 {
-					// 将系统历史（除最后2个成员外）附加到相应的用户或助手历史上，采用倒序方式处理最近的记录
-					for i := 0; i < len(systemHistory)-2; i++ {
-						sysMsg := systemHistory[i]
-						index := len(userHistory) - len(systemHistory) + i
-						if index >= 0 && index < len(userHistory) && (userHistory[index].Role == "user" || userHistory[index].Role == "assistant") {
-							userHistory[index].Text += fmt.Sprintf(" (%s)", sysMsg.Text)
-						}
+				// 附加系统历史到用户或助手历史，除了最后两条
+				for i := 0; i < len(systemHistory)-2; i++ {
+					sysMsg := systemHistory[i]
+					index := len(userHistory) - neededHistoryCount + i
+					if index >= 0 && index < len(userHistory) {
+						userHistory[index].Text += fmt.Sprintf(" (%s)", sysMsg.Text)
 					}
 				}
 			} else {
@@ -199,6 +204,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 
 	// 构建请求到Tyqw API
 	apiURL := config.GetTyqwApiPath(promptstr)
+	fmtf.Printf("Tyqw请求地址:%v\n", apiURL)
 
 	// 构造消息历史和当前消息
 	messages := []map[string]interface{}{}
@@ -216,8 +222,11 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 	})
 
 	var isIncrementalOutput bool
-	if config.GetTyqwSseType(promptstr) == 1 {
+	tyqwssetype := config.GetTyqwSseType(promptstr)
+	if tyqwssetype == 1 {
 		isIncrementalOutput = true
+	} else if tyqwssetype == 2 {
+		isIncrementalOutput = false
 	}
 	// 获取配置信息
 	useSSE := config.GetuseSse(promptstr)
