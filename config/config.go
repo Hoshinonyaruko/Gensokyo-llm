@@ -262,6 +262,10 @@ func getMaxTokensHunyuanInternal(options ...string) int {
 		return getMaxTokensHunyuanInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if maxTokensHunyuan == 0 {
+		return getMaxTokensHunyuanInternal()
+	}
+
 	return maxTokensHunyuan
 }
 
@@ -316,6 +320,10 @@ func getWenxinApiPathInternal(options ...string) string {
 		return getWenxinApiPathInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if apiPath == "" {
+		return getWenxinApiPathInternal()
+	}
+
 	return apiPath
 }
 
@@ -358,6 +366,10 @@ func getGptModelInternal(options ...string) string {
 	if !ok || gptModel == "" { // 检查是否断言失败或结果为空字符串
 		fmt.Println("Type assertion failed or empty string for GptModel, fetching default")
 		return getGptModelInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if gptModel == "" {
+		return getGptModelInternal()
 	}
 
 	return gptModel
@@ -2063,6 +2075,10 @@ func getTyqwApiPathInternal(options ...string) string {
 		return getTyqwApiPathInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if apiPath == "" {
+		return getTyqwApiPathInternal()
+	}
+
 	return apiPath
 }
 
@@ -2095,6 +2111,10 @@ func getTyqwMaxTokensInternal(options ...string) int {
 	if !ok { // 检查类型断言是否失败
 		fmt.Println("Type assertion failed for TyqwMaxTokens, fetching default")
 		return getTyqwMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if maxTokens == 0 {
+		return getTyqwMaxTokensInternal()
 	}
 
 	return maxTokens
@@ -2131,6 +2151,10 @@ func getTyqwTemperatureInternal(options ...string) float64 {
 		return getTyqwTemperatureInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if temperature == 0 {
+		return getTyqwTemperatureInternal()
+	}
+
 	return temperature
 }
 
@@ -2163,6 +2187,10 @@ func getTyqwTopPInternal(options ...string) float64 {
 	if !ok { // 检查类型断言是否失败
 		log.Println("Type assertion failed for TyqwTopP, fetching default")
 		return getTyqwTopPInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if topP == 0 {
+		return getTyqwTopPInternal()
 	}
 
 	return topP
@@ -2199,6 +2227,10 @@ func getTyqwTopKInternal(options ...string) int {
 		return getTyqwTopKInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if topK == 0 {
+		return getTyqwTopKInternal()
+	}
+
 	return topK
 }
 
@@ -2231,6 +2263,10 @@ func getTyqwSseTypeInternal(options ...string) int {
 	if !ok { // 检查类型断言是否失败
 		log.Println("Type assertion failed for TyqwSseType, fetching default")
 		return getTyqwSseTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if sseType == 0 {
+		return getTyqwSseTypeInternal()
 	}
 
 	return sseType
@@ -2347,6 +2383,10 @@ func getTyqwModelInternal(options ...string) string {
 		return getTyqwModelInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if model == "" {
+		return getTyqwModelInternal()
+	}
+
 	return model
 }
 
@@ -2379,6 +2419,10 @@ func getTyqwKeyInternal(options ...string) string {
 	if !ok { // 检查类型断言是否失败
 		log.Println("Type assertion failed for TyqwApiKey, fetching default")
 		return getTyqwKeyInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if apiKey == "" {
+		return getTyqwKeyInternal()
 	}
 
 	return apiKey
