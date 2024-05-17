@@ -70,6 +70,17 @@ func PrintChatStdRequest(request *hunyuan.ChatStdRequest) {
 
 }
 
+func PrintChatCompletionsRequest(request *hunyuan.ChatCompletionsRequest) {
+
+	// 打印Messages
+	for i, msg := range request.Messages {
+		fmtf.Printf("Message %d:\n", i)
+		fmtf.Printf("Content: %s\n", *msg.Content)
+		fmtf.Printf("Role: %s\n", *msg.Role)
+	}
+
+}
+
 // contains 检查一个字符串切片是否包含一个特定的字符串
 func Contains(slice []string, item string) bool {
 	for _, a := range slice {
