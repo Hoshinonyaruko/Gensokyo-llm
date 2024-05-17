@@ -99,7 +99,10 @@ settings:
   secretKey : ""
   region : ""                                   #留空
   maxTokensHunyuan : 4096                       #最大上下文
-  hunyuanType : 0                               #0=高级版 1=标准版 价格差异10倍
+  hunyuanType : 0                               #0=高级版 1=标准版std 2=hunyuan-lite 3=hunyuan-standard 4=hunyuan-standard-256K 5=hunyuan-pro
+  hunyuanStreamModeration : false               #是否采用流式审核
+  topPHunyuan : 1.0                             #累积概率最高的令牌进行采样的界限
+  temperatureHunyuan : 1.0                      #生成的随机性控制
 
   #文心配置项
   wenxinAccessToken : ""                        #请求百度access_token接口获取到的,有效期一个月,需要自己请求获取

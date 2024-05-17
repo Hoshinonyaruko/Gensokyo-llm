@@ -264,8 +264,11 @@ type Settings struct {
 	MdPromptKeyboardAtGroup bool     `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
 	GroupHintWords          []string `yaml:"groupHintWords"`
 
-	HunyuanType      int `yaml:"hunyuanType"`
-	MaxTokensHunyuan int `yaml:"maxTokensHunyuan"`
+	HunyuanType             int     `yaml:"hunyuanType"`
+	MaxTokensHunyuan        int     `yaml:"maxTokensHunyuan"`
+	HunyuanStreamModeration bool    `yaml:"hunyuanStreamModeration"`
+	TopPHunyuan             float64 `yaml:"topPHunyuan"`
+	TemperatureHunyuan      float64 `yaml:"temperatureHunyuan"`
 
 	WenxinAccessToken     string  `yaml:"wenxinAccessToken"`
 	WenxinApiPath         string  `yaml:"wenxinApiPath"`
