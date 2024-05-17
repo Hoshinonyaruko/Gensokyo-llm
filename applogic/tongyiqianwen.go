@@ -138,7 +138,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	// TODO: msgid是空的开始第一句也要处理 插入
+
 	// 获取历史信息
 	if msg.ParentMessageID != "" {
 		userhistory, err := app.getHistory(msg.ConversationID, msg.ParentMessageID)
@@ -159,6 +159,8 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 				fmtf.Printf("Error getting system history: %v,promptstr[%v]\n", err, promptstr)
 				return
 			}
+
+			// 处理增强QA逻辑
 			if config.GetEnhancedQA(promptstr) {
 				systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
 				if err != nil {

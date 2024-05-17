@@ -1229,6 +1229,10 @@ func getRwkvMaxTokensInternal(options ...string) int {
 		return getRwkvMaxTokensInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if maxTokens == 0 {
+		return getRwkvMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
 	return maxTokens
 }
 
@@ -2737,4 +2741,100 @@ func getGroupHintWordsInternal(options ...string) []string {
 	}
 
 	return hintWords
+}
+
+// 获取HunyuanStreamModeration值
+func GetHunyuanStreamModeration(options ...string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return getHunyuanStreamModerationInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getHunyuanStreamModerationInternal(options ...string) bool {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.HunyuanStreamModeration
+		}
+		return false
+	}
+
+	basename := options[0]
+	valueInterface, err := prompt.GetSettingFromFilename(basename, "HunyuanStreamModeration")
+	if err != nil {
+		log.Println("Error retrieving HunyuanStreamModeration:", err)
+		return getHunyuanStreamModerationInternal()
+	}
+
+	value, ok := valueInterface.(bool)
+	if !ok || !value {
+		log.Println("Fetching default HunyuanStreamModeration")
+		return getHunyuanStreamModerationInternal()
+	}
+
+	return value
+}
+
+// 获取TopPHunyuan值
+func GetTopPHunyuan(options ...string) float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	return getTopPHunyuanInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTopPHunyuanInternal(options ...string) float64 {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TopPHunyuan
+		}
+		return 0.0
+	}
+
+	basename := options[0]
+	valueInterface, err := prompt.GetSettingFromFilename(basename, "TopPHunyuan")
+	if err != nil {
+		log.Println("Error retrieving TopPHunyuan:", err)
+		return getTopPHunyuanInternal()
+	}
+
+	value, ok := valueInterface.(float64)
+	if !ok || value == 0.0 {
+		log.Println("Fetching default TopPHunyuan")
+		return getTopPHunyuanInternal()
+	}
+
+	return value
+}
+
+// 获取TemperatureHunyuan值
+func GetTemperatureHunyuan(options ...string) float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	return getTemperatureHunyuanInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getTemperatureHunyuanInternal(options ...string) float64 {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.TemperatureHunyuan
+		}
+		return 0.0
+	}
+
+	basename := options[0]
+	valueInterface, err := prompt.GetSettingFromFilename(basename, "TemperatureHunyuan")
+	if err != nil {
+		log.Println("Error retrieving TemperatureHunyuan:", err)
+		return getTemperatureHunyuanInternal()
+	}
+
+	value, ok := valueInterface.(float64)
+	if !ok || value == 0.0 {
+		log.Println("Fetching default TemperatureHunyuan")
+		return getTemperatureHunyuanInternal()
+	}
+
+	return value
 }
