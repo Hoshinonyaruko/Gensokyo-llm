@@ -11,6 +11,16 @@ _✨ 适用于Gensokyo以及Onebotv11的大模型一键端 ✨_
 </div> 
 
 ---
+## 文档&教程
+
+[初阶-简单接入机器人](/docs/初阶-简单接入机器人.md):简单将机器人接入QQ等6大平台
+
+[中级-对接one-api教程](/docs/中级-对接one-api教程.md):可视化管理大模型api
+
+[中级-大模型api配置示例-国产大模型](/docs/中级-大模型api配置示例-国产大模型.md)
+
+[中级-大模型api配置示例-国际篇](/docs/中级-大模型api配置示例-国际篇.md)
+---
 
 ## 特性
 
@@ -111,12 +121,6 @@ AhoCorasick算法实现的超高效文本IN-Out替换规则，可大量替换n�
 
 ---
 
-## 使用教程
-
-施工中...(部署非常简单,有一定onebotv11机器人部署经验者可参考config.yml注释直接部署出来.)
-
----
-
 # API接口调用说明
 
 本文档提供了关于API接口的调用方法和配置文件的格式说明，帮助用户正确使用和配置。
@@ -170,7 +174,7 @@ GET /gensokyo?prompt=example&api=conversation_ernie
 
 支持端点列表:(需配置:allApi : true)
 ```golang
-http.HandleFunc("/conversation_gpt", app.ChatHandlerChatgpt)
+    http.HandleFunc("/conversation_gpt", app.ChatHandlerChatgpt)
 		http.HandleFunc("/conversation_hunyuan", app.ChatHandlerHunyuan)
 		http.HandleFunc("/conversation_ernie", app.ChatHandlerErnie)
 		http.HandleFunc("/conversation_rwkv", app.ChatHandlerRwkv)
