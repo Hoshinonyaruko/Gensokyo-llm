@@ -59,7 +59,7 @@ func (app *App) ChatHandlerGlm(w http.ResponseWriter, r *http.Request) {
 
 	// 读取URL参数 "userid"
 	useridstr := r.URL.Query().Get("userid")
-	if promptstr != "" {
+	if useridstr != "" {
 		// prompt 参数存在，可以根据需要进一步处理或记录
 		fmtf.Printf("Received userid parameter: %s\n", useridstr)
 	}
