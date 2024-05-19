@@ -231,6 +231,16 @@ func IPWhiteList() []string {
 	return nil
 }
 
+// 获取HttpPaths
+func GetHttpPaths() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.HttpPaths
+	}
+	return nil
+}
+
 // 获取最大上下文
 func GetMaxTokensHunyuan(options ...string) int {
 	mu.Lock()

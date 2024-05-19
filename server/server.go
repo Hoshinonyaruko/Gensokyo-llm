@@ -30,12 +30,49 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// 全局变量和互斥锁
+var (
+	selfIDs   []string
+	selfIDsMu sync.Mutex
+)
+
+// AddSelfID 添加一个 ID 到全局切片中
+func AddSelfID(id string) {
+	selfIDsMu.Lock()
+	defer selfIDsMu.Unlock()
+	selfIDs = append(selfIDs, id)
+}
+
+// GetSelfIDs 返回当前保存的所有 ID
+func GetSelfIDs() []string {
+	selfIDsMu.Lock()
+	defer selfIDsMu.Unlock()
+	// 返回切片的副本以防止外部修改
+	copiedIDs := make([]string, len(selfIDs))
+	copy(copiedIDs, selfIDs)
+	return copiedIDs
+}
+
+// IsSelfIDExists 检查一个 ID 是否存在于全局切片中
+func IsSelfIDExists(id string) bool {
+	selfIDsMu.Lock()
+	defer selfIDsMu.Unlock()
+	for _, sid := range selfIDs {
+		if sid == id {
+			return true
+		}
+	}
+	return false
+}
+
 // 用于处理WebSocket连接
 func WsHandler(w http.ResponseWriter, r *http.Request, config *config.Config) {
 	// 从请求头或URL查询参数中提取token
 	tokenFromHeader := r.Header.Get("Authorization")
 	selfID := r.Header.Get("X-Self-ID")
 	fmtf.Printf("接入机器人X-Self-ID[%v]", selfID)
+	// 加入到数组里
+	AddSelfID(selfID)
 	var token string
 	if strings.HasPrefix(tokenFromHeader, "Token ") {
 		token = strings.TrimPrefix(tokenFromHeader, "Token ")
@@ -86,13 +123,13 @@ func WsHandler(w http.ResponseWriter, r *http.Request, config *config.Config) {
 		}
 
 		if messageType == websocket.TextMessage {
-			processWSMessage(p, selfID)
+			processWSMessage(p)
 		}
 	}
 }
 
 // 处理收到的信息
-func processWSMessage(msg []byte, selfid string) {
+func processWSMessage(msg []byte) {
 	var genericMap map[string]interface{}
 	if err := json.Unmarshal(msg, &genericMap); err != nil {
 		log.Printf("Error unmarshalling message to map: %v, Original message: %s\n", err, string(msg))
@@ -131,9 +168,9 @@ func processWSMessage(msg []byte, selfid string) {
 			// 构造请求URL
 			var url string
 			if config.GetLotus() == "" {
-				url = "http://127.0.0.1:" + fmt.Sprint(port) + "/gensokyo?selfid=" + selfid
+				url = "http://127.0.0.1:" + fmt.Sprint(port) + "/gensokyo"
 			} else {
-				url = config.GetLotus() + "/gensokyo?selfid=" + selfid
+				url = config.GetLotus() + "/gensokyo"
 			}
 
 			// 创建POST请求

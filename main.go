@@ -195,6 +195,11 @@ func main() {
 		log.Fatalf("Failed to load blacklist: %v", err)
 	}
 
+	// 判断是否设置多个http地址,获取对应关系
+	if len(config.GetHttpPaths()) > 0 {
+		utils.FetchAndStoreUserIDs()
+	}
+
 	// 启动黑名单文件变动监听
 	go utils.WatchBlacklist(blacklistPath)
 
