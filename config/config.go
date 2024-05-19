@@ -450,6 +450,10 @@ func getGptTokenInternal(options ...string) string {
 		return getGptTokenInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if gptToken == "" {
+		return getGptTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
 	return gptToken
 }
 
@@ -481,6 +485,10 @@ func getMaxTokenGptInternal(options ...string) int {
 	maxTokenGpt, ok := maxTokenGptInterface.(int)
 	if !ok { // 检查是否断言失败
 		fmt.Println("Type assertion failed for MaxTokenGpt, fetching default")
+		return getMaxTokenGptInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if maxTokenGpt == 0 {
 		return getMaxTokenGptInternal() // 递归调用内部函数，不传递任何参数
 	}
 
@@ -2486,6 +2494,10 @@ func getGlmApiPathInternal(options ...string) string {
 		return getGlmApiPathInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if apiPath == "" {
+		return getGlmApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
 	return apiPath
 }
 
@@ -2517,6 +2529,10 @@ func getGlmModelInternal(options ...string) string {
 	model, ok := modelInterface.(string)
 	if !ok { // 检查类型断言是否失败
 		log.Println("Type assertion failed for GlmModel, fetching default")
+		return getGlmModelInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if model == "" {
 		return getGlmModelInternal() // 递归调用内部函数，不传递任何参数
 	}
 
@@ -2554,6 +2570,10 @@ func getGlmApiKeyInternal(options ...string) string {
 		return getGlmApiKeyInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if apiKey == "" {
+		return getGlmApiKeyInternal() // 递归调用内部函数，不传递任何参数
+	}
+
 	return apiKey
 }
 
@@ -2588,6 +2608,10 @@ func getGlmMaxTokensInternal(options ...string) int {
 		return getGlmMaxTokensInternal() // 递归调用内部函数，不传递任何参数
 	}
 
+	if maxTokens == 0 {
+		return getGlmMaxTokensInternal() // 递归调用内部函数，不传递任何参数
+	}
+
 	return maxTokens
 }
 
@@ -2619,6 +2643,10 @@ func getGlmTemperatureInternal(options ...string) float64 {
 	temperature, ok := temperatureInterface.(float64)
 	if !ok { // 检查类型断言是否失败
 		log.Println("Type assertion failed for GlmTemperature, fetching default")
+		return getGlmTemperatureInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if temperature == 0 {
 		return getGlmTemperatureInternal() // 递归调用内部函数，不传递任何参数
 	}
 
@@ -2693,6 +2721,10 @@ func getGlmTopPInternal(options ...string) float64 {
 	topP, ok := topPInterface.(float64)
 	if !ok { // 检查类型断言是否失败
 		log.Println("Type assertion failed for GlmTopP, fetching default")
+		return getGlmTopPInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if topP == 0 {
 		return getGlmTopPInternal() // 递归调用内部函数，不传递任何参数
 	}
 
