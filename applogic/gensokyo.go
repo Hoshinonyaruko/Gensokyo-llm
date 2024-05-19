@@ -206,18 +206,14 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 读取URL参数 "selfid"
-	selfid := r.URL.Query().Get("selfid")
-	if selfid != "" {
-		// 使用 prompt 变量进行后续处理
-		fmt.Printf("收到selfid参数: %s\n", selfid)
-	}
+	// 直接从ob11事件获取selfid
+	selfid := strconv.FormatInt(message.SelfID, 10)
 
 	// 读取URL参数 "api"
 	api := r.URL.Query().Get("api")
-	if selfid != "" {
+	if api != "" {
 		// 使用 prompt 变量进行后续处理
-		fmt.Printf("收到api参数: %s\n", selfid)
+		fmt.Printf("收到api参数: %s\n", api)
 	}
 
 	// 打印日志信息，包括prompt参数

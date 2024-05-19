@@ -32,16 +32,6 @@ _✨ 适用于Gensokyo以及Onebotv11的大模型一键端 ✨_
 
 并发环境下的sse内存安全，支持维持多用户同时双向sse传输
 
----
-
-## 效果
-
-![效果图](/pic/3.png)
-
-![效果图](/pic/4.png)
-
----
-
 ## 支持llm平台
 
 腾讯混元
@@ -116,6 +106,14 @@ AhoCorasick算法实现的超高效文本IN-Out替换规则，可大量替换n�
 配置config.yml 启动，后监听 port 端口 提供/conversation api
 
 支持中间件开发,在gensokyo框架层到gensokyo-llm的http请求之间,可开发中间件实现向量拓展,数据库拓展,动态修改用户问题.
+
+支持反向ws连接,支持同时连接多个onebotv11的http-api
+
+---
+
+## 使用教程
+
+施工中...(部署非常简单,有一定onebotv11机器人部署经验者可参考config.yml注释直接部署出来.)
 
 ---
 
@@ -284,6 +282,16 @@ switchOnQ代表在Q中寻找到匹配文本时切换当前分支,A同理,其语�
 exitOnQ需要enhancedPromptChoices=true,其实enhancedPromptChoices最好就是true的,其/左侧固定为退出(这里任意,右侧是触发词,退出没有具体作用)
 
 promptMarks和switchOnQ、switchOnA在功能上是相同的，都是根据关键字跳转分支，promptMarks先执行，不分轮次不分QA，switchOnQ和switchOnA更具体，区分Q和A，区分轮次，实现细节跳转。
+
+---
+
+## 故事模式效果(QQ开放平台)
+
+![效果图](/pic/3.png)
+
+![效果图](/pic/4.png)
+
+---
 
 ## 已知问题
 

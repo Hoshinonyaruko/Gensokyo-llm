@@ -44,6 +44,57 @@ type MessageIDInfo struct {
 var UserIDMessageIDs = make(map[int64][]MessageIDInfo)
 var muUserIDMessageIDs sync.RWMutex // 用于UserIDMessageIDs的读写锁
 
+var (
+	baseURLMap   = make(map[string]string)
+	baseURLMapMu sync.Mutex
+)
+
+// 结构体用于解析 JSON 响应
+type loginInfoResponse struct {
+	Status  string `json:"status"`
+	Retcode int    `json:"retcode"`
+	Data    struct {
+		UserID   int64  `json:"user_id"`
+		Nickname string `json:"nickname"`
+	} `json:"data"`
+}
+
+// 构造 URL 并请求数据
+func FetchAndStoreUserIDs() {
+	httpPaths := config.GetHttpPaths()
+	for _, baseURL := range httpPaths {
+		url := baseURL + "/get_login_info"
+		resp, err := http.Get(url)
+		if err != nil {
+			fmtf.Printf("Error fetching login info from %s: %v", url, err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		var result loginInfoResponse
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			fmtf.Printf("Error decoding response from %s: %v", url, err)
+			continue
+		}
+
+		if result.Retcode == 0 && result.Status == "ok" {
+			fmtf.Printf("成功绑定机器人selfid[%v]onebot api baseURL[%v]", result.Data.UserID, baseURL)
+			baseURLMapMu.Lock()
+			useridstr := strconv.FormatInt(result.Data.UserID, 10)
+			baseURLMap[useridstr] = baseURL
+			baseURLMapMu.Unlock()
+		}
+	}
+}
+
+// GetBaseURLByUserID 通过 user_id 获取 baseURL
+func GetBaseURLByUserID(userID string) (string, bool) {
+	baseURLMapMu.Lock()
+	defer baseURLMapMu.Unlock()
+	url, exists := baseURLMap[userID]
+	return url, exists
+}
+
 func GenerateUUID() string {
 	return uuid.New().String()
 }
@@ -158,7 +209,7 @@ func ExtractEventDetails(eventData map[string]interface{}) (string, structs.Usag
 
 func SendGroupMessage(groupID int64, userID int64, message string, selfid string) error {
 	//TODO: 用userid作为了echo,在ws收到回调信息的时候,加入到全局撤回数组,AddMessageID,实现撤回
-	if selfid != "" {
+	if server.IsSelfIDExists(selfid) {
 		// 创建消息结构体
 		msg := map[string]interface{}{
 			"action": "send_group_msg",
@@ -173,8 +224,13 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 		// 发送消息
 		return server.SendMessageBySelfID(selfid, msg)
 	}
-	// 获取基础URL
-	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	var baseURL string
+	if len(config.GetHttpPaths()) > 0 {
+		baseURL, _ = GetBaseURLByUserID(selfid)
+	} else {
+		// 获取基础URL
+		baseURL = config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	}
 
 	// 构建完整的URL
 	baseURL = baseURL + "/send_group_msg"
@@ -255,7 +311,7 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 
 func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message string, selfid string, newmsg string, response string, promptstr string) error {
 	//TODO: 用userid作为了echo,在ws收到回调信息的时候,加入到全局撤回数组,AddMessageID,实现反向ws连接时候的撤回
-	if selfid != "" {
+	if server.IsSelfIDExists(selfid) {
 		// 创建消息结构体
 		msg := map[string]interface{}{
 			"action": "send_group_msg",
@@ -493,7 +549,7 @@ func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message strin
 }
 
 func SendPrivateMessage(UserID int64, message string, selfid string) error {
-	if selfid != "" {
+	if server.IsSelfIDExists(selfid) {
 		// 创建消息结构体
 		msg := map[string]interface{}{
 			"action": "send_private_msg",
@@ -507,8 +563,13 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 		// 发送消息
 		return server.SendMessageBySelfID(selfid, msg)
 	}
-	// 获取基础URL
-	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	var baseURL string
+	if len(config.GetHttpPaths()) > 0 {
+		baseURL, _ = GetBaseURLByUserID(selfid)
+	} else {
+		// 获取基础URL
+		baseURL = config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	}
 
 	// 构建完整的URL
 	baseURL = baseURL + "/send_private_msg"
@@ -587,7 +648,7 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 }
 
 func SendPrivateMessageRaw(UserID int64, message string, selfid string) error {
-	if selfid != "" {
+	if server.IsSelfIDExists(selfid) {
 		// 创建消息结构体
 		msg := map[string]interface{}{
 			"action": "send_private_msg",
@@ -601,8 +662,13 @@ func SendPrivateMessageRaw(UserID int64, message string, selfid string) error {
 		// 发送消息
 		return server.SendMessageBySelfID(selfid, msg)
 	}
-	// 获取基础URL
-	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	var baseURL string
+	if len(config.GetHttpPaths()) > 0 {
+		baseURL, _ = GetBaseURLByUserID(selfid)
+	} else {
+		// 获取基础URL
+		baseURL = config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	}
 
 	// 构建完整的URL
 	baseURL = baseURL + "/send_private_msg"

@@ -254,6 +254,7 @@ type Settings struct {
 	Port                    int      `yaml:"port"`
 	SelfPath                string   `yaml:"selfPath"`
 	HttpPath                string   `yaml:"path"`
+	HttpPaths               []string `yaml:"paths"`
 	Lotus                   string   `yaml:"lotus"`
 	PathToken               string   `yaml:"pathToken"`
 	SystemPrompt            []string `yaml:"systemPrompt"`
