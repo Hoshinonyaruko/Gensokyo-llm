@@ -168,6 +168,16 @@ settings:
 GET /gensokyo?prompt=example&api=conversation_ernie
 ```
 
+支持端点列表:(需配置:allApi : true)
+```golang
+http.HandleFunc("/conversation_gpt", app.ChatHandlerChatgpt)
+		http.HandleFunc("/conversation_hunyuan", app.ChatHandlerHunyuan)
+		http.HandleFunc("/conversation_ernie", app.ChatHandlerErnie)
+		http.HandleFunc("/conversation_rwkv", app.ChatHandlerRwkv)
+		http.HandleFunc("/conversation_tyqw", app.ChatHandlerTyqw)
+		http.HandleFunc("/conversation_glm", app.ChatHandlerGlm)
+```
+
 ## 请求 `/conversation` 端点
 
 与 `/gensokyo` 类似，`/conversation` 端点支持附加 `prompt` 参数。
