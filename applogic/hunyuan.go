@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
@@ -15,8 +16,12 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
 
-var messageBuilder strings.Builder
-var groupUserMessages sync.Map
+var (
+	messageBuilder               strings.Builder
+	groupUserMessages            sync.Map
+	mutexhunyuan                 sync.Mutex
+	lastCompleteResponseshunyuan sync.Map // 存储每个conversationId的完整累积信息
+)
 
 func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -655,10 +660,16 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			var responseTextBuilder strings.Builder
-			var totalUsage structs.UsageInfo
+			// 生成一个随机的UUID
+			randomUUID, err := uuid.NewRandom()
+			if err != nil {
+				http.Error(w, "Failed to generate UUID", http.StatusInternalServerError)
+				return
+			}
 
+			var totalUsage structs.UsageInfo // 有并发问题
 			for event := range response.BaseSSEResponse.Events {
+
 				if event.Err != nil {
 					fmtf.Fprintf(w, "data: %s\n\n", fmtf.Sprintf("接收事件时发生错误: %v", event.Err))
 					flusher.Flush()
@@ -673,13 +684,24 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
+				// 在修改共享资源之前锁定Mutex
+				mutexhunyuan.Lock()
+				// 由于同一个上下文中 msg.ConversationID是相同的,而我们要区分更细粒度 所以添加UUID openai的api则设计了更细粒度的stramid,可以直接使用
+				conversationId := msg.ConversationID + randomUUID.String()
+				// 读取完整信息
+				completeResponse, _ := lastCompleteResponseshunyuan.LoadOrStore(conversationId, "")
+				// 提取出本次请求的响应
 				responseText, usageInfo := utils.ExtractEventDetails(eventData)
-				responseTextBuilder.WriteString(responseText)
+				// 更新存储的完整累积信息
+				updatedCompleteResponse := completeResponse.(string) + responseText
+				lastCompleteResponseshunyuan.Store(conversationId, updatedCompleteResponse)
+				// 完成修改后解锁Mutex
+				mutexhunyuan.Unlock()
+
 				totalUsage.PromptTokens += usageInfo.PromptTokens
 				totalUsage.CompletionTokens += usageInfo.CompletionTokens
 
-				// 发送当前事件的响应数据，但不包含assistantMessageID
-				//fmtf.Printf("发送当前事件的响应数据，但不包含assistantMessageID\n")
+				// 构建并发送当前事件的响应数据
 				tempResponseMap := map[string]interface{}{
 					"response":       responseText,
 					"conversationId": msg.ConversationID,
@@ -693,12 +715,13 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// 处理完所有事件后，生成并发送包含assistantMessageID的最终响应
-			responseText := responseTextBuilder.String()
-			fmtf.Printf("处理完所有事件后,生成并发送包含assistantMessageID的最终响应:%v\n", responseText)
+			conversationId := msg.ConversationID + randomUUID.String()
+			completeResponse, _ := lastCompleteResponseshunyuan.LoadOrStore(conversationId, "")
+			fmtf.Printf("处理完所有事件后,生成并发送包含assistantMessageID的最终响应:%v\n", completeResponse.(string))
 			assistantMessageID, err := app.addMessage(structs.Message{
 				ConversationID:  msg.ConversationID,
 				ParentMessageID: userMessageID,
-				Text:            responseText,
+				Text:            completeResponse.(string),
 				Role:            "assistant",
 			})
 
@@ -708,7 +731,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			}
 
 			finalResponseMap := map[string]interface{}{
-				"response":       responseText,
+				"response":       completeResponse.(string),
 				"conversationId": msg.ConversationID,
 				"messageId":      assistantMessageID,
 				"details": map[string]interface{}{
@@ -720,7 +743,6 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
-
 }
 
 func truncateHistoryHunYuan(history []structs.Message, prompt string, promptstr string) []structs.Message {
