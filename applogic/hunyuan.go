@@ -17,7 +17,6 @@ import (
 )
 
 var (
-	messageBuilder               strings.Builder
 	groupUserMessages            sync.Map
 	mutexhunyuan                 sync.Mutex
 	lastCompleteResponseshunyuan sync.Map // 存储每个conversationId的完整累积信息
