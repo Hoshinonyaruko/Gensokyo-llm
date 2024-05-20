@@ -23,11 +23,14 @@ import (
 var newmsgToStringMap = make(map[string]string)
 var stringToIndexMap sync.Map
 var processMessageMu sync.Mutex
+var messages sync.Map
 
 // UserInfo 结构体用于储存用户信息
 type UserInfo struct {
-	UserID  int64
-	GroupID int64
+	UserID          int64
+	GroupID         int64
+	RealMessageType string
+	MessageType     string
 }
 
 // globalMap 用于存储conversationID与UserInfo的映射
@@ -474,10 +477,10 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// 请求conversation api 增加当前用户上下文
 		conversationID, parentMessageID, err := app.handleUserContext(message.UserID)
 		// 使用map映射conversationID和uid gid的关系
-		StoreUserInfo(conversationID, message.UserID, message.GroupID)
+		StoreUserInfo(conversationID, message.UserID, message.GroupID, message.RealMessageType, message.MessageType)
 
 		//每句话清空上一句话的messageBuilder
-		messageBuilder.Reset()
+		ClearMessage(conversationID)
 		fmtf.Printf("conversationID: %s,parentMessageID%s\n", conversationID, parentMessageID)
 		if err != nil {
 			fmtf.Printf("Error handling user context: %v\n", err)
@@ -624,9 +627,13 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 					//接收到最后一条信息
 					if id, ok := responseData["messageId"].(string); ok {
 
+						conversationid := responseData["conversationId"].(string)
+						// 从conversation对应的sync map取出对应的用户和群号,避免高并发内容发送错乱
+						userinfo, _ := GetUserInfo(conversationid)
+
 						lastMessageID = id // 更新lastMessageID
 						// 检查是否有未发送的消息部分
-						key := utils.GetKey(message.GroupID, message.UserID)
+						key := utils.GetKey(userinfo.GroupID, userinfo.UserID)
 						accumulatedMessageInterface, exists := groupUserMessages.Load(key)
 						var accumulatedMessage string
 						if exists {
@@ -645,9 +652,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								if newPart != "" {
 									fmtf.Printf("A完整信息: %s,已发送信息:%s 新部分:%s\n", response, accumulatedMessage, newPart)
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
-									if message.RealMessageType == "group_private" || message.MessageType == "private" {
+									if userinfo.RealMessageType == "group_private" || userinfo.MessageType == "private" {
 										if !config.GetUsePrivateSSE() {
-											utils.SendPrivateMessage(message.UserID, newPart, selfid)
+											utils.SendPrivateMessage(userinfo.UserID, newPart, selfid)
 										} else {
 											//判断是否最后一条
 											var state int
@@ -660,23 +667,23 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 												Content: newPart,
 												State:   state,
 											}
-											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE)
 										}
 									} else {
 										// 这里发送的是newPart api最后补充的部分
 										if !config.GetMdPromptKeyboardAtGroup() {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessage(message.GroupID, message.UserID, newPart, selfid)
+												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, newPart, selfid)
 											} else {
-												utils.SendGroupMessage(message.GroupID, message.UserID, newPart+EnhancedAContent, selfid)
+												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, newPart+EnhancedAContent, selfid)
 											}
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, newPart, selfid, newmsg, response, promptstr)
+												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, newPart+EnhancedAContent, selfid, newmsg, response, promptstr)
+												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart+EnhancedAContent, selfid, newmsg, response, promptstr)
 											}
 										}
 									}
@@ -690,13 +697,13 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								fmtf.Printf("B完整信息: %s,已发送信息:%s", response, accumulatedMessage)
 								if accumulatedMessage == "" {
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
-									if message.RealMessageType == "group_private" || message.MessageType == "private" {
+									if userinfo.RealMessageType == "group_private" || userinfo.MessageType == "private" {
 										if !config.GetUsePrivateSSE() {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendPrivateMessage(message.UserID, response, selfid)
+												utils.SendPrivateMessage(userinfo.UserID, response, selfid)
 											} else {
-												utils.SendPrivateMessage(message.UserID, response+EnhancedAContent, selfid)
+												utils.SendPrivateMessage(userinfo.UserID, response+EnhancedAContent, selfid)
 											}
 										} else {
 											//判断是否最后一条
@@ -710,22 +717,22 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 												Content: response,
 												State:   state,
 											}
-											utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE)
 										}
 									} else {
 										if !config.GetMdPromptKeyboardAtGroup() {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessage(message.GroupID, message.UserID, response, selfid)
+												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, response, selfid)
 											} else {
-												utils.SendGroupMessage(message.GroupID, message.UserID, response+EnhancedAContent, selfid)
+												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, response+EnhancedAContent, selfid)
 											}
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, response, selfid, newmsg, response, promptstr)
+												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(message.GroupID, message.UserID, response+EnhancedAContent, selfid, newmsg, response, promptstr)
+												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response+EnhancedAContent, selfid, newmsg, response, promptstr)
 											}
 										}
 
@@ -733,7 +740,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 								}
 							}
 							// 提示词 整体切换A
-							app.ProcessPromptMarks(message.UserID, response, &promptstr)
+							app.ProcessPromptMarks(userinfo.UserID, response, &promptstr)
 							// 清空之前加入缓存
 							// 缓存省钱部分 这里默认不被覆盖,如果主配置开了缓存,始终缓存.
 							if config.GetUseCache() {
@@ -753,7 +760,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						if !config.GetHideExtraLogs() {
 							fmtf.Printf("收到流数据,切割并发送信息: %s", string(line))
 						}
-						splitAndSendMessages(message, string(line), newmsg, selfid)
+						splitAndSendMessages(string(line), newmsg, selfid)
 					}
 				}
 			}
@@ -898,7 +905,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newmesssage string, selfid string) {
+func splitAndSendMessages(line string, newmesssage string, selfid string) {
 	// 提取JSON部分
 	dataPrefix := "data: "
 	jsonStr := strings.TrimPrefix(line, dataPrefix)
@@ -916,24 +923,26 @@ func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newme
 
 	if sseData.Response != "\n\n" {
 		// 处理提取出的信息
-		processMessage(sseData.Response, sseData.ConversationId, message, newmesssage, selfid)
+		processMessage(sseData.Response, sseData.ConversationId, newmesssage, selfid)
 	} else {
 		fmtf.Printf("忽略llm末尾的换行符")
 	}
 }
 
-func processMessage(response string, conversationid string, msg structs.OnebotGroupMessage, newmesssage string, selfid string) {
-	key := utils.GetKey(msg.GroupID, msg.UserID)
+func processMessage(response string, conversationid string, newmesssage string, selfid string) {
+	// 从conversation对应的sync map取出对应的用户和群号,避免高并发内容发送错乱
+	userinfo, _ := GetUserInfo(conversationid)
+	key := utils.GetKey(userinfo.GroupID, userinfo.UserID)
 
 	// 定义中文全角和英文标点符号
 	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?', '~'}
 
 	for _, char := range response {
-		messageBuilder.WriteRune(char)
-		if utils.ContainsRune(punctuations, char, msg.GroupID) {
+		AppendRune(conversationid, char)
+		if utils.ContainsRune(punctuations, char, userinfo.GroupID) {
 			// 达到标点符号，发送累积的整个消息
-			if messageBuilder.Len() > 0 {
-				accumulatedMessage := messageBuilder.String()
+			if GetMessageLength(conversationid) > 0 {
+				accumulatedMessage, _ := GetCurrentMessage(conversationid)
 				// 锁定
 				processMessageMu.Lock()
 				// 从sync.map读取当前的value
@@ -945,10 +954,8 @@ func processMessage(response string, conversationid string, msg structs.OnebotGr
 				groupUserMessages.Store(key, value)
 				processMessageMu.Unlock() // 完成更新后时解锁
 
-				// 从conversation对应的sync map取出对应的用户和群号,避免高并发内容发送错乱
-				userinfo, _ := GetUserInfo(conversationid)
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
-				if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
+				if userinfo.RealMessageType == "group_private" || userinfo.MessageType == "private" {
 					if !config.GetUsePrivateSSE() {
 						utils.SendPrivateMessage(userinfo.UserID, accumulatedMessage, selfid)
 					} else {
@@ -977,7 +984,7 @@ func processMessage(response string, conversationid string, msg structs.OnebotGr
 					utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, accumulatedMessage, selfid)
 				}
 
-				messageBuilder.Reset() // 重置消息构建器
+				ClearMessage(conversationid)
 			}
 		}
 	}
@@ -1010,10 +1017,12 @@ func handleWithdrawMessage(message structs.OnebotGroupMessage) {
 }
 
 // StoreUserInfo 用于存储用户信息到全局 map
-func StoreUserInfo(conversationID string, userID int64, groupID int64) {
+func StoreUserInfo(conversationID string, userID int64, groupID int64, realMessageType string, messageType string) {
 	userInfo := UserInfo{
-		UserID:  userID,
-		GroupID: groupID,
+		UserID:          userID,
+		GroupID:         groupID,
+		RealMessageType: realMessageType,
+		MessageType:     messageType,
 	}
 	globalMap.Store(conversationID, userInfo)
 }
@@ -1025,4 +1034,33 @@ func GetUserInfo(conversationID string) (UserInfo, bool) {
 		return value.(UserInfo), true
 	}
 	return UserInfo{}, false
+}
+
+func AppendRune(conversationID string, char rune) {
+	value, _ := messages.LoadOrStore(conversationID, "")
+	// 追加字符到现有字符串
+	updatedValue := value.(string) + string(char)
+	messages.Store(conversationID, updatedValue)
+}
+
+func GetCurrentMessage(conversationID string) (string, bool) {
+	value, ok := messages.Load(conversationID)
+	if ok {
+		return value.(string), true
+	}
+	return "", false
+}
+
+func ClearMessage(conversationID string) {
+	messages.Delete(conversationID)
+}
+
+func GetMessageLength(conversationID string) int {
+	value, ok := messages.Load(conversationID)
+	if ok {
+		// 断言字符串，返回长度
+		return len(value.(string))
+	}
+	// 如果没有找到对应的值，返回0
+	return 0
 }
