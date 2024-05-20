@@ -425,6 +425,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 					mutexchatgpt.Lock()
 
 					conversationId := eventData.ID // 假设conversationId从事件数据的ID字段获取
+					// 储存eventData.ID 和 msg.ConversationID 对应关系
 					conversationMap.Store(msg.ConversationID, conversationId)
 					//读取完整信息
 					completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
@@ -466,11 +467,10 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 					if newContent != "" {
 						tempResponseMap := map[string]interface{}{
 							"response":       newContent,
-							"conversationId": conversationId,
+							"conversationId": msg.ConversationID,
 						}
 						tempResponseJSON, _ := json.Marshal(tempResponseMap)
 						fmtf.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
-						//fmt.Printf("测试返回:%v\n", string(tempResponseJSON))
 						flusher.Flush()
 					}
 				}
@@ -493,24 +493,19 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 在所有事件处理完毕后发送最终响应
-		// 首先从 conversationMap 获取真实的 conversationId
-		if actualConversationId, ok := conversationMap.Load(msg.ConversationID); ok {
-			if finalContent, ok := lastCompleteResponses.Load(actualConversationId); ok {
-				finalResponseMap := map[string]interface{}{
-					"response":       finalContent,
-					"conversationId": actualConversationId,
-					"messageId":      assistantMessageID,
-					"details": map[string]interface{}{
-						"usage": totalUsage,
-					},
-				}
-				finalResponseJSON, _ := json.Marshal(finalResponseMap)
-				fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
-				flusher.Flush()
-			}
+		finalResponseMap := map[string]interface{}{
+			"response":       completeResponse.(string),
+			"conversationId": msg.ConversationID,
+			"messageId":      assistantMessageID,
+			"details": map[string]interface{}{
+				"usage": totalUsage,
+			},
 		}
-
+		finalResponseJSON, _ := json.Marshal(finalResponseMap)
+		fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+		flusher.Flush()
 	}
+
 }
 
 func truncateHistoryGpt(history []structs.Message, prompt string, promptstr string) []structs.Message {
