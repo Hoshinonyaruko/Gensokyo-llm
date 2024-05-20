@@ -24,6 +24,15 @@ var newmsgToStringMap = make(map[string]string)
 var stringToIndexMap sync.Map
 var processMessageMu sync.Mutex
 
+// UserInfo 结构体用于储存用户信息
+type UserInfo struct {
+	UserID  int64
+	GroupID int64
+}
+
+// globalMap 用于存储conversationID与UserInfo的映射
+var globalMap sync.Map
+
 // RecordStringById 根据id记录一个string
 func RecordStringByNewmsg(id, value string) {
 	newmsgToStringMap[id] = value
@@ -464,6 +473,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 请求conversation api 增加当前用户上下文
 		conversationID, parentMessageID, err := app.handleUserContext(message.UserID)
+		// 使用map映射conversationID和uid gid的关系
+		StoreUserInfo(conversationID, message.UserID, message.GroupID)
+
 		//每句话清空上一句话的messageBuilder
 		messageBuilder.Reset()
 		fmtf.Printf("conversationID: %s,parentMessageID%s\n", conversationID, parentMessageID)
@@ -893,7 +905,8 @@ func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newme
 
 	// 解析JSON数据
 	var sseData struct {
-		Response string `json:"response"`
+		Response       string `json:"response"`
+		ConversationId string `json:"conversationId"`
 	}
 	err := json.Unmarshal([]byte(jsonStr), &sseData)
 	if err != nil {
@@ -903,13 +916,13 @@ func splitAndSendMessages(message structs.OnebotGroupMessage, line string, newme
 
 	if sseData.Response != "\n\n" {
 		// 处理提取出的信息
-		processMessage(sseData.Response, message, newmesssage, selfid)
+		processMessage(sseData.Response, sseData.ConversationId, message, newmesssage, selfid)
 	} else {
 		fmtf.Printf("忽略llm末尾的换行符")
 	}
 }
 
-func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage string, selfid string) {
+func processMessage(response string, conversationid string, msg structs.OnebotGroupMessage, newmesssage string, selfid string) {
 	key := utils.GetKey(msg.GroupID, msg.UserID)
 
 	// 定义中文全角和英文标点符号
@@ -932,34 +945,36 @@ func processMessage(response string, msg structs.OnebotGroupMessage, newmesssage
 				groupUserMessages.Store(key, value)
 				processMessageMu.Unlock() // 完成更新后时解锁
 
+				// 从conversation对应的sync map取出对应的用户和群号,避免高并发内容发送错乱
+				userinfo, _ := GetUserInfo(conversationid)
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 				if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
 					if !config.GetUsePrivateSSE() {
-						utils.SendPrivateMessage(msg.UserID, accumulatedMessage, selfid)
+						utils.SendPrivateMessage(userinfo.UserID, accumulatedMessage, selfid)
 					} else {
 						if IncrementIndex(newmesssage) == 1 {
 							//第一条信息
 							//取出当前信息作为按钮回调
 							//CallbackData := GetStringById(lastMessageID)
-							uerid := strconv.FormatInt(msg.UserID, 10)
+							uerid := strconv.FormatInt(userinfo.UserID, 10)
 							messageSSE := structs.InterfaceBody{
 								Content:      accumulatedMessage,
 								State:        1,
 								ActionButton: 10,
 								CallbackData: uerid,
 							}
-							utils.SendPrivateMessageSSE(msg.UserID, messageSSE)
+							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE)
 						} else {
 							//SSE的前半部分
 							messageSSE := structs.InterfaceBody{
 								Content: accumulatedMessage,
 								State:   1,
 							}
-							utils.SendPrivateMessageSSE(msg.UserID, messageSSE)
+							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE)
 						}
 					}
 				} else {
-					utils.SendGroupMessage(msg.GroupID, msg.UserID, accumulatedMessage, selfid)
+					utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, accumulatedMessage, selfid)
 				}
 
 				messageBuilder.Reset() // 重置消息构建器
@@ -992,4 +1007,22 @@ func handleWithdrawMessage(message structs.OnebotGroupMessage) {
 		fmt.Println("Error deleting latest message:", err)
 		return
 	}
+}
+
+// StoreUserInfo 用于存储用户信息到全局 map
+func StoreUserInfo(conversationID string, userID int64, groupID int64) {
+	userInfo := UserInfo{
+		UserID:  userID,
+		GroupID: groupID,
+	}
+	globalMap.Store(conversationID, userInfo)
+}
+
+// GetUserInfo 根据conversationID获取用户信息
+func GetUserInfo(conversationID string) (UserInfo, bool) {
+	value, ok := globalMap.Load(conversationID)
+	if ok {
+		return value.(UserInfo), true
+	}
+	return UserInfo{}, false
 }
