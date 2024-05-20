@@ -524,7 +524,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 					if newContent != "" {
 						tempResponseMap := map[string]interface{}{
 							"response":       newContent,
-							"conversationId": conversationId,
+							"conversationId": msg.ConversationID,
 						}
 						tempResponseJSON, _ := json.Marshal(tempResponseMap)
 						fmt.Fprintf(w, "data: %s\n\n", string(tempResponseJSON))
@@ -534,7 +534,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		//一点点奇怪的转换
+		// 一点点奇怪的转换
 		conversationId := msg.ConversationID + randomUUID.String()
 		completeResponse, _ := lastCompleteResponsesTyqw.LoadOrStore(conversationId, "")
 		// 在所有事件处理完毕后发送最终响应
@@ -551,20 +551,18 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 在所有事件处理完毕后发送最终响应
-		// 首先从 conversationMap 获取真实的 conversationId
-		if finalContent, ok := lastCompleteResponsesTyqw.Load(conversationId); ok {
-			finalResponseMap := map[string]interface{}{
-				"response":       finalContent,
-				"conversationId": conversationId,
-				"messageId":      assistantMessageID,
-				"details": map[string]interface{}{
-					"usage": totalUsage,
-				},
-			}
-			finalResponseJSON, _ := json.Marshal(finalResponseMap)
-			fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
-			flusher.Flush()
+		finalResponseMap := map[string]interface{}{
+			"response":       completeResponse.(string),
+			"conversationId": conversationId,
+			"messageId":      assistantMessageID,
+			"details": map[string]interface{}{
+				"usage": totalUsage,
+			},
 		}
+		finalResponseJSON, _ := json.Marshal(finalResponseMap)
+		fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
+		flusher.Flush()
+
 	}
 
 }
