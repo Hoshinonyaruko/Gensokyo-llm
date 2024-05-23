@@ -605,9 +605,9 @@ func truncateHistoryTyqw(history []structs.Message, prompt string, promptstr str
 		}
 	}
 
-	// 确保以user结尾，如果不是则尝试移除直到满足条件
-	if len(history) > 0 && history[len(history)-1].Role != "user" {
-		for len(history) > 0 && history[len(history)-1].Role != "user" {
+	// 第三步：确保以assistant结尾
+	if len(history) > 0 && history[len(history)-1].Role == "user" {
+		for len(history) > 0 && history[len(history)-1].Role != "assistant" {
 			history = history[:len(history)-1]
 		}
 	}
