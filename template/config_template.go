@@ -13,7 +13,7 @@ settings:
   paths : []                                    #当要连接多个onebotv11的http正向地址时,多个地址填入这里.
   lotus : ""                                    #当填写另一个gensokyo-llm的http地址时,将请求另一个的conversation端点,实现多个llm不需要多次配置,简化配置,单独使用请忽略留空.例:http://192.168.0.1:12345(包含http头和端口)
   pathToken : ""                                #gensokyo正向http-api的access_token(是onebotv11标准的)
-  apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt 3=rwkv 4=通义千问 5=智谱AI
+  apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt 3=rwkv 4=通义千问 5=智谱AI 6=腾讯元器
   iPWhiteList : ["192.168.0.102"]               #接口调用,安全ip白名单,gensokyo的ip地址,或调用api的程序的ip地址
   systemPrompt : [""]                           #人格提示词,或多个随机
   firstQ : [""]                                 #强化思想钢印,在每次对话的system之前固定一个QA,需都填写内容,会增加token消耗,可一定程度提高人格提示词效果,或抵抗催眠
@@ -184,6 +184,12 @@ settings:
     - "web_search"                                 # 默认启用网络搜索工具
   glmToolChoice: "auto"                            # 工具选择策略，目前支持auto，自动选择最合适的工具
   glmUserID: ""                                    # 用户唯一标识，用于跟踪和分析用户行为
+
+  # Yuanqi 助手配置文件，确保按业务需求配置。
+  yuanqiApiPath: "https://open.hunyuan.tencent.com/openapi/v1/agent/chat/completions"
+  yuanqiAssistantID: ""         # 助手ID，唯一标识您的助手实例
+  yuanqiToken: ""               # 元器Token
+  yuanqiChatType: "published"   # 聊天类型，默认为published，支持preview模式下使用草稿态智能体
 `
 
 const Logo = `
