@@ -2880,3 +2880,178 @@ func getTemperatureHunyuanInternal(options ...string) float64 {
 
 	return value
 }
+
+// 获取助手ID
+func GetYuanqiAssistantID(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getYuanqiAssistantIDInternal(options...)
+}
+
+func getYuanqiAssistantIDInternal(options ...string) string {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.YuanqiAssistantID
+		}
+		return "" // 默认值或错误处理
+	}
+
+	basename := options[0]
+	assistantIDInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiAssistantID")
+	if err != nil {
+		log.Println("Error retrieving YuanqiAssistantID:", err)
+		return getYuanqiAssistantIDInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	assistantID, ok := assistantIDInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for YuanqiAssistantID, fetching default")
+		return getYuanqiAssistantIDInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if assistantID == "" {
+		return getYuanqiAssistantIDInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return assistantID
+}
+
+// 获取Token
+func GetYuanqiToken(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getYuanqiTokenInternal(options...)
+}
+
+func getYuanqiTokenInternal(options ...string) string {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.YuanqiToken
+		}
+		return "" // 默认值或错误处理
+	}
+
+	basename := options[0]
+	YuanqiTokenInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiToken")
+	if err != nil {
+		log.Println("Error retrieving YuanqiToken:", err)
+		return getYuanqiTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	YuanqiToken, ok := YuanqiTokenInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for YuanqiToken, fetching default")
+		return getYuanqiTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if YuanqiToken == "" {
+		return getYuanqiTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return YuanqiToken
+}
+
+// 获取助手版本
+func GetYuanqiVersion(options ...string) float64 {
+	mu.Lock()
+	defer mu.Unlock()
+	return getYuanqiVersionInternal(options...)
+}
+
+func getYuanqiVersionInternal(options ...string) float64 {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.YuanqiVersion
+		}
+		return 0.0 // 默认值或错误处理
+	}
+
+	basename := options[0]
+	versionInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiVersion")
+	if err != nil {
+		log.Println("Error retrieving YuanqiVersion:", err)
+		return getYuanqiVersionInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	version, ok := versionInterface.(float64)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for YuanqiVersion, fetching default")
+		return getYuanqiVersionInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if version == 0 {
+		return getYuanqiVersionInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return version
+}
+
+// 获取聊天类型
+func GetYuanqiChatType(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getYuanqiChatTypeInternal(options...)
+}
+
+func getYuanqiChatTypeInternal(options ...string) string {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.YuanqiChatType
+		}
+		return "published" // 默认值或错误处理
+	}
+
+	basename := options[0]
+	chatTypeInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiChatType")
+	if err != nil {
+		log.Println("Error retrieving YuanqiChatType:", err)
+		return getYuanqiChatTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	chatType, ok := chatTypeInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for YuanqiChatType, fetching default")
+		return getYuanqiChatTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if chatType == "" {
+		return getYuanqiChatTypeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return chatType
+}
+
+// 获取API地址
+func GetYuanqiApiPath(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getYuanqiApiPathInternal(options...)
+}
+
+func getYuanqiApiPathInternal(options ...string) string {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.YuanqiApiPath
+		}
+		return "https://open.hunyuan.tencent.com/openapi/v1/agent/chat/completion" // 默认值或错误处理
+	}
+
+	basename := options[0]
+	chatTypeInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiApiPath")
+	if err != nil {
+		log.Println("Error retrieving YuanqiApiPath:", err)
+		return getYuanqiApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	YuanqiApiPath, ok := chatTypeInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for YuanqiApiPath, fetching default")
+		return getYuanqiApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if YuanqiApiPath == "" {
+		return getYuanqiApiPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return YuanqiApiPath
+}

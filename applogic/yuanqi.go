@@ -21,14 +21,14 @@ import (
 // 用于存储每个conversationId的最后一条消息内容
 var (
 	// lastResponses 存储每个真实 conversationId 的最后响应文本
-	lastResponses sync.Map
+	lastResponsesYQ sync.Map
 	// conversationMap 存储 msg.ConversationID 到真实 conversationId 的映射
-	conversationMap       sync.Map
-	lastCompleteResponses sync.Map // 存储每个conversationId的完整累积信息
-	mutexchatgpt          sync.Mutex
+	conversationMapYQ       sync.Map
+	lastCompleteResponsesYQ sync.Map // 存储每个conversationId的完整累积信息
+	mutexyuanqi             sync.Mutex
 )
 
-func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
+func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
@@ -59,6 +59,13 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 	if promptstr != "" {
 		// prompt 参数存在，可以根据需要进一步处理或记录
 		fmtf.Printf("Received prompt parameter: %s\n", promptstr)
+	}
+
+	// 读取URL参数 "userid"
+	useridstr := r.URL.Query().Get("userid")
+	if useridstr != "" {
+		// prompt 参数存在，可以根据需要进一步处理或记录
+		fmtf.Printf("Received userid parameter: %s\n", useridstr)
 	}
 
 	msg.Role = "user"
@@ -184,58 +191,48 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		history = append(history, userHistory...)
 	}
 
-	fmtf.Printf("CLOSE-AI上下文history:%v\n", history)
+	apiURL := config.GetYuanqiApiPath(promptstr)
+	token := config.GetYuanqiToken()
+	fmtf.Printf("YuanQi上下文history:%v\n", history)
 
-	// 构建请求到ChatGPT API
-	model := config.GetGptModel(promptstr)
-	apiURL := config.GetGptApiPath(promptstr)
-	token := config.GetGptToken(promptstr)
+	// 构建请求到yuanqi API的请求体
+	var requestBody structs.RequestDataYuanQi
 
-	// 构造消息历史和当前消息
-	messages := []map[string]interface{}{}
+	messages := make([]structs.MessageContent, 0, len(history)+1)
+	// 处理历史消息
 	for _, hMsg := range history {
-		messages = append(messages, map[string]interface{}{
-			"role":    hMsg.Role,
-			"content": hMsg.Text,
-		})
-	}
-	messages = append(messages, map[string]interface{}{
-		"role":    "user",
-		"content": msg.Text,
-	})
-
-	//是否安全模式
-	safemode := config.GetGptSafeMode()
-	useSSe := config.GetuseSse(promptstr)
-	// 腾讯云审核 by api2d
-	gptModeration := config.GetGptModeration()
-	var gptModerationStop bool
-	if gptModeration {
-		gptModerationStop = true
-	}
-
-	// 构建请求体
-	var requestBody map[string]interface{}
-
-	if config.GetStandardGptApi() {
-		requestBody = map[string]interface{}{
-			"model":    model,
-			"messages": messages,
-			"stream":   useSSe,
+		messageContent := structs.MessageContent{
+			Role: hMsg.Role,
+			Content: []structs.ContentItem{{
+				Type: "text",
+				Text: hMsg.Text,
+			}},
 		}
-	} else {
-		requestBody = map[string]interface{}{
-			"model":           model,
-			"messages":        messages,
-			"safe_mode":       safemode,
-			"stream":          useSSe,
-			"moderation":      gptModeration,
-			"moderation_stop": gptModerationStop,
-		}
+		messages = append(messages, messageContent)
 	}
 
-	fmtf.Printf("chatgpt requestBody :%v", requestBody)
+	// 添加当前用户消息
+	currentMessageContent := structs.MessageContent{
+		Role: "user",
+		Content: []structs.ContentItem{{
+			Type: "text",
+			Text: msg.Text,
+		}},
+	}
+	messages = append(messages, currentMessageContent)
+
+	// 创建请求数据结构体
+	requestBody = structs.RequestDataYuanQi{
+		AssistantID: config.GetYuanqiAssistantID(promptstr),
+		UserID:      useridstr,
+		Stream:      config.GetuseSse(promptstr),
+		ChatType:    config.GetYuanqiChatType(promptstr),
+		Messages:    messages,
+	}
+
 	requestBodyJSON, _ := json.Marshal(requestBody)
+
+	fmtf.Printf("yuanqi requestBody :%v", string(requestBodyJSON))
 
 	// 获取代理服务器地址
 	proxyURL := config.GetProxy(promptstr)
@@ -268,6 +265,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Source", "openapi")
 	req.Header.Set("Authorization", fmtf.Sprintf("Bearer %s", token))
 
 	// 发送请求
@@ -285,7 +283,7 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmtf.Sprintf("Failed to read response body: %v", err), http.StatusInternalServerError)
 			return
 		}
-		fmtf.Printf("chatgpt返回:%v", string(responseBody))
+		fmtf.Printf("yuanqi返回:%v", string(responseBody))
 		// 假设已经成功发送请求并获得响应，responseBody是响应体的字节数据
 		var apiResponse struct {
 			Choices []struct {
@@ -422,16 +420,16 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 					}
 
 					// 在修改共享资源之前锁定Mutex
-					mutexchatgpt.Lock()
+					mutexyuanqi.Lock()
 
 					conversationId := eventData.ID // 假设conversationId从事件数据的ID字段获取
 					// 储存eventData.ID 和 msg.ConversationID 对应关系
-					conversationMap.Store(msg.ConversationID, conversationId)
+					conversationMapYQ.Store(msg.ConversationID, conversationId)
 					//读取完整信息
-					completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
+					completeResponse, _ := lastCompleteResponsesYQ.LoadOrStore(conversationId, "")
 
 					// 检索上一次的响应文本
-					lastResponse, _ := lastResponses.LoadOrStore(conversationId, "")
+					lastResponse, _ := lastResponsesYQ.LoadOrStore(conversationId, "")
 					lastResponseText := lastResponse.(string)
 
 					newContent := ""
@@ -453,15 +451,15 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 
 					// 更新存储的完整累积信息
 					updatedCompleteResponse := completeResponse.(string) + newContent
-					lastCompleteResponses.Store(conversationId, updatedCompleteResponse)
+					lastCompleteResponsesYQ.Store(conversationId, updatedCompleteResponse)
 
 					// 使用累加的新内容更新存储的最后响应状态
 					if newContent != "" {
-						lastResponses.Store(conversationId, newContent)
+						lastResponsesYQ.Store(conversationId, newContent)
 					}
 
 					// 完成修改后解锁Mutex
-					mutexchatgpt.Unlock()
+					mutexyuanqi.Unlock()
 
 					// 发送新增的内容
 					if newContent != "" {
@@ -477,8 +475,8 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		//一点点奇怪的转换
-		conversationId, _ := conversationMap.LoadOrStore(msg.ConversationID, "")
-		completeResponse, _ := lastCompleteResponses.LoadOrStore(conversationId, "")
+		conversationId, _ := conversationMapYQ.LoadOrStore(msg.ConversationID, "")
+		completeResponse, _ := lastCompleteResponsesYQ.LoadOrStore(conversationId, "")
 		// 在所有事件处理完毕后发送最终响应
 		assistantMessageID, err := app.addMessage(structs.Message{
 			ConversationID:  msg.ConversationID,
@@ -501,56 +499,10 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 				"usage": totalUsage,
 			},
 		}
+
 		finalResponseJSON, _ := json.Marshal(finalResponseMap)
 		fmtf.Fprintf(w, "data: %s\n\n", string(finalResponseJSON))
 		flusher.Flush()
 	}
 
-}
-
-func truncateHistoryGpt(history []structs.Message, prompt string, promptstr string) []structs.Message {
-	MAX_TOKENS := config.GetMaxTokenGpt(promptstr)
-
-	tokenCount := len(prompt)
-	for _, msg := range history {
-		tokenCount += len(msg.Text)
-	}
-	fmt.Printf("测试:%v\n", history)
-
-	if tokenCount >= MAX_TOKENS {
-		// 第一步：从开始逐个移除消息，直到满足令牌数量限制
-		for tokenCount > MAX_TOKENS && len(history) > 0 {
-			tokenCount -= len(history[0].Text)
-			history = history[1:]
-
-			// 确保移除后，历史记录仍然以user消息结尾
-			if len(history) > 0 && history[0].Role == "assistant" {
-				tokenCount -= len(history[0].Text)
-				history = history[1:]
-			}
-		}
-	}
-
-	// 第二步：检查并移除包含空文本的QA对
-	for i := 0; i < len(history)-1; i++ { // 使用len(history)-1是因为我们要检查成对的消息
-		q := history[i]
-		a := history[i+1]
-
-		// 检查Q和A是否成对，且A的角色应为assistant，Q的角色为user，避免删除非QA对的消息
-		if q.Role == "user" && a.Role == "assistant" && (len(q.Text) == 0 || len(a.Text) == 0) {
-			fmtf.Println("closeai-找到了空的对话: ", q, a)
-			// 移除这对QA
-			history = append(history[:i], history[i+2:]...)
-			i-- // 因为删除了元素，调整索引以正确检查下一个元素
-		}
-	}
-
-	// 第三步：确保以assistant结尾
-	if len(history) > 0 && history[len(history)-1].Role == "user" {
-		for len(history) > 0 && history[len(history)-1].Role != "assistant" {
-			history = history[:len(history)-1]
-		}
-	}
-
-	return history
 }

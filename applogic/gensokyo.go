@@ -572,8 +572,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			urlParams.Add("prompt", promptstr)
 		}
 
-		// glm会根据userid参数来封禁用户
-		if config.GetApiType() == 5 || basePath == "/conversation_glm" {
+		// 元器和glm会根据userid参数来自动封禁用户
+		if config.GetApiType() == 5 || basePath == "/conversation_glm" || config.GetApiType() == 6 || basePath == "/conversation_yq" {
 			urlParams.Add("userid", strconv.FormatInt(message.UserID, 10))
 		}
 
