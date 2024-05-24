@@ -65,7 +65,7 @@ func loadConfigFromFile(path string) (*Config, error) {
 
 	conf := &Config{}
 	if err := yaml.Unmarshal(configData, conf); err != nil {
-		log.Println("Failed to unmarshal YAML:", err)
+		log.Printf("failed to unmarshal YAML[%v]:%v", path, err)
 		return nil, err
 	}
 
@@ -2897,7 +2897,7 @@ func getYuanqiAssistantIDInternal(options ...string) string {
 	}
 
 	basename := options[0]
-	assistantIDInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiAssistantID")
+	assistantIDInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiAssistantID")
 	if err != nil {
 		log.Println("Error retrieving YuanqiAssistantID:", err)
 		return getYuanqiAssistantIDInternal() // 递归调用内部函数，不传递任何参数
@@ -2932,7 +2932,7 @@ func getYuanqiTokenInternal(options ...string) string {
 	}
 
 	basename := options[0]
-	YuanqiTokenInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiToken")
+	YuanqiTokenInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiToken")
 	if err != nil {
 		log.Println("Error retrieving YuanqiToken:", err)
 		return getYuanqiTokenInternal() // 递归调用内部函数，不传递任何参数
@@ -2967,7 +2967,7 @@ func getYuanqiVersionInternal(options ...string) float64 {
 	}
 
 	basename := options[0]
-	versionInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiVersion")
+	versionInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiVersion")
 	if err != nil {
 		log.Println("Error retrieving YuanqiVersion:", err)
 		return getYuanqiVersionInternal() // 递归调用内部函数，不传递任何参数
@@ -3002,7 +3002,7 @@ func getYuanqiChatTypeInternal(options ...string) string {
 	}
 
 	basename := options[0]
-	chatTypeInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiChatType")
+	chatTypeInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiChatType")
 	if err != nil {
 		log.Println("Error retrieving YuanqiChatType:", err)
 		return getYuanqiChatTypeInternal() // 递归调用内部函数，不传递任何参数
@@ -3037,7 +3037,7 @@ func getYuanqiApiPathInternal(options ...string) string {
 	}
 
 	basename := options[0]
-	chatTypeInterface, err := prompt.GetSettingFromFilename(basename, "yuanqiApiPath")
+	chatTypeInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiApiPath")
 	if err != nil {
 		log.Println("Error retrieving YuanqiApiPath:", err)
 		return getYuanqiApiPathInternal() // 递归调用内部函数，不传递任何参数

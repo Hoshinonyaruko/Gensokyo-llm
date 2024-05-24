@@ -1119,6 +1119,11 @@ func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
 
 // LanguageIntercept 检查文本语言，如果不在允许列表中，则返回 true 并发送消息
 func LanguageIntercept(text string, message structs.OnebotGroupMessage, selfid string) bool {
+	hintWords := config.GetGroupHintWords()
+	// 遍历所有触发词，将其从文本中剔除
+	for _, word := range hintWords {
+		text = strings.Replace(text, word, "", -1)
+	}
 	info := whatlanggo.Detect(text)
 	lang := whatlanggo.LangToString(info.Lang)
 	fmtf.Printf("LanguageIntercept:%v\n", lang)
