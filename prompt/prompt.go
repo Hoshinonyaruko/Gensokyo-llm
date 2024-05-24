@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fsnotify/fsnotify"
 
@@ -41,23 +40,6 @@ func init() {
 	}
 }
 
-// 防抖
-type FileLoader struct {
-	eventDelay time.Duration
-	lastLoad   time.Time
-	fileName   string
-}
-
-func (fl *FileLoader) LoadFile(event fsnotify.Event) {
-	now := time.Now()
-	if now.Sub(fl.lastLoad) < fl.eventDelay {
-		return
-	}
-	fl.lastLoad = now
-	fl.fileName = event.Name
-	loadFile(event.Name)
-}
-
 // LoadPrompts 确保目录存在并尝试加载提示词文件
 func LoadPrompts() error {
 	// 构建目录路径
@@ -86,9 +68,6 @@ func LoadPrompts() error {
 		return err
 	}
 
-	// 添加一个100毫秒的Debouncing
-	fileLoader := &FileLoader{eventDelay: 100 * time.Millisecond}
-
 	go func() {
 		for {
 			select {
@@ -97,7 +76,7 @@ func LoadPrompts() error {
 					return
 				}
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					fileLoader.LoadFile(event)
+					loadFile(event.Name)
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -134,6 +113,11 @@ func loadFile(filename string) {
 	}
 
 	baseName := filepath.Base(filename)
+	if len(prompts.Prompts) == 0 {
+		fmt.Printf("prompts[%v][%v]载入中\n", baseName, filename)
+		return
+	}
+
 	promptsCache[baseName] = prompts
 	fmt.Printf("成功载入prompts[%v]\n", baseName)
 }
