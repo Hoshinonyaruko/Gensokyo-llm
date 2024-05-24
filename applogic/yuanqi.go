@@ -192,7 +192,7 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apiURL := config.GetYuanqiApiPath(promptstr)
-	token := config.GetYuanqiToken()
+	token := config.GetYuanqiToken(promptstr)
 	fmtf.Printf("YuanQi上下文history:%v\n", history)
 
 	// 构建请求到yuanqi API的请求体

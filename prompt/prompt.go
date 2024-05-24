@@ -129,7 +129,7 @@ func loadFile(filename string) {
 	var prompts PromptFile
 	err = yaml.Unmarshal(data, &prompts)
 	if err != nil {
-		log.Println("Failed to unmarshal YAML:", err)
+		log.Printf("failed to unmarshal YAML[%v]:%v", filename, err)
 		return
 	}
 
