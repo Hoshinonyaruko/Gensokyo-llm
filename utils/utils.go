@@ -1340,3 +1340,39 @@ func DeleteLatestMessage(messageType string, id int64, userid int64) error {
 	// 发送删除消息请求
 	return sendDeleteRequest(u.String(), requestBodyBytes)
 }
+
+// MakeAlternating ensures that roles alternate between "user" and "assistant".
+func MakeAlternating(messages []structs.MessageContent) []structs.MessageContent {
+	if len(messages) < 2 {
+		return messages // Not enough messages to need alternation or check
+	}
+
+	// Initialize placeholders for the last seen user and assistant content
+	var lastUserContent, lastAssistantContent []structs.ContentItem
+
+	correctedMessages := make([]structs.MessageContent, 0, len(messages))
+	expectedRole := "user" // Start expecting "user" initially; this changes as we find roles
+
+	for _, message := range messages {
+		if message.Role != expectedRole {
+			// If the current message does not match the expected role, insert the last seen content of the expected role
+			if expectedRole == "user" && lastUserContent != nil {
+				correctedMessages = append(correctedMessages, structs.MessageContent{Role: "user", Content: lastUserContent})
+			} else if expectedRole == "assistant" && lastAssistantContent != nil {
+				correctedMessages = append(correctedMessages, structs.MessageContent{Role: "assistant", Content: lastAssistantContent})
+			}
+		}
+
+		// Append the current message and update last seen contents
+		correctedMessages = append(correctedMessages, message)
+		if message.Role == "user" {
+			lastUserContent = message.Content
+			expectedRole = "assistant"
+		} else if message.Role == "assistant" {
+			lastAssistantContent = message.Content
+			expectedRole = "user"
+		}
+	}
+
+	return correctedMessages
+}
