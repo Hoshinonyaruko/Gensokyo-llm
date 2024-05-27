@@ -228,6 +228,24 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("收到api参数: %s\n", api)
 	}
 
+	// 从URL查询参数中获取skip_lang_check
+	skipLangCheckStr := r.URL.Query().Get("skip_lang_check")
+
+	// 默认skipLangCheck为false
+	skipLangCheck := false
+
+	if skipLangCheckStr != "" {
+		// 尝试将获取的字符串转换为布尔值
+		var err error
+		skipLangCheck, err = strconv.ParseBool(skipLangCheckStr)
+		if err != nil {
+			// 如果转换出错，向客户端返回错误消息
+			fmt.Fprintf(w, "Invalid skip_lang_check value: %s", skipLangCheckStr)
+			return
+		}
+		fmt.Printf("收到 skip_lang_check 参数: %v\n", skipLangCheck)
+	}
+
 	// 打印日志信息，包括prompt参数
 	fmtf.Printf("收到onebotv11信息: %+v\n", string(body))
 
@@ -335,8 +353,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 进行语言判断拦截
-		if len(config.GetAllowedLanguages()) > 0 {
+		// 进行语言判断拦截 skipLangCheck为false时
+		if len(config.GetAllowedLanguages()) > 0 && !skipLangCheck {
 			if utils.LanguageIntercept(newmsg, message, selfid) {
 				fmtf.Printf("不安全!不支持的语言,可在config.yml设置允许的语言,allowedLanguages配置项,Q: %v", newmsg)
 				// 发送响应

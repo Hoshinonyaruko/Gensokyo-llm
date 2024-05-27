@@ -61,7 +61,7 @@ settings:
   #]
 
   #语言过滤
-  allowedLanguages : ["cmn"]                    #根据自身安全实力,酌情过滤,cmn代表中文,小写字母,[]空数组代表不限制.
+  allowedLanguages : ["cmn"]                    #根据自身安全实力,酌情过滤,cmn代表中文,小写字母,[]空数组代表不限制. /gensokyo api 可传参数skip_lang_check=true让某些信息跳过检查
   langResponseMessages : ["抱歉，我不会**这个语言呢","我不会**这门语言,请使用中文和我对话吧"]   #定型文,**会自动替换为检测到的语言
   questionMaxLenth : 100                        #最大问题字数. 0代表不限制
   qmlResponseMessages : ["问题太长了,缩短问题试试吧"]  #最大问题长度回复.
