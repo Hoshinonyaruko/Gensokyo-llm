@@ -221,6 +221,9 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 	}
 	messages = append(messages, currentMessageContent)
 
+	// 保持QA顺序 即使用户发送多张图片
+	messages = utils.MakeAlternating(messages)
+
 	// 创建请求数据结构体
 	requestBody = structs.RequestDataYuanQi{
 		AssistantID: config.GetYuanqiAssistantID(promptstr),
