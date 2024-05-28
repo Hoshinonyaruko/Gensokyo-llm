@@ -395,13 +395,12 @@ type Settings struct {
 	GlmToolChoice  string   `yaml:"glmToolChoice"`  // 工具选择策略
 	GlmUserID      string   `yaml:"glmUserID"`      // 用户ID
 
-	YuanqiApiPath     string  `yaml:"yuanqiApiPath"`     // 元器api地址
-	YuanqiAssistantID string  `yaml:"yuanqiAssistantID"` // 助手ID
-	YuanqiVersion     float64 `yaml:"yuanqiVersion"`     // 助手版本, 仅对内部开放
-	YuanqiUserID      string  `yaml:"yuanqiUserID"`      // 用户ID，调用者业务侧的用户ID，会影响智能体的数据统计，建议按实际情况填写
-	YuanqiStream      bool    `yaml:"yuanqiStream"`      // 是否启用流式返回，默认为false
-	YuanqiChatType    string  `yaml:"yuanqiChatType"`    // 聊天类型，默认为published，preview时使用草稿态智能体，仅对内部开放
-	YuanqiToken       string  `yaml:"yuanqiToken"`       // Token
+	YuanqiApiPath  string       `yaml:"yuanqiApiPath"`  // 元器api地址
+	Yuanqiconfs    []YuanqiConf `yaml:"yuanqiConfs"`    // 元器api配置 支持多个
+	YuanqiVersion  float64      `yaml:"yuanqiVersion"`  // 助手版本, 仅对内部开放
+	YuanqiUserID   string       `yaml:"yuanqiUserID"`   // 用户ID，调用者业务侧的用户ID，会影响智能体的数据统计，建议按实际情况填写
+	YuanqiStream   bool         `yaml:"yuanqiStream"`   // 是否启用流式返回，默认为false
+	YuanqiChatType string       `yaml:"yuanqiChatType"` // 聊天类型，默认为published，preview时使用草稿态智能体，仅对内部开放
 
 	WSServerToken string `yaml:"wsServerToken"`
 	WSPath        string `yaml:"wsPath"`
@@ -422,6 +421,12 @@ type Settings struct {
 	EnvContents           []string `yaml:"envContents"` //ai太慢了,而且影响气泡了,只能手动了
 	PromptCoverQ          []string `yaml:"promptCoverQ"`
 	PromptCoverA          []string `yaml:"promptCoverA"` //暂时用不上 待实现
+}
+
+type YuanqiConf struct {
+	YuanqiAssistantID string `yaml:"yuanqiAssistantID"` // 助手ID
+	YuanqiToken       string `yaml:"yuanqiToken"`       // Token
+	YuanqiName        string `yaml:"yuanqiName"`        // 名字
 }
 
 type MetaEvent struct {
