@@ -192,7 +192,8 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apiURL := config.GetYuanqiApiPath(promptstr)
-	token := config.GetYuanqiToken(promptstr)
+
+	assistantID, token := config.GetYuanqiConf(promptstr)
 	fmtf.Printf("YuanQi上下文history:%v\n", history)
 
 	// 构建请求到yuanqi API的请求体
@@ -226,7 +227,7 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 
 	// 创建请求数据结构体
 	requestBody = structs.RequestDataYuanQi{
-		AssistantID: config.GetYuanqiAssistantID(promptstr),
+		AssistantID: assistantID,
 		UserID:      useridstr,
 		Stream:      config.GetuseSse(promptstr),
 		ChatType:    config.GetYuanqiChatType(promptstr),

@@ -187,9 +187,15 @@ settings:
 
   # Yuanqi 助手配置文件，确保按业务需求配置。
   yuanqiApiPath: "https://open.hunyuan.tencent.com/openapi/v1/agent/chat/completions"
-  yuanqiAssistantID: ""         # 助手ID，唯一标识您的助手实例
-  yuanqiToken: ""               # 元器Token
   yuanqiChatType: "published"   # 聊天类型，默认为published，支持preview模式下使用草稿态智能体
+  yuanqiConfs:
+  - yuanqiAssistantID: "123"
+    yuanqiToken: "123"
+    yuanqiName: "123"
+  - yuanqiAssistantID: "123"
+    uanqiToken: "123"
+    yuanqiName: "123"
+
 `
 
 const Logo = `
