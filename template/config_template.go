@@ -42,6 +42,10 @@ settings:
   savelogs : false                              #本地落地日志.
   noContext : false                             #不开启上下文     
   withdrawCommand : ["撤回"]                    #撤回指令
+  memoryCommand : ["记忆"]                      #记忆指令
+  memoryLoadCommand : ["载入"]                  #载入指令
+  newConversationCommand : ["新对话"]           #新对话指令
+  memoryListMD : false                          #记忆列表使用md按钮(qq开放平台)
   hideExtraLogs : false                         #忽略流信息的log,提高性能
   urlSendPics : false                           #自己构造图床加速图片发送.需配置公网ip+放通port+设置正确的selfPath
   groupHintWords : []                           #当机器人位于群内时,需满足包含groupHintWords数组任意内容如[CQ:at,qq=2] 机器人的名字 等
@@ -188,6 +192,7 @@ settings:
   # Yuanqi 助手配置文件，确保按业务需求配置。
   yuanqiApiPath: "https://open.hunyuan.tencent.com/openapi/v1/agent/chat/completions"
   yuanqiChatType: "published"   # 聊天类型，默认为published，支持preview模式下使用草稿态智能体
+  yuanqiMaxToken: 4096
   yuanqiConfs:
   - yuanqiAssistantID: "123"
     yuanqiToken: "123"

@@ -334,6 +334,10 @@ type Settings struct {
 	BlacklistResponseMessages []string `yaml:"blacklistResponseMessages"`
 	NoContext                 bool     `yaml:"noContext"`
 	WithdrawCommand           []string `yaml:"withdrawCommand"`
+	MemoryCommand             []string `yaml:"memoryCommand"`
+	MemoryLoadCommand         []string `yaml:"memoryLoadCommand"`
+	NewConversationCommand    []string `yaml:"newConversationCommand"`
+	MemoryListMD              bool     `yaml:"memoryListMD"`
 	FunctionMode              bool     `yaml:"functionMode"`
 	FunctionPath              string   `yaml:"functionPath"`
 	UseFunctionPromptkeyboard bool     `yaml:"useFunctionPromptkeyboard"`
@@ -401,6 +405,7 @@ type Settings struct {
 	YuanqiUserID   string       `yaml:"yuanqiUserID"`   // 用户ID，调用者业务侧的用户ID，会影响智能体的数据统计，建议按实际情况填写
 	YuanqiStream   bool         `yaml:"yuanqiStream"`   // 是否启用流式返回，默认为false
 	YuanqiChatType string       `yaml:"yuanqiChatType"` // 聊天类型，默认为published，preview时使用草稿态智能体，仅对内部开放
+	YuanqiMaxToken int          `yaml:"yuanqiMaxToken"` // 内部控制的最大上下文对话截断
 
 	WSServerToken string `yaml:"wsServerToken"`
 	WSPath        string `yaml:"wsPath"`
@@ -489,4 +494,10 @@ type CustomRecord struct {
 	PromptStr     string
 	PromptStrStat int        // New integer field for storing promptstr_stat
 	Strs          [10]string // Array to store str1 to str10
+}
+
+type Memory struct {
+	ConversationID    string
+	ParentMessageID   string
+	ConversationTitle string
 }

@@ -515,7 +515,7 @@ func truncateHistoryGpt(history []structs.Message, prompt string, promptstr stri
 	for _, msg := range history {
 		tokenCount += len(msg.Text)
 	}
-	fmt.Printf("测试:%v\n", history)
+	//fmt.Printf("测试:%v\n", history)
 
 	if tokenCount >= MAX_TOKENS {
 		// 第一步：从开始逐个移除消息，直到满足令牌数量限制

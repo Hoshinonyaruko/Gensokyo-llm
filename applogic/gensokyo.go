@@ -136,7 +136,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 判断是否是群聊 然后判断触发词
 	if message.RealMessageType != "group_private" && message.MessageType != "private" {
-		if !checkMessageForHints(message.RawMessage) {
+		if !checkMessageForHints(utils.RemoveBracketsContent(message.RawMessage)) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("Group message not hint words."))
 			return
@@ -497,6 +497,70 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// 使用map映射conversationID和uid gid的关系
 		StoreUserInfo(conversationID, message.UserID, message.GroupID, message.RealMessageType, message.MessageType)
 
+		// 保存记忆
+		memoryCommand := config.GetMemoryCommand()
+
+		// 检查checkResetCommand是否在memoryCommand列表中
+		ismemoryCommand := false
+		for _, command := range memoryCommand {
+			if checkResetCommand == command {
+				ismemoryCommand = true
+				break
+			}
+		}
+
+		// 处理保存记忆
+		if ismemoryCommand {
+			app.handleSaveMemory(message, conversationID, parentMessageID)
+			return
+		}
+
+		// 记忆列表
+		memoryLoadCommand := config.GetMemoryLoadCommand()
+
+		// 检查checkResetCommand是否在memoryLoadCommand列表中或以其为前缀
+		ismemoryLoadCommand := false
+		isPrefixedMemoryLoadCommand := false // 新增变量用于检测前缀匹配
+		for _, command := range memoryLoadCommand {
+			if checkResetCommand == command {
+				ismemoryLoadCommand = true
+				break
+			}
+			if strings.HasPrefix(checkResetCommand, command) { // 检查前缀
+				isPrefixedMemoryLoadCommand = true
+			}
+		}
+
+		// 处理记忆列表
+		if ismemoryLoadCommand {
+			app.handleMemoryList(message)
+			return
+		}
+
+		// 新增处理载入记忆的逻辑
+		if isPrefixedMemoryLoadCommand {
+			app.handleLoadMemory(message, checkResetCommand)
+			return
+		}
+
+		// 新对话
+		newConversationCommand := config.GetNewConversationCommand()
+
+		// 检查checkResetCommand是否在newConversationCommand列表中
+		isnewConversationCommand := false
+		for _, command := range newConversationCommand {
+			if checkResetCommand == command {
+				isnewConversationCommand = true
+				break
+			}
+		}
+
+		// 处理新对话
+		if isnewConversationCommand {
+			app.handleNewConversation(message, conversationID, parentMessageID)
+			return
+		}
+
 		//每句话清空上一句话的messageBuilder
 		ClearMessage(conversationID)
 		fmtf.Printf("conversationID: %s,parentMessageID%s\n", conversationID, parentMessageID)
@@ -822,15 +886,36 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 						// 添加第四个气泡
 						if config.GetNo4Promptkeyboard() {
+							// 合并所有命令到一个数组
+							var allCommands []string
+
+							// 获取并添加RestoreResponses
 							RestoreResponses := config.GetRestoreCommand()
-							if len(RestoreResponses) > 0 {
-								selectedRestoreResponse := RestoreResponses[rand.Intn(len(RestoreResponses))]
+							allCommands = append(allCommands, RestoreResponses...)
+
+							// 获取并添加memoryLoadCommand
+							memoryLoadCommand := config.GetMemoryLoadCommand()
+							allCommands = append(allCommands, memoryLoadCommand...)
+
+							// 获取并添加memoryCommand
+							memoryCommand := config.GetMemoryCommand()
+							allCommands = append(allCommands, memoryCommand...)
+
+							// 获取并添加newConversationCommand
+							newConversationCommand := config.GetNewConversationCommand()
+							allCommands = append(allCommands, newConversationCommand...)
+
+							// 检查合并后的命令数组长度
+							if len(allCommands) > 0 {
+								// 随机选择一个命令
+								selectedCommand := allCommands[rand.Intn(len(allCommands))]
+
+								// 在promptkeyboard的末尾添加选中的命令
 								if len(promptkeyboard) > 0 {
-									// 在promptkeyboard的末尾添加selectedRestoreResponse
-									promptkeyboard = append(promptkeyboard, selectedRestoreResponse)
+									promptkeyboard = append(promptkeyboard, selectedCommand)
 								} else {
-									// 如果promptkeyboard为空，我们也应当初始化它，并添加选中的恢复命令
-									promptkeyboard = []string{selectedRestoreResponse}
+									// 如果promptkeyboard为空，我们也应当初始化它，并添加选中的命令
+									promptkeyboard = []string{selectedCommand}
 								}
 							}
 						}

@@ -122,6 +122,12 @@ func main() {
 		log.Fatalf("Failed to ensure CustomTableExist table exists: %v", err)
 	}
 
+	// 用户多个记忆表
+	err = app.EnsureUserMemoriesTableExists()
+	if err != nil {
+		log.Fatalf("Failed to ensure UserMemoriesTableExists table exists: %v", err)
+	}
+
 	// 加载 拦截词
 	err = app.ProcessSensitiveWords()
 	if err != nil {

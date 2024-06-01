@@ -1132,6 +1132,36 @@ func GetWithdrawCommand() []string {
 	return nil
 }
 
+// 获取MemoryCommand
+func GetMemoryCommand() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.MemoryCommand
+	}
+	return nil
+}
+
+// 获取MemoryLoadCommand
+func GetMemoryLoadCommand() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.MemoryLoadCommand
+	}
+	return nil
+}
+
+// 获取NewConversationCommand
+func GetNewConversationCommand() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.NewConversationCommand
+	}
+	return nil
+}
+
 // 获取FunctionMode
 func GetFunctionMode() bool {
 	mu.Lock()
@@ -3102,4 +3132,42 @@ func getYuanqiApiPathInternal(options ...string) string {
 	}
 
 	return YuanqiApiPath
+}
+
+// 获取YuanqiMaxToken
+func GetYuanqiMaxToken(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getYuanqiMaxTokenInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getYuanqiMaxTokenInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.YuanqiMaxToken
+		}
+		return 0
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	YuanqiMaxTokenInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiMaxToken")
+	if err != nil {
+		log.Println("Error retrieving MaxTokenYuanQi:", err)
+		return getYuanqiMaxTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	YuanqiMaxToken, ok := YuanqiMaxTokenInterface.(int)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for MaxTokenYuanQi, fetching default")
+		return getYuanqiMaxTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if YuanqiMaxToken == 0 {
+		return getYuanqiMaxTokenInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return YuanqiMaxToken
 }
