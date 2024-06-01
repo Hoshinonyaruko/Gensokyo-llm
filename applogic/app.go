@@ -288,6 +288,18 @@ func (app *App) updateUserContext(userID int64, parentMessageID string) error {
 	return nil
 }
 
+func (app *App) updateUserContextPro(userID int64, conversationID, parentMessageID string) error {
+	updateQuery := `
+    UPDATE user_context
+    SET conversation_id = ?, parent_message_id = ?
+    WHERE user_id = ?;`
+	_, err := app.DB.Exec(updateQuery, conversationID, parentMessageID, userID)
+	if err != nil {
+		return fmt.Errorf("error updating user context: %w", err)
+	}
+	return nil
+}
+
 func (app *App) getHistory(conversationID, parentMessageID string) ([]structs.Message, error) {
 	// 如果不开启上下文
 	if config.GetNoContext() {
@@ -326,4 +338,123 @@ func (app *App) getHistory(conversationID, parentMessageID string) ([]structs.Me
 		history = append(history, historyEntry)
 	}
 	return history, nil
+}
+
+// 记忆表
+func (app *App) EnsureUserMemoriesTableExists() error {
+	createTableSQL := `
+    CREATE TABLE IF NOT EXISTS user_memories (
+        memory_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        conversation_id TEXT NOT NULL,
+        parent_message_id TEXT,
+        conversation_title TEXT NOT NULL
+    );`
+
+	_, err := app.DB.Exec(createTableSQL)
+	if err != nil {
+		return fmt.Errorf("error creating user_memories table: %w", err)
+	}
+
+	createUserIDIndexSQL := `CREATE INDEX IF NOT EXISTS idx_user_memories_user_id ON user_memories(user_id);`
+	_, err = app.DB.Exec(createUserIDIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating index on user_memories(user_id): %w", err)
+	}
+
+	createConvDetailsIndexSQL := `CREATE INDEX IF NOT EXISTS idx_user_memories_conversation_details ON user_memories(conversation_id, parent_message_id);`
+	_, err = app.DB.Exec(createConvDetailsIndexSQL)
+	if err != nil {
+		return fmt.Errorf("error creating index on user_memories(conversation_id, parent_message_id): %w", err)
+	}
+
+	return nil
+}
+
+func (app *App) AddUserMemory(userID int64, conversationID, parentMessageID, conversationTitle string) error {
+	// 插入新的记忆
+	insertMemorySQL := `
+    INSERT INTO user_memories (user_id, conversation_id, parent_message_id, conversation_title)
+    VALUES (?, ?, ?, ?);`
+	_, err := app.DB.Exec(insertMemorySQL, userID, conversationID, parentMessageID, conversationTitle)
+	if err != nil {
+		return fmt.Errorf("error inserting new memory: %w", err)
+	}
+
+	// 检查并保持记忆数量不超过10条
+	return app.ensureMemoryLimit(userID)
+}
+
+func (app *App) updateConversationTitle(userID int64, conversationID, parentMessageID, newTitle string) error {
+	// 定义SQL更新语句
+	updateQuery := `
+    UPDATE user_memories
+    SET conversation_title = ?
+    WHERE user_id = ? AND conversation_id = ? AND parent_message_id = ?;`
+
+	// 执行SQL更新操作
+	_, err := app.DB.Exec(updateQuery, newTitle, userID, conversationID, parentMessageID)
+	if err != nil {
+		return fmt.Errorf("error updating conversation title: %w", err)
+	}
+
+	return nil
+}
+
+func (app *App) ensureMemoryLimit(userID int64) error {
+	// 查询当前记忆总数
+	countQuerySQL := `SELECT COUNT(*) FROM user_memories WHERE user_id = ?;`
+	var count int
+	row := app.DB.QueryRow(countQuerySQL, userID)
+	err := row.Scan(&count)
+	if err != nil {
+		return fmt.Errorf("error counting memories: %w", err)
+	}
+
+	// 如果记忆超过5条，则删除最旧的记忆
+	if count > 5 {
+		deleteOldestMemorySQL := `
+        DELETE FROM user_memories
+        WHERE memory_id IN (
+            SELECT memory_id FROM user_memories
+            WHERE user_id = ?
+            ORDER BY memory_id ASC
+            LIMIT ?
+        );`
+		_, err := app.DB.Exec(deleteOldestMemorySQL, userID, count-5)
+		if err != nil {
+			return fmt.Errorf("error deleting old memories: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (app *App) GetUserMemories(userID int64) ([]structs.Memory, error) {
+	// 定义查询SQL，获取所有相关的记忆
+	querySQL := `
+    SELECT conversation_id, parent_message_id, conversation_title
+    FROM user_memories
+    WHERE user_id = ?;
+    `
+	rows, err := app.DB.Query(querySQL, userID)
+	if err != nil {
+		return nil, fmt.Errorf("error querying user memories: %w", err)
+	}
+	defer rows.Close() // 确保关闭rows以释放数据库资源
+
+	var memories []structs.Memory
+	for rows.Next() {
+		var m structs.Memory
+		if err := rows.Scan(&m.ConversationID, &m.ParentMessageID, &m.ConversationTitle); err != nil {
+			return nil, fmt.Errorf("error scanning memory: %w", err)
+		}
+		memories = append(memories, m)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	return memories, nil
 }
