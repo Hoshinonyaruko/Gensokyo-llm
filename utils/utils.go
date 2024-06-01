@@ -999,6 +999,116 @@ func SendSSEPrivateMessage(userID int64, content string) {
 	}
 }
 
+// SendSSEPrivateMessageWithKeyboard 分割并发送消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateMessageWithKeyboard(userID int64, content string, keyboard []string) {
+	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?', '~'}
+	splitProbability := config.GetSplitByPuntuations()
+
+	var parts []string
+	var currentPart strings.Builder
+
+	for _, runeValue := range content {
+		currentPart.WriteRune(runeValue)
+		if strings.ContainsRune(string(punctuations), runeValue) {
+			// 根据概率决定是否分割
+			if rand.Intn(100) < splitProbability {
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			}
+		}
+	}
+	// 添加最后一部分（如果有的话）
+	if currentPart.Len() > 0 {
+		parts = append(parts, currentPart.String())
+	}
+
+	// 根据parts长度处理状态
+	for i, part := range parts {
+		state := 1
+		if i == len(parts)-2 { // 倒数第二部分
+			state = 11
+		} else if i == len(parts)-1 { // 最后一部分
+			state = 20
+		}
+
+		// 构造消息体并发送
+		messageSSE := structs.InterfaceBody{
+			Content: part,
+			State:   state,
+		}
+
+		if state == 20 { // 对最后一部分特殊处理
+			var promptKeyboard []string
+			if len(keyboard) == 0 {
+				RestoreResponses := config.GetRestoreCommand()
+				promptKeyboard = config.GetPromptkeyboard()
+
+				if len(RestoreResponses) > 0 {
+					selectedRestoreResponse := RestoreResponses[rand.Intn(len(RestoreResponses))]
+					if len(promptKeyboard) > 0 {
+						promptKeyboard[0] = selectedRestoreResponse
+					}
+				}
+			} else {
+				promptKeyboard = keyboard
+			}
+
+			messageSSE.PromptKeyboard = promptKeyboard
+		}
+
+		// 发送SSE消息函数
+		SendPrivateMessageSSE(userID, messageSSE)
+	}
+}
+
+// SendSSEPrivateMessageByline 分割并发送消息的核心逻辑，直接遍历字符串
+func SendSSEPrivateMessageByLine(userID int64, content string, keyboard []string) {
+	// 直接使用 strings.Split 按行分割字符串
+	parts := strings.Split(content, "\n")
+
+	// 根据parts长度处理状态
+	for i, part := range parts {
+		if part == "" {
+			continue // 跳过空行
+		}
+
+		state := 1
+		if i == len(parts)-2 { // 倒数第二部分
+			state = 11
+		} else if i == len(parts)-1 { // 最后一部分
+			state = 20
+		}
+
+		// 构造消息体并发送
+		messageSSE := structs.InterfaceBody{
+			Content: part + "\n",
+			State:   state,
+		}
+
+		if state == 20 { // 对最后一部分特殊处理
+			var promptKeyboard []string
+			if len(keyboard) == 0 {
+				RestoreResponses := config.GetRestoreCommand()
+				promptKeyboard = config.GetPromptkeyboard()
+
+				if len(RestoreResponses) > 0 {
+					selectedRestoreResponse := RestoreResponses[rand.Intn(len(RestoreResponses))]
+					if len(promptKeyboard) > 0 {
+						promptKeyboard[0] = selectedRestoreResponse
+					}
+				}
+			} else {
+				promptKeyboard = keyboard
+			}
+
+			messageSSE.PromptKeyboard = promptKeyboard
+		}
+
+		// 发送SSE消息函数
+		SendPrivateMessageSSE(userID, messageSSE)
+	}
+}
+
 // SendSSEPrivateSafeMessage 分割并发送安全消息的核心逻辑，直接遍历字符串
 func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
 	// 将字符串转换为rune切片，以正确处理多字节字符
