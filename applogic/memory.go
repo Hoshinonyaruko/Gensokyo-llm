@@ -84,8 +84,13 @@ func GetMemoryTitle(msg string) string {
 func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID string, ParentMessageID string) {
 	conversationTitle := "2024-5-19/18:26" // 默认标题，根据实际需求可能需要调整为动态生成的时间戳
 
+	userid := msg.UserID
+	if config.GetGroupContext() && msg.MessageType != "private" {
+		userid = msg.GroupID
+	}
+
 	// 添加用户记忆
-	err := app.AddUserMemory(msg.UserID, ConversationID, ParentMessageID, conversationTitle)
+	err := app.AddUserMemory(userid, ConversationID, ParentMessageID, conversationTitle)
 	if err != nil {
 		log.Printf("Error saving memory: %s", err)
 		return
@@ -104,7 +109,7 @@ func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID 
 		newTitle := GetMemoryTitle(memoryTitle) // 获取最终的记忆标题
 
 		// 更新记忆标题
-		err = app.updateConversationTitle(msg.UserID, ConversationID, ParentMessageID, newTitle)
+		err = app.updateConversationTitle(userid, ConversationID, ParentMessageID, newTitle)
 		if err != nil {
 			log.Printf("Error updating conversation title: %s", err)
 		}
@@ -124,7 +129,13 @@ func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID 
 
 // 获取记忆列表
 func (app *App) handleMemoryList(msg structs.OnebotGroupMessage) {
-	memories, err := app.GetUserMemories(msg.UserID)
+
+	userid := msg.UserID
+	if config.GetGroupContext() && msg.MessageType != "private" {
+		userid = msg.GroupID
+	}
+
+	memories, err := app.GetUserMemories(userid)
 	if err != nil {
 		log.Printf("Error retrieving memories: %s", err)
 		return
@@ -166,6 +177,12 @@ func (app *App) handleMemoryList(msg structs.OnebotGroupMessage) {
 
 // 载入记忆
 func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetCommand string) {
+
+	userid := msg.UserID
+	if config.GetGroupContext() && msg.MessageType != "private" {
+		userid = msg.GroupID
+	}
+
 	// 从配置获取载入记忆指令
 	memoryLoadCommands := config.GetMemoryLoadCommand()
 
@@ -178,7 +195,7 @@ func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetComma
 	matchTerm := strings.TrimSpace(checkResetCommand)
 
 	// 获取用户记忆
-	memories, err := app.GetUserMemories(msg.UserID)
+	memories, err := app.GetUserMemories(userid)
 	if err != nil {
 		log.Printf("Error retrieving memories: %s", err)
 		app.sendMemoryResponse(msg, "获取记忆失败")
@@ -200,7 +217,7 @@ func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetComma
 	}
 
 	// 载入记忆
-	err = app.updateUserContextPro(msg.UserID, matchedMemory.ConversationID, matchedMemory.ParentMessageID)
+	err = app.updateUserContextPro(userid, matchedMemory.ConversationID, matchedMemory.ParentMessageID)
 	if err != nil {
 		log.Printf("Error adding memory: %s", err)
 		app.sendMemoryResponse(msg, "载入记忆失败")
@@ -266,9 +283,14 @@ func formatHistory(history []structs.Message) string {
 func (app *App) handleNewConversation(msg structs.OnebotGroupMessage, conversationID string, parentMessageID string) {
 	// 使用预定义的时间戳作为会话标题
 	conversationTitle := "2024-5-19/18:26" // 实际应用中应使用动态生成的时间戳
+	userid := msg.UserID
+
+	if config.GetGroupContext() && msg.MessageType != "private" {
+		userid = msg.GroupID
+	}
 
 	// 添加用户记忆
-	err := app.AddUserMemory(msg.UserID, conversationID, parentMessageID, conversationTitle)
+	err := app.AddUserMemory(userid, conversationID, parentMessageID, conversationTitle)
 	if err != nil {
 		log.Printf("Error saving memory: %s", err)
 		return
@@ -287,14 +309,14 @@ func (app *App) handleNewConversation(msg structs.OnebotGroupMessage, conversati
 		newTitle := GetMemoryTitle(memoryTitle) // 获取最终的记忆标题
 
 		// 更新记忆标题
-		err = app.updateConversationTitle(msg.UserID, conversationID, parentMessageID, newTitle)
+		err = app.updateConversationTitle(userid, conversationID, parentMessageID, newTitle)
 		if err != nil {
 			log.Printf("Error updating conversation title: %s", err)
 		}
 	}()
 
 	// 迁移用户到新的上下文
-	app.migrateUserToNewContext(msg.UserID)
+	app.migrateUserToNewContext(userid)
 
 	// 获取并使用配置中指定的加载记忆指令
 	loadCommand := config.GetMemoryLoadCommand()

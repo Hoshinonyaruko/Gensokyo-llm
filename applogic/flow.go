@@ -14,6 +14,10 @@ import (
 
 // ApplyPromptChoiceQ 应用promptchoiceQ的逻辑，动态修改requestmsg
 func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
+	userid := message.UserID
+	if config.GetGroupContext() && message.MessageType != "private" {
+		userid = message.GroupID
+	}
 
 	// 检查是否启用了EnhancedQA
 	if config.GetEnhancedQA(promptstr) {
@@ -35,7 +39,7 @@ func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message
 		} else {
 			var ischange bool
 			// 获取用户剧情存档中的当前状态
-			CustomRecord, err := app.FetchCustomRecord(message.UserID)
+			CustomRecord, err := app.FetchCustomRecord(userid)
 			if err != nil {
 				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 				return
@@ -133,6 +137,11 @@ func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message
 
 // ApplyPromptCoverQ 应用promptCoverQ的逻辑，动态覆盖requestmsg
 func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
+	userid := message.UserID
+	if config.GetGroupContext() && message.MessageType != "private" {
+		userid = message.GroupID
+	}
+
 	// 检查是否启用了EnhancedQA
 	if config.GetEnhancedQA(promptstr) {
 		promptCover := config.GetPromptCoverQ(promptstr)
@@ -142,7 +151,7 @@ func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message 
 		} else {
 			var ischange bool
 			// 获取用户剧情存档中的当前状态
-			CustomRecord, err := app.FetchCustomRecord(message.UserID)
+			CustomRecord, err := app.FetchCustomRecord(userid)
 			if err != nil {
 				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 				return
@@ -240,11 +249,16 @@ func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message 
 
 // ApplySwitchOnQ 应用switchOnQ的逻辑，动态修改promptstr
 func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *structs.OnebotGroupMessage) {
+	userid := message.UserID
+	if config.GetGroupContext() && message.MessageType != "private" {
+		userid = message.GroupID
+	}
+
 	// promptstr 随 switchOnQ 变化
 	promptstrChoices := config.GetSwitchOnQ(*promptstr)
 	if len(promptstrChoices) != 0 {
 		// 获取用户剧情存档中的当前状态
-		CustomRecord, err := app.FetchCustomRecord(message.UserID)
+		CustomRecord, err := app.FetchCustomRecord(userid)
 		if err != nil {
 			fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 			return
@@ -298,7 +312,7 @@ func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *s
 						*promptstr = bestText
 						// 获取新的信号长度 刷新持久化数据库
 						PromptMarksLength := config.GetPromptMarksLength(*promptstr)
-						app.InsertCustomTableRecord(message.UserID, *promptstr, PromptMarksLength)
+						app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
 						fmt.Printf("enhancedChoices=true,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", *promptstr, PromptMarksLength)
 						// 故事模式规则 应用 PromptChoiceQ 这一次是为了,替换了分支后,再次用新的分支的promptstr处理一次,因为原先的promptstr是跳转前,要用跳转后的再替换一次
 						app.ApplyPromptChoiceQ(*promptstr, requestmsg, message)
@@ -323,7 +337,7 @@ func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *s
 						*promptstr = selectedText
 						// 获取新的信号长度 刷新持久化数据库
 						PromptMarksLength := config.GetPromptMarksLength(*promptstr)
-						app.InsertCustomTableRecord(message.UserID, *promptstr, PromptMarksLength)
+						app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
 						fmt.Printf("enhancedChoices=false,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", *promptstr, PromptMarksLength)
 						// 故事模式规则 应用 PromptChoiceQ 这一次是为了,替换了分支后,再次用新的分支的promptstr处理一次,因为原先的promptstr是跳转前,要用跳转后的再替换一次
 						app.ApplyPromptChoiceQ(*promptstr, requestmsg, message)
@@ -341,8 +355,13 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 		return
 	}
 
+	userid := message.UserID
+	if config.GetGroupContext() && message.MessageType != "private" {
+		userid = message.GroupID
+	}
+
 	// 获取用户剧情存档中的当前状态
-	CustomRecord, err := app.FetchCustomRecord(message.UserID)
+	CustomRecord, err := app.FetchCustomRecord(userid)
 	if err != nil {
 		fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 		return
@@ -413,8 +432,13 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 
 // HandleExit 处理用户退出逻辑，包括发送消息和重置用户状态。
 func (app *App) HandleExit(exitText string, message *structs.OnebotGroupMessage, selfid string) {
+	userid := message.UserID
+	if config.GetGroupContext() && message.MessageType != "private" {
+		userid = message.GroupID
+	}
+
 	fmt.Printf("处理重置操作on:%v", exitText)
-	app.migrateUserToNewContext(message.UserID)
+	app.migrateUserToNewContext(userid)
 	RestoreResponse := config.GetRandomRestoreResponses()
 	if message.RealMessageType == "group_private" || message.MessageType == "private" {
 		if !config.GetUsePrivateSSE() {
@@ -425,7 +449,7 @@ func (app *App) HandleExit(exitText string, message *structs.OnebotGroupMessage,
 	} else {
 		utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
 	}
-	app.deleteCustomRecord(message.UserID)
+	app.deleteCustomRecord(userid)
 }
 
 // ProcessExitChoicesA 处理基于关键词的退出逻辑。
@@ -435,8 +459,13 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 		return
 	}
 
+	userid := message.UserID
+	if config.GetGroupContext() && message.MessageType != "private" {
+		userid = message.GroupID
+	}
+
 	// 获取用户剧情存档中的当前状态
-	CustomRecord, err := app.FetchCustomRecord(message.UserID)
+	CustomRecord, err := app.FetchCustomRecord(userid)
 	if err != nil {
 		fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 		return
@@ -507,11 +536,16 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 
 // ApplySwitchOnA 应用switchOnA的逻辑，动态修改promptstr
 func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *structs.OnebotGroupMessage) {
+	userid := message.UserID
+	if config.GetGroupContext() && message.MessageType != "private" {
+		userid = message.GroupID
+	}
+
 	// 获取与 switchOnA 相关的选择
 	promptstrChoices := config.GetSwitchOnA(*promptstr)
 	if len(promptstrChoices) != 0 {
 		// 获取用户剧情存档中的当前状态
-		CustomRecord, err := app.FetchCustomRecord(message.UserID)
+		CustomRecord, err := app.FetchCustomRecord(userid)
 		if err != nil {
 			fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 			return
@@ -557,7 +591,7 @@ func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *str
 					if bestMatchCount > 0 {
 						*promptstr = bestText
 						PromptMarksLength := config.GetPromptMarksLength(*promptstr)
-						app.InsertCustomTableRecord(message.UserID, *promptstr, PromptMarksLength)
+						app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
 						fmt.Printf("enhancedChoices=true,根据关键词A切换prompt为: %s,newPromptStrStat:%d\n", *promptstr, PromptMarksLength)
 					}
 				}
@@ -577,7 +611,7 @@ func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *str
 						selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
 						*promptstr = selectedText
 						PromptMarksLength := config.GetPromptMarksLength(*promptstr)
-						app.InsertCustomTableRecord(message.UserID, *promptstr, PromptMarksLength)
+						app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
 						fmt.Printf("enhancedChoices=false,根据关键词A切换prompt为: %s,newPromptStrStat:%d\n", *promptstr, PromptMarksLength)
 					}
 				}
@@ -588,6 +622,11 @@ func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *str
 
 // ApplyPromptChoiceA 应用故事模式的情绪增强逻辑，并返回增强内容。
 func (app *App) ApplyPromptChoiceA(promptstr string, response string, message *structs.OnebotGroupMessage) string {
+	userid := message.UserID
+	if config.GetGroupContext() && message.MessageType != "private" {
+		userid = message.GroupID
+	}
+
 	promptChoices := config.GetPromptChoicesA(promptstr)
 	if len(promptChoices) == 0 {
 		// 获取系统历史，但不包括系统消息
@@ -608,7 +647,7 @@ func (app *App) ApplyPromptChoiceA(promptstr string, response string, message *s
 	}
 
 	// 获取用户剧情存档中的当前状态
-	CustomRecord, err := app.FetchCustomRecord(message.UserID)
+	CustomRecord, err := app.FetchCustomRecord(userid)
 	if err != nil {
 		fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 		return ""
