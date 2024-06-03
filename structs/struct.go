@@ -264,6 +264,7 @@ type Settings struct {
 	UrlSendPics             bool     `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
 	MdPromptKeyboardAtGroup bool     `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
 	GroupHintWords          []string `yaml:"groupHintWords"`
+	GroupContext            bool     `yaml:"groupContext"`
 
 	HunyuanType             int     `yaml:"hunyuanType"`
 	MaxTokensHunyuan        int     `yaml:"maxTokensHunyuan"`
