@@ -49,6 +49,7 @@ settings:
   hideExtraLogs : false                         #忽略流信息的log,提高性能
   urlSendPics : false                           #自己构造图床加速图片发送.需配置公网ip+放通port+设置正确的selfPath
   groupHintWords : []                           #当机器人位于群内时,需满足包含groupHintWords数组任意内容如[CQ:at,qq=2] 机器人的名字 等
+  groupContext : false                          #群上下文 在智能体在群内时,以群为单位处理上下文.
 
   #Ws服务器配置
   wsServerToken : ""                            #ws密钥 可以由onebotv11反向ws接入

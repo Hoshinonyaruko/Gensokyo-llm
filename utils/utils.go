@@ -981,11 +981,11 @@ func SendSSEPrivateMessage(userID int64, content string) {
 		}
 
 		if state == 20 { // 对最后一部分特殊处理
-			RestoreResponses := config.GetRestoreCommand()
+			MemoryLoadCommand := config.GetMemoryLoadCommand()
 			promptKeyboard := config.GetPromptkeyboard()
 
-			if len(RestoreResponses) > 0 {
-				selectedRestoreResponse := RestoreResponses[rand.Intn(len(RestoreResponses))]
+			if len(MemoryLoadCommand) > 0 {
+				selectedRestoreResponse := MemoryLoadCommand[rand.Intn(len(MemoryLoadCommand))]
 				if len(promptKeyboard) > 0 {
 					promptKeyboard[0] = selectedRestoreResponse
 				}

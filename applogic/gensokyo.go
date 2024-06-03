@@ -492,8 +492,14 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 请求conversation api 增加当前用户上下文
-		conversationID, parentMessageID, err := app.handleUserContext(message.UserID)
+		var conversationID, parentMessageID string
+		// 请求conversation api 增加当前群/用户上下文
+		if config.GetGroupContext() && message.MessageType != "private" {
+			conversationID, parentMessageID, err = app.handleUserContext(message.GroupID)
+		} else {
+			conversationID, parentMessageID, err = app.handleUserContext(message.UserID)
+		}
+
 		// 使用map映射conversationID和uid gid的关系
 		StoreUserInfo(conversationID, message.UserID, message.GroupID, message.RealMessageType, message.MessageType)
 
@@ -863,10 +869,18 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			// 在SSE流结束后更新用户上下文 在这里调用gensokyo流式接口的最后一步 插推荐气泡
 			if lastMessageID != "" {
 				fmtf.Printf("lastMessageID: %s\n", lastMessageID)
-				err := app.updateUserContext(message.UserID, lastMessageID)
-				if err != nil {
-					fmtf.Printf("Error updating user context: %v\n", err)
+				if config.GetGroupContext() && message.MessageType != "private" {
+					err := app.updateUserContext(message.GroupID, lastMessageID)
+					if err != nil {
+						fmtf.Printf("Error updating user context: %v\n", err)
+					}
+				} else {
+					err := app.updateUserContext(message.UserID, lastMessageID)
+					if err != nil {
+						fmtf.Printf("Error updating user context: %v\n", err)
+					}
 				}
+
 				if message.RealMessageType == "group_private" || message.MessageType == "private" {
 					if config.GetUsePrivateSSE() {
 
@@ -960,10 +974,18 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 			// 更新用户上下文
 			if messageId, ok := responseData["messageId"].(string); ok {
-				err := app.updateUserContext(message.UserID, messageId)
-				if err != nil {
-					fmtf.Printf("Error updating user context: %v\n", err)
+				if config.GetGroupContext() && message.MessageType != "private" {
+					err := app.updateUserContext(message.GroupID, messageId)
+					if err != nil {
+						fmtf.Printf("Error updating user context: %v\n", err)
+					}
+				} else {
+					err := app.updateUserContext(message.UserID, messageId)
+					if err != nil {
+						fmtf.Printf("Error updating user context: %v\n", err)
+					}
 				}
+
 			}
 		}
 
