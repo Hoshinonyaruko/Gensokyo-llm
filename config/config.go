@@ -1122,6 +1122,16 @@ func GetNoContext() bool {
 	return false
 }
 
+// 获取GroupContext
+func GetGroupContext() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GroupContext
+	}
+	return false
+}
+
 // 获取WithdrawCommand
 func GetWithdrawCommand() []string {
 	mu.Lock()
