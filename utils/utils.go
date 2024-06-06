@@ -1504,8 +1504,6 @@ func ReplaceTextIn(text string, promptstr string) string {
 	// 调用 GetReplacementPairsIn 函数获取替换对列表
 	replacementPairs := config.GetReplacementPairsIn(promptstr)
 
-	fmt.Printf("测试测试:%+v,%v", replacementPairs, promptstr)
-
 	if len(replacementPairs) == 0 {
 		return text
 	}
