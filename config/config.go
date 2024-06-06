@@ -3024,13 +3024,15 @@ func GetYuanqiConf(options ...string) (string, string) {
 
 // getYuanqiConfInternal 内部递归函数，处理配置获取逻辑
 func getYuanqiConfInternal(options ...string) (string, string) {
-	// 从instance中读取配置数组
-	if instance != nil && len(instance.Settings.Yuanqiconfs) > 0 {
-		if len(options) == 0 || options[0] == "" {
+	if len(options) == 0 || options[0] == "" {
+		// 从instance中读取配置数组
+		if instance != nil && len(instance.Settings.Yuanqiconfs) > 0 {
 			// 从instance全局变量中随机选择一个配置
 			index := rand.Intn(len(instance.Settings.Yuanqiconfs))
 			conf := instance.Settings.Yuanqiconfs[index]
 			return conf.YuanqiAssistantID, conf.YuanqiToken
+		} else {
+			return "", ""
 		}
 	}
 
@@ -3070,9 +3072,11 @@ func GetReplacementPairsIn(options ...string) []structs.ReplacementPair {
 // getReplacementPairsInInternal 内部递归函数，处理配置获取逻辑
 func getReplacementPairsInInternal(options ...string) []structs.ReplacementPair {
 	// 从instance中读取配置数组
-	if instance != nil && len(instance.Settings.ReplacementPairsIn) > 0 {
-		if len(options) == 0 || options[0] == "" {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil && len(instance.Settings.ReplacementPairsIn) > 0 {
 			return instance.Settings.ReplacementPairsIn
+		} else {
+			return nil
 		}
 	}
 
@@ -3109,9 +3113,11 @@ func GetReplacementPairsOut(options ...string) []structs.ReplacementPair {
 // getReplacementPairsInOutternal 内部递归函数，处理配置获取逻辑
 func getReplacementPairsOutInternal(options ...string) []structs.ReplacementPair {
 	// 从instance中读取配置数组
-	if instance != nil && len(instance.Settings.ReplacementPairsOut) > 0 {
-		if len(options) == 0 || options[0] == "" {
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil && len(instance.Settings.ReplacementPairsOut) > 0 {
 			return instance.Settings.ReplacementPairsOut
+		} else {
+			return nil
 		}
 	}
 
