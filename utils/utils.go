@@ -887,6 +887,55 @@ func RemoveBracketsContent(input string) string {
 	return re.ReplaceAllString(input, "")
 }
 
+// RemoveAtTagContent 接收一个字符串，并移除所有[@任意字符]的内容
+func RemoveAtTagContent(input string) string {
+	// 编译一个正则表达式，用于匹配[@任意字符]的模式
+	re := regexp.MustCompile(`\[@.*?\]`)
+	// 使用正则表达式的ReplaceAllString方法删除匹配的部分
+	cleaned := re.ReplaceAllString(input, "")
+	// 去除前后的空格
+	cleaned = strings.TrimSpace(cleaned)
+	return cleaned
+}
+
+// RemoveAtTagContentConditional 接收一个字符串和一个 int64 类型的 selfid，
+// 并根据条件移除[@selfowd]格式的内容，然后去除前后的空格。
+// 只有当标签中的ID与传入的selfid相匹配时才进行移除，
+// 如果没有任何[@xxx]出现或者所有出现的[@xxx]中的xxx都不等于selfid时，返回原字符串。
+func RemoveAtTagContentConditional(input string, selfid int64) string {
+	// 将 int64 类型的 selfid 转换为字符串
+	selfidStr := strconv.FormatInt(selfid, 10)
+
+	// 编译一个正则表达式，用于匹配并捕获[@任意字符]的模式
+	re := regexp.MustCompile(`\[@(.*?)\]`)
+	matches := re.FindAllStringSubmatch(input, -1)
+
+	// 如果没有找到任何匹配项，直接返回原输入
+	if len(matches) == 0 {
+		return input
+	}
+
+	foundSelfId := false // 用于跟踪是否找到与selfid相匹配的标签
+
+	// 遍历所有匹配项
+	for _, match := range matches {
+		if match[1] == selfidStr {
+			// 如果找到与selfid相匹配的标签，替换该标签
+			input = strings.Replace(input, match[0], "", -1)
+			foundSelfId = true // 标记已找到至少一个与selfid相匹配的标签
+		}
+	}
+
+	if !foundSelfId {
+		// 如果没有找到任何与selfid相匹配的标签，将输入置为空
+		input = ""
+	}
+
+	// 去除前后的空格
+	cleaned := strings.TrimSpace(input)
+	return cleaned
+}
+
 func PostSensitiveMessages() error {
 	port := config.GetPort() // 从config包获取端口号
 	var portStr string

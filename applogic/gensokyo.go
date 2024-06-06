@@ -80,12 +80,17 @@ func ResetAllIndexes() {
 }
 
 // checkMessageForHints 检查消息中是否包含给定的提示词
-func checkMessageForHints(message string) bool {
+func checkMessageForHints(message string, selfid int64, promptstr string) bool {
 	// 从配置中获取提示词数组
-	hintWords := config.GetGroupHintWords()
+	hintWords := config.GetGroupHintWords(promptstr)
 	if len(hintWords) == 0 {
 		return true // 未设置,直接返回0
 	}
+
+	selfidstr := strconv.FormatInt(selfid, 10)
+	// 使用[@+selfid+]格式，向提示词数组增加一个成员
+	hintWords = append(hintWords, "[@"+selfidstr+"]")
+
 	// 遍历每个提示词，检查它们是否出现在消息中
 	for _, hint := range hintWords {
 		if strings.Contains(message, hint) {
@@ -135,9 +140,19 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var promptstr string
+	// 读取URL参数 "prompt"
+	promptstr = r.URL.Query().Get("prompt")
+	if promptstr != "" {
+		// 使用 prompt 变量进行后续处理
+		fmt.Printf("收到prompt参数: %s\n", promptstr)
+	}
+
 	// 判断是否是群聊，然后检查触发词
 	if message.RealMessageType != "group_private" && message.MessageType != "private" {
-		if !checkMessageForHints(utils.RemoveBracketsContent(message.RawMessage)) {
+		// 去除含2个[[]]的内容
+		checkstr := utils.RemoveBracketsContent(message.RawMessage)
+		if !checkMessageForHints(checkstr, message.SelfID, promptstr) {
 			// 获取概率值
 			chance := config.GetGroupHintChance()
 
@@ -153,6 +168,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				// 记录日志，表明概率检查通过
 				fmt.Printf("Probability check passed: %d%% chance, random value: %d\n", chance, randomValue)
 			}
+		} else {
+			fmt.Printf("checkMessageForHints check passed")
 		}
 	}
 
@@ -171,17 +188,10 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var promptstr string
 	if CustomRecord != nil {
 		// 提示词参数
-		if CustomRecord.PromptStr == "" {
-			// 读取URL参数 "prompt"
-			promptstr = r.URL.Query().Get("prompt")
-			if promptstr != "" {
-				// 使用 prompt 变量进行后续处理
-				fmt.Printf("收到prompt参数: %s\n", promptstr)
-			}
-		} else {
+		if CustomRecord.PromptStr != "" {
+			// 用数据库读取到的CustomRecord PromptStr去覆盖当前的PromptStr
 			promptstr = CustomRecord.PromptStr
 			fmt.Printf("刷新prompt参数: %s,newPromptStrStat:%d\n", promptstr, CustomRecord.PromptStrStat-1)
 			newPromptStrStat := CustomRecord.PromptStrStat - 1
@@ -197,7 +207,6 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 					fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
 				}
 			}
-
 		}
 
 		// MARK: 提示词之间 整体切换Q
@@ -235,13 +244,6 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		// 读取URL参数 "prompt"
-		promptstr = r.URL.Query().Get("prompt")
-		if promptstr != "" {
-			// 使用 prompt 变量进行后续处理
-			fmt.Printf("收到prompt参数: %s\n", promptstr)
-		}
-
 		// MARK: 提示词之间 整体切换Q 当用户没有存档时
 		if config.GetGroupContext() && message.MessageType != "private" {
 			app.ProcessPromptMarks(message.GroupID, message.Message.(string), &promptstr)
@@ -329,6 +331,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		if config.GetIgnoreExtraTips() {
 			checkResetCommand = utils.RemoveBracketsContent(checkResetCommand)
 		}
+
+		// 去除at自己的 CQ码,如果不是指向自己的,则不响应
+		checkResetCommand = utils.RemoveAtTagContentConditional(checkResetCommand, message.SelfID)
 
 		// 检查checkResetCommand是否在restoreCommands列表中
 		isResetCommand := false
@@ -689,6 +694,16 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 按提示词区分的细化替换 这里主要不是为了安全和敏感词,而是细化效果,也就没有使用acnode提高效率
 		requestmsg = utils.ReplaceTextIn(requestmsg, promptstr)
+
+		// 去除不是针对自己的at CQ码 不响应目标不是自己的at信息
+		requestmsg = utils.RemoveAtTagContentConditional(requestmsg, message.SelfID)
+		if requestmsg == "" {
+			fmtf.Printf("requestmsg is empty")
+			// 发送响应
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("requestmsg is empty"))
+			return
+		}
 
 		if config.GetGroupContext() && message.MessageType != "private" {
 			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.GroupID, requestmsg)
