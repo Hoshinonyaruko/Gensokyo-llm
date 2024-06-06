@@ -148,14 +148,14 @@ func GetKey(groupid int64, userid int64) string {
 }
 
 // 随机的分布发送
-func ContainsRune(slice []rune, value rune, groupid int64) bool {
+func ContainsRune(slice []rune, value rune, groupid int64, promptstr string) bool {
 	var probability int
 	if groupid == 0 {
 		// 获取概率百分比
-		probability = config.GetSplitByPuntuations()
+		probability = config.GetSplitByPuntuations(promptstr)
 	} else {
 		// 获取概率百分比
-		probability = config.GetSplitByPuntuationsGroup()
+		probability = config.GetSplitByPuntuationsGroup(promptstr)
 	}
 
 	for _, item := range slice {

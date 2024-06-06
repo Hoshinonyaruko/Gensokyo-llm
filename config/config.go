@@ -536,23 +536,117 @@ func GetGroupmessage() bool {
 }
 
 // 获取SplitByPuntuations
-func GetSplitByPuntuations() int {
+func GetSplitByPuntuations(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.SplitByPuntuations
-	}
-	return 0
+	return getSplitByPuntuationsInternal(options...)
 }
 
-// 获取SplitByPuntuationsGroup
-func GetSplitByPuntuationsGroup() int {
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getSplitByPuntuationsInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.SplitByPuntuations
+		}
+		return 0 // 默认值或错误处理
+	}
+
+	// 使用传入的 basename 来查找特定配置
+	basename := options[0]
+	SplitByPuntuationsInterface, err := prompt.GetSettingFromFilename(basename, "SplitByPuntuations")
+	if err != nil {
+		log.Println("Error retrieving SplitByPuntuations:", err)
+		return getSplitByPuntuationsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	SplitByPuntuations, ok := SplitByPuntuationsInterface.(int)
+	if !ok { // 检查类型断言是否失败
+		fmt.Println("Type assertion failed for SplitByPuntuations, fetching default")
+		return getSplitByPuntuationsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if SplitByPuntuations == 0 {
+		return getSplitByPuntuationsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return SplitByPuntuations
+}
+
+// 获取GetSplitByPuntuationsGroup
+func GetSplitByPuntuationsGroup(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.SplitByPuntuationsGroup
+	return getSplitByPuntuationsGroupInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getSplitByPuntuationsGroupInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.SplitByPuntuationsGroup
+		}
+		return 0 // 默认值或错误处理
 	}
-	return 0
+
+	// 使用传入的 basename 来查找特定配置
+	basename := options[0]
+	SplitByPuntuationsGroupInterface, err := prompt.GetSettingFromFilename(basename, "SplitByPuntuationsGroup")
+	if err != nil {
+		log.Println("Error retrieving SplitByPuntuationsGroup:", err)
+		return getSplitByPuntuationsGroupInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	SplitByPuntuationsGroup, ok := SplitByPuntuationsGroupInterface.(int)
+	if !ok { // 检查类型断言是否失败
+		fmt.Println("Type assertion failed for SplitByPuntuationsGroup, fetching default")
+		return getSplitByPuntuationsGroupInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if SplitByPuntuationsGroup == 0 {
+		return getSplitByPuntuationsGroupInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return SplitByPuntuationsGroup
+}
+
+// 获取GroupHintChance
+func GetGroupHintChance(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getGroupHintChanceInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGroupHintChanceInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GroupHintChance
+		}
+		return 0 // 默认值或错误处理
+	}
+
+	// 使用传入的 basename 来查找特定配置
+	basename := options[0]
+	GroupHintChanceInterface, err := prompt.GetSettingFromFilename(basename, "GroupHintChance")
+	if err != nil {
+		log.Println("Error retrieving GroupHintChance:", err)
+		return getGroupHintChanceInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	GroupHintChance, ok := GroupHintChanceInterface.(int)
+	if !ok { // 检查类型断言是否失败
+		fmt.Println("Type assertion failed for GroupHintChance, fetching default")
+		return getGroupHintChanceInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if GroupHintChance == 0 {
+		return getGroupHintChanceInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return GroupHintChance
 }
 
 // 获取HunyuanType

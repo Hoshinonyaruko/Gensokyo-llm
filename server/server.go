@@ -100,7 +100,7 @@ func WsHandler(w http.ResponseWriter, r *http.Request, config *config.Config) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Failed to set websocket upgrade: %+v", err)
+		log.Printf("Failed to set websocket upgrade[%v]: %+v", r.Header, err)
 		return
 	}
 	defer conn.Close()

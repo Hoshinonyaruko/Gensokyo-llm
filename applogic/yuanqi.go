@@ -153,6 +153,7 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 			systemHistory, err := prompt.GetMessagesExcludingSystem(promptstr)
 			if err != nil {
 				fmtf.Printf("Error getting system history: %v\n", err)
+				// 如果进行到不存在的分支,这里就return了,导致没有回复 但如果不return,模型是没有system提示词的原始状态,所以要在前面做处理
 				return
 			}
 

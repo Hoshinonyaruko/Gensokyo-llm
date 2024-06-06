@@ -276,3 +276,17 @@ func GetSettingFromFilename(basename, settingName string) (interface{}, error) {
 	// 返回字段的值，转换为interface{}
 	return field.Interface(), nil
 }
+
+// CheckPromptExistence 检查基于 basename 组合的 filename 是否存在于 promptsCache 中
+func CheckPromptExistence(basename string) bool {
+	// 组合 basename 和 ".yml" 形成完整的文件名
+	filename := basename + ".yml"
+
+	// 用读锁来确保并发安全
+	lock.RLock()
+	defer lock.RUnlock()
+
+	// 检查文件是否存在于缓存中
+	_, exists := promptsCache[filename]
+	return exists
+}
