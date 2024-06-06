@@ -51,6 +51,12 @@ settings:
   groupHintWords : []                           #当机器人位于群内时,需满足包含groupHintWords数组任意内容如[CQ:at,qq=2] 机器人的名字 等
   groupHintChance : 0                           #需与groupHintWords联用,代表不满足hintwords时概率触发,不启用groupHintWords相当于百分百概率回复.
   groupContext : false                          #群上下文 在智能体在群内时,以群为单位处理上下文.
+  replacementPairsIn:                           #每个不同的yml文件,都可以有自己独立的替换词规则,IN OUT分离
+  - originalWord: "hello"
+    targetWord: "hi"
+  replacementPairsOut:                          #每个不同的yml文件,都可以有自己独立的替换词规则,IN OUT分离
+  - originalWord: "hello"
+    targetWord: "hi"
 
   #Ws服务器配置
   wsServerToken : ""                            #ws密钥 可以由onebotv11反向ws接入
