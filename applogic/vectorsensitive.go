@@ -258,7 +258,7 @@ func (app *App) textExistsInDatabase(text string) (bool, error) {
 	return exists, nil
 }
 
-func (app *App) InterceptSensitiveContent(vector []float64, message structs.OnebotGroupMessage, selfid string) (int, string, error) {
+func (app *App) InterceptSensitiveContent(vector []float64, message structs.OnebotGroupMessage, selfid string, promptstr string) (int, string, error) {
 	// 自定义阈值
 	Threshold := config.GetVertorSensitiveThreshold()
 
@@ -283,12 +283,12 @@ func (app *App) InterceptSensitiveContent(vector []float64, message structs.Oneb
 		if saveresponse != "" {
 			if message.RealMessageType == "group_private" || message.MessageType == "private" {
 				if !config.GetUsePrivateSSE() {
-					utils.SendPrivateMessage(message.UserID, saveresponse, selfid)
+					utils.SendPrivateMessage(message.UserID, saveresponse, selfid, promptstr)
 				} else {
-					utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse)
+					utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse, promptstr)
 				}
 			} else {
-				utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse, selfid)
+				utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse, selfid, promptstr)
 			}
 			return 1, saveresponse, nil
 		}

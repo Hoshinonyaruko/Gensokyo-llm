@@ -105,7 +105,7 @@ func (app *App) GetAndSendEnv(msg string, promptstr string, message structs.Oneb
 	if message.RealMessageType == "group_private" || message.MessageType == "private" {
 		utils.SendPrivateMessageRaw(message.UserID, newResponse, selfid)
 	} else {
-		utils.SendGroupMessage(message.GroupID, message.UserID, newResponse, selfid)
+		utils.SendGroupMessage(message.GroupID, message.UserID, newResponse, selfid, promptstr)
 	}
 }
 

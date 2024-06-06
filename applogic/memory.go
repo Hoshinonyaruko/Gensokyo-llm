@@ -81,7 +81,7 @@ func GetMemoryTitle(msg string) string {
 }
 
 // 保存记忆
-func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID string, ParentMessageID string) {
+func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID string, ParentMessageID string, promptstr string) {
 	conversationTitle := "2024-5-19/18:26" // 默认标题，根据实际需求可能需要调整为动态生成的时间戳
 
 	userid := msg.UserID
@@ -124,11 +124,11 @@ func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID 
 
 	// 发送保存成功的响应
 	saveMemoryResponse := "记忆保存成功！"
-	app.sendMemoryResponseWithkeyBoard(msg, saveMemoryResponse, keyboard)
+	app.sendMemoryResponseWithkeyBoard(msg, saveMemoryResponse, keyboard, promptstr)
 }
 
 // 获取记忆列表
-func (app *App) handleMemoryList(msg structs.OnebotGroupMessage) {
+func (app *App) handleMemoryList(msg structs.OnebotGroupMessage, promptstr string) {
 
 	userid := msg.UserID
 	if config.GetGroupContext() && msg.MessageType != "private" {
@@ -172,11 +172,11 @@ func (app *App) handleMemoryList(msg structs.OnebotGroupMessage) {
 	responseBuilder.WriteString(fmt.Sprintf("提示：发送 %s 任意标题开头的前n字即可载入记忆\n如：%s %s", loadMemoryCommand, loadMemoryCommand, exampleTitle))
 
 	// 发送组合后的信息，包括键盘数组
-	app.sendMemoryResponseByline(msg, responseBuilder.String(), keyboard)
+	app.sendMemoryResponseByline(msg, responseBuilder.String(), keyboard, promptstr)
 }
 
 // 载入记忆
-func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetCommand string) {
+func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetCommand string, promptstr string) {
 
 	userid := msg.UserID
 	if config.GetGroupContext() && msg.MessageType != "private" {
@@ -198,7 +198,7 @@ func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetComma
 	memories, err := app.GetUserMemories(userid)
 	if err != nil {
 		log.Printf("Error retrieving memories: %s", err)
-		app.sendMemoryResponse(msg, "获取记忆失败")
+		app.sendMemoryResponse(msg, "获取记忆失败", promptstr)
 		return
 	}
 
@@ -212,7 +212,7 @@ func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetComma
 	}
 
 	if matchedMemory == nil {
-		app.sendMemoryResponse(msg, "未找到匹配的记忆")
+		app.sendMemoryResponse(msg, "未找到匹配的记忆", promptstr)
 		return
 	}
 
@@ -220,51 +220,51 @@ func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetComma
 	err = app.updateUserContextPro(userid, matchedMemory.ConversationID, matchedMemory.ParentMessageID)
 	if err != nil {
 		log.Printf("Error adding memory: %s", err)
-		app.sendMemoryResponse(msg, "载入记忆失败")
+		app.sendMemoryResponse(msg, "载入记忆失败", promptstr)
 		return
 	}
 
 	// 组合回复信息
 	responseMessage := fmt.Sprintf("成功载入了标题为 '%s' 的记忆", matchedMemory.ConversationTitle)
-	app.sendMemoryResponse(msg, responseMessage)
+	app.sendMemoryResponse(msg, responseMessage, promptstr)
 }
 
-func (app *App) sendMemoryResponseWithkeyBoard(msg structs.OnebotGroupMessage, response string, keyboard []string) {
+func (app *App) sendMemoryResponseWithkeyBoard(msg structs.OnebotGroupMessage, response string, keyboard []string, promptstr string) {
 	strSelfID := strconv.FormatInt(msg.SelfID, 10)
 	if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
 		if !config.GetUsePrivateSSE() {
-			utils.SendPrivateMessage(msg.UserID, response, strSelfID)
+			utils.SendPrivateMessage(msg.UserID, response, strSelfID, promptstr)
 		} else {
-			utils.SendSSEPrivateMessageWithKeyboard(msg.UserID, response, keyboard)
+			utils.SendSSEPrivateMessageWithKeyboard(msg.UserID, response, keyboard, promptstr)
 		}
 	} else {
-		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID)
+		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID, promptstr)
 	}
 }
 
-func (app *App) sendMemoryResponse(msg structs.OnebotGroupMessage, response string) {
+func (app *App) sendMemoryResponse(msg structs.OnebotGroupMessage, response string, promptstr string) {
 	strSelfID := strconv.FormatInt(msg.SelfID, 10)
 	if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
 		if !config.GetUsePrivateSSE() {
-			utils.SendPrivateMessage(msg.UserID, response, strSelfID)
+			utils.SendPrivateMessage(msg.UserID, response, strSelfID, promptstr)
 		} else {
-			utils.SendSSEPrivateMessage(msg.UserID, response)
+			utils.SendSSEPrivateMessage(msg.UserID, response, promptstr)
 		}
 	} else {
-		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID)
+		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID, promptstr)
 	}
 }
 
-func (app *App) sendMemoryResponseByline(msg structs.OnebotGroupMessage, response string, keyboard []string) {
+func (app *App) sendMemoryResponseByline(msg structs.OnebotGroupMessage, response string, keyboard []string, promptstr string) {
 	strSelfID := strconv.FormatInt(msg.SelfID, 10)
 	if msg.RealMessageType == "group_private" || msg.MessageType == "private" {
 		if !config.GetUsePrivateSSE() {
-			utils.SendPrivateMessage(msg.UserID, response, strSelfID)
+			utils.SendPrivateMessage(msg.UserID, response, strSelfID, promptstr)
 		} else {
-			utils.SendSSEPrivateMessageByLine(msg.UserID, response, keyboard)
+			utils.SendSSEPrivateMessageByLine(msg.UserID, response, keyboard, promptstr)
 		}
 	} else {
-		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID)
+		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID, promptstr)
 	}
 }
 
@@ -280,7 +280,7 @@ func formatHistory(history []structs.Message) string {
 	return result
 }
 
-func (app *App) handleNewConversation(msg structs.OnebotGroupMessage, conversationID string, parentMessageID string) {
+func (app *App) handleNewConversation(msg structs.OnebotGroupMessage, conversationID string, parentMessageID string, promotstr string) {
 	// 使用预定义的时间戳作为会话标题
 	conversationTitle := "2024-5-19/18:26" // 实际应用中应使用动态生成的时间戳
 	userid := msg.UserID
@@ -323,6 +323,6 @@ func (app *App) handleNewConversation(msg structs.OnebotGroupMessage, conversati
 	if len(loadCommand) > 0 {
 		loadMemoryCommand := loadCommand[0] // 使用数组中的第一个指令
 		saveMemoryResponse := fmt.Sprintf("旧的对话已经保存，可发送 %s 来查看，可以开始新的对话了！", loadMemoryCommand)
-		app.sendMemoryResponse(msg, saveMemoryResponse)
+		app.sendMemoryResponse(msg, saveMemoryResponse, promotstr)
 	}
 }

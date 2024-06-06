@@ -339,7 +339,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if utils.BlacklistIntercept(message, selfid) {
+		if utils.BlacklistIntercept(message, selfid, promptstr) {
 			fmtf.Printf("userid:[%v]groupid:[%v]这位用户或群在黑名单中,被拦截", message.UserID, message.GroupID)
 			return
 		}
@@ -355,12 +355,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			RestoreResponse := config.GetRandomRestoreResponses()
 			if message.RealMessageType == "group_private" || message.MessageType == "private" {
 				if !config.GetUsePrivateSSE() {
-					utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid)
+					utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid, promptstr)
 				} else {
-					utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse)
+					utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse, promptstr)
 				}
 			} else {
-				utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
+				utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid, promptstr)
 			}
 			// 处理故事情节的重置
 			if config.GetGroupContext() && message.MessageType != "private" {
@@ -402,7 +402,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 进行字数拦截
 		if config.GetQuestionMaxLenth() != 0 {
-			if utils.LengthIntercept(newmsg, message, selfid) {
+			if utils.LengthIntercept(newmsg, message, selfid, promptstr) {
 				fmtf.Printf("字数过长,可在questionMaxLenth配置项修改,Q: %v", newmsg)
 				// 发送响应
 				w.WriteHeader(http.StatusOK)
@@ -413,7 +413,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 进行语言判断拦截 skipLangCheck为false时
 		if len(config.GetAllowedLanguages()) > 0 && !skipLangCheck {
-			if utils.LanguageIntercept(newmsg, message, selfid) {
+			if utils.LanguageIntercept(newmsg, message, selfid, promptstr) {
 				fmtf.Printf("不安全!不支持的语言,可在config.yml设置允许的语言,allowedLanguages配置项,Q: %v", newmsg)
 				// 发送响应
 				w.WriteHeader(http.StatusOK)
@@ -440,7 +440,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 向量安全词部分,机器人向量安全屏障
 		if config.GetVectorSensitiveFilter() {
-			ret, retstr, err := app.InterceptSensitiveContent(vector, message, selfid)
+			ret, retstr, err := app.InterceptSensitiveContent(vector, message, selfid, promptstr)
 			if err != nil {
 				fmtf.Printf("Error in InterceptSensitiveContent: %v", err)
 				// 发送响应
@@ -490,12 +490,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						// 发送响应消息
 						if message.RealMessageType == "group_private" || message.MessageType == "private" {
 							if !config.GetUsePrivateSSE() {
-								utils.SendPrivateMessage(message.UserID, responseText, selfid)
+								utils.SendPrivateMessage(message.UserID, responseText, selfid, promptstr)
 							} else {
-								utils.SendSSEPrivateMessage(message.UserID, responseText)
+								utils.SendSSEPrivateMessage(message.UserID, responseText, promptstr)
 							}
 						} else {
-							utils.SendGroupMessage(message.GroupID, message.UserID, responseText, selfid)
+							utils.SendGroupMessage(message.GroupID, message.UserID, responseText, selfid, promptstr)
 						}
 						// 发送响应
 						w.WriteHeader(http.StatusOK)
@@ -535,12 +535,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if saveresponse != "" {
 					if message.RealMessageType == "group_private" || message.MessageType == "private" {
 						if !config.GetUsePrivateSSE() {
-							utils.SendPrivateMessage(message.UserID, saveresponse, selfid)
+							utils.SendPrivateMessage(message.UserID, saveresponse, selfid, promptstr)
 						} else {
-							utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse)
+							utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse, promptstr)
 						}
 					} else {
-						utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse, selfid)
+						utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse, selfid, promptstr)
 					}
 				}
 				// 发送响应
@@ -575,7 +575,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 处理保存记忆
 		if ismemoryCommand {
-			app.handleSaveMemory(message, conversationID, parentMessageID) // 适配群
+			app.handleSaveMemory(message, conversationID, parentMessageID, promptstr) // 适配群
 			return
 		}
 
@@ -597,13 +597,13 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 处理记忆列表
 		if ismemoryLoadCommand {
-			app.handleMemoryList(message) // 适配群
+			app.handleMemoryList(message, promptstr) // 适配群
 			return
 		}
 
 		// 新增处理载入记忆的逻辑
 		if isPrefixedMemoryLoadCommand {
-			app.handleLoadMemory(message, checkResetCommand) // 适配群
+			app.handleLoadMemory(message, checkResetCommand, promptstr) // 适配群
 			return
 		}
 
@@ -621,7 +621,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 处理新对话
 		if isnewConversationCommand {
-			app.handleNewConversation(message, conversationID, parentMessageID) // 适配群
+			app.handleNewConversation(message, conversationID, parentMessageID, promptstr) // 适配群
 			return
 		}
 
@@ -686,6 +686,10 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			PromptMarksLength := config.GetPromptMarksLength(promptstr)
 			app.GetAndSendEnv(requestmsg, promptstr, message, selfid, CustomRecord.PromptStrStat, PromptMarksLength)
 		}
+
+		// 按提示词区分的细化替换 这里主要不是为了安全和敏感词,而是细化效果,也就没有使用acnode提高效率
+		requestmsg = utils.ReplaceTextIn(requestmsg, promptstr)
+
 		if config.GetGroupContext() && message.MessageType != "private" {
 			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.GroupID, requestmsg)
 		} else {
@@ -817,7 +821,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 									// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 									if userinfo.RealMessageType == "group_private" || userinfo.MessageType == "private" {
 										if !config.GetUsePrivateSSE() {
-											utils.SendPrivateMessage(userinfo.UserID, newPart, selfid)
+											utils.SendPrivateMessage(userinfo.UserID, newPart, selfid, promptstr)
 										} else {
 											//判断是否最后一条
 											var state int
@@ -830,16 +834,16 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 												Content: newPart,
 												State:   state,
 											}
-											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE)
+											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr)
 										}
 									} else {
 										// 这里发送的是newPart api最后补充的部分
 										if !config.GetMdPromptKeyboardAtGroup() {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, newPart, selfid)
+												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, newPart, selfid, promptstr)
 											} else {
-												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, newPart+EnhancedAContent, selfid)
+												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, newPart+EnhancedAContent, selfid, promptstr)
 											}
 										} else {
 											// 如果没有 EnhancedAContent
@@ -864,9 +868,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										if !config.GetUsePrivateSSE() {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendPrivateMessage(userinfo.UserID, response, selfid)
+												utils.SendPrivateMessage(userinfo.UserID, response, selfid, promptstr)
 											} else {
-												utils.SendPrivateMessage(userinfo.UserID, response+EnhancedAContent, selfid)
+												utils.SendPrivateMessage(userinfo.UserID, response+EnhancedAContent, selfid, promptstr)
 											}
 										} else {
 											//判断是否最后一条
@@ -880,15 +884,15 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 												Content: response,
 												State:   state,
 											}
-											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE)
+											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr)
 										}
 									} else {
 										if !config.GetMdPromptKeyboardAtGroup() {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, response, selfid)
+												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, response, selfid, promptstr)
 											} else {
-												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, response+EnhancedAContent, selfid)
+												utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, response+EnhancedAContent, selfid, promptstr)
 											}
 										} else {
 											// 如果没有 EnhancedAContent
@@ -936,7 +940,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							Content: EnhancedAContent,
 							State:   11,
 						}
-						utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+						utils.SendPrivateMessageSSE(message.UserID, messageSSE, promptstr)
 					}
 				}
 			}
@@ -1015,7 +1019,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							State:          20,
 							PromptKeyboard: promptkeyboard,
 						}
-						utils.SendPrivateMessageSSE(message.UserID, messageSSE)
+						utils.SendPrivateMessageSSE(message.UserID, messageSSE, promptstr)
 						ResetIndex(newmsg)
 					}
 				}
@@ -1041,9 +1045,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			if response, ok = responseData["response"].(string); ok && response != "" {
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 				if message.RealMessageType == "group_private" || message.MessageType == "private" {
-					utils.SendPrivateMessage(message.UserID, response, selfid)
+					utils.SendPrivateMessage(message.UserID, response, selfid, promptstr)
 				} else {
-					utils.SendGroupMessage(message.GroupID, message.UserID, response, selfid)
+					utils.SendGroupMessage(message.GroupID, message.UserID, response, selfid, promptstr)
 				}
 			}
 
@@ -1157,7 +1161,7 @@ func processMessage(response string, conversationid string, newmesssage string, 
 				// 判断消息类型，如果是私人消息或私有群消息，发送私人消息；否则，根据配置决定是否发送群消息
 				if userinfo.RealMessageType == "group_private" || userinfo.MessageType == "private" {
 					if !config.GetUsePrivateSSE() {
-						utils.SendPrivateMessage(userinfo.UserID, accumulatedMessage, selfid)
+						utils.SendPrivateMessage(userinfo.UserID, accumulatedMessage, selfid, promptstr)
 					} else {
 						if IncrementIndex(newmesssage) == 1 {
 							//第一条信息
@@ -1170,18 +1174,18 @@ func processMessage(response string, conversationid string, newmesssage string, 
 								ActionButton: 10,
 								CallbackData: uerid,
 							}
-							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE)
+							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr)
 						} else {
 							//SSE的前半部分
 							messageSSE := structs.InterfaceBody{
 								Content: accumulatedMessage,
 								State:   1,
 							}
-							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE)
+							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr)
 						}
 					}
 				} else {
-					utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, accumulatedMessage, selfid)
+					utils.SendGroupMessage(userinfo.GroupID, userinfo.UserID, accumulatedMessage, selfid, promptstr)
 				}
 
 				ClearMessage(conversationid)

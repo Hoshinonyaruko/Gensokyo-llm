@@ -404,7 +404,7 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 					}
 				}
 				if bestMatchCount > 0 {
-					app.HandleExit(bestText, message, selfid)
+					app.HandleExit(bestText, message, selfid, promptstr)
 					return
 				}
 			}
@@ -422,7 +422,7 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 				texts := strings.Split(addedTexts, "-")
 				if len(texts) > 0 {
 					selectedText := texts[rand.Intn(len(texts))]
-					app.HandleExit(selectedText, message, selfid)
+					app.HandleExit(selectedText, message, selfid, promptstr)
 					return
 				}
 			}
@@ -431,7 +431,7 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 }
 
 // HandleExit 处理用户退出逻辑，包括发送消息和重置用户状态。
-func (app *App) HandleExit(exitText string, message *structs.OnebotGroupMessage, selfid string) {
+func (app *App) HandleExit(exitText string, message *structs.OnebotGroupMessage, selfid string, promptstr string) {
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
 		userid = message.GroupID
@@ -442,12 +442,12 @@ func (app *App) HandleExit(exitText string, message *structs.OnebotGroupMessage,
 	RestoreResponse := config.GetRandomRestoreResponses()
 	if message.RealMessageType == "group_private" || message.MessageType == "private" {
 		if !config.GetUsePrivateSSE() {
-			utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid)
+			utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid, promptstr)
 		} else {
-			utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse)
+			utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse, promptstr)
 		}
 	} else {
-		utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid)
+		utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid, promptstr)
 	}
 	app.deleteCustomRecord(userid)
 }
@@ -508,7 +508,7 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 					}
 				}
 				if bestMatchCount > 0 {
-					app.HandleExit(bestText, message, selfid)
+					app.HandleExit(bestText, message, selfid, promptstr)
 					return
 				}
 			}
@@ -526,7 +526,7 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 				texts := strings.Split(addedTexts, "-")
 				if len(texts) > 0 {
 					selectedText := texts[rand.Intn(len(texts))]
-					app.HandleExit(selectedText, message, selfid)
+					app.HandleExit(selectedText, message, selfid, promptstr)
 					return
 				}
 			}
