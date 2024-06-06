@@ -245,27 +245,35 @@ type WXFunctionCall struct {
 	Thought   string                 `json:"thought,omitempty"`
 }
 
+// ReplacementPair 表示一对替换词，其中包含原始词和目标替换词。
+type ReplacementPair struct {
+	OriginalWord string `yaml:"originalWord"`
+	TargetWord   string `yaml:"targetWord"`
+}
+
 type Settings struct {
-	AllApi                  bool     `yaml:"allApi"`
-	SecretId                string   `yaml:"secretId"`
-	SecretKey               string   `yaml:"secretKey"`
-	Region                  string   `yaml:"region"`
-	UseSse                  bool     `yaml:"useSse"`
-	Port                    int      `yaml:"port"`
-	SelfPath                string   `yaml:"selfPath"`
-	HttpPath                string   `yaml:"path"`
-	HttpPaths               []string `yaml:"paths"`
-	Lotus                   string   `yaml:"lotus"`
-	PathToken               string   `yaml:"pathToken"`
-	SystemPrompt            []string `yaml:"systemPrompt"`
-	IPWhiteList             []string `yaml:"iPWhiteList"`
-	ApiType                 int      `yaml:"apiType"`
-	Proxy                   string   `yaml:"proxy"`
-	UrlSendPics             bool     `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
-	MdPromptKeyboardAtGroup bool     `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
-	GroupHintWords          []string `yaml:"groupHintWords"`
-	GroupHintChance         int      `yaml:"groupHintChance"`
-	GroupContext            bool     `yaml:"groupContext"`
+	AllApi                  bool              `yaml:"allApi"`
+	SecretId                string            `yaml:"secretId"`
+	SecretKey               string            `yaml:"secretKey"`
+	Region                  string            `yaml:"region"`
+	UseSse                  bool              `yaml:"useSse"`
+	Port                    int               `yaml:"port"`
+	SelfPath                string            `yaml:"selfPath"`
+	HttpPath                string            `yaml:"path"`
+	HttpPaths               []string          `yaml:"paths"`
+	Lotus                   string            `yaml:"lotus"`
+	PathToken               string            `yaml:"pathToken"`
+	SystemPrompt            []string          `yaml:"systemPrompt"`
+	IPWhiteList             []string          `yaml:"iPWhiteList"`
+	ApiType                 int               `yaml:"apiType"`
+	Proxy                   string            `yaml:"proxy"`
+	UrlSendPics             bool              `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
+	MdPromptKeyboardAtGroup bool              `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
+	GroupHintWords          []string          `yaml:"groupHintWords"`
+	GroupHintChance         int               `yaml:"groupHintChance"`
+	GroupContext            bool              `yaml:"groupContext"`
+	ReplacementPairsIn      []ReplacementPair `yaml:"replacementPairsIn"`
+	ReplacementPairsOut     []ReplacementPair `yaml:"replacementPairsOut"`
 
 	HunyuanType             int     `yaml:"hunyuanType"`
 	MaxTokensHunyuan        int     `yaml:"maxTokensHunyuan"`

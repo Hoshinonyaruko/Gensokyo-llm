@@ -207,7 +207,7 @@ func ExtractEventDetails(eventData map[string]interface{}) (string, structs.Usag
 	return responseTextBuilder.String(), totalUsage
 }
 
-func SendGroupMessage(groupID int64, userID int64, message string, selfid string) error {
+func SendGroupMessage(groupID int64, userID int64, message string, selfid string, promptstr string) error {
 	//TODO: 用userid作为了echo,在ws收到回调信息的时候,加入到全局撤回数组,AddMessageID,实现撤回
 	if server.IsSelfIDExists(selfid) {
 		// 创建消息结构体
@@ -253,6 +253,9 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 	if config.GetSensitiveModeType() == 1 {
 		message = acnode.CheckWordOUT(message)
 	}
+
+	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
+	message = ReplaceTextOut(message, promptstr)
 
 	// 去除末尾的换行符 不去除会导致不好看
 	message = removeTrailingCRLFs(message)
@@ -350,6 +353,9 @@ func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message strin
 	if config.GetSensitiveModeType() == 1 {
 		message = acnode.CheckWordOUT(message)
 	}
+
+	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
+	message = ReplaceTextOut(message, promptstr)
 
 	// 去除末尾的换行符 不去除会导致不好看
 	message = removeTrailingCRLFs(message)
@@ -548,7 +554,7 @@ func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message strin
 	return nil
 }
 
-func SendPrivateMessage(UserID int64, message string, selfid string) error {
+func SendPrivateMessage(UserID int64, message string, selfid string, promptstr string) error {
 	if server.IsSelfIDExists(selfid) {
 		// 创建消息结构体
 		msg := map[string]interface{}{
@@ -592,6 +598,9 @@ func SendPrivateMessage(UserID int64, message string, selfid string) error {
 	if config.GetSensitiveModeType() == 1 {
 		message = acnode.CheckWordOUT(message)
 	}
+
+	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
+	message = ReplaceTextOut(message, promptstr)
 
 	// 去除末尾的换行符 不去除会导致不好看
 	message = removeTrailingCRLFs(message)
@@ -732,7 +741,7 @@ func SendPrivateMessageRaw(UserID int64, message string, selfid string) error {
 	return nil
 }
 
-func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
+func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody, promptstr string) error {
 	// 获取基础URL
 	baseURL := config.GetHttpPath() // 假设config.GetHttpPath()返回基础URL
 
@@ -763,6 +772,9 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody) error {
 	if config.GetSensitiveModeType() == 1 && message.Content != "" {
 		message.Content = acnode.CheckWordOUT(message.Content)
 	}
+
+	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
+	message.Content = ReplaceTextOut(message.Content, promptstr)
 
 	// 调试用的
 	if config.GetPrintHanming() {
@@ -943,7 +955,7 @@ func PostSensitiveMessages() error {
 }
 
 // SendSSEPrivateMessage 分割并发送消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateMessage(userID int64, content string) {
+func SendSSEPrivateMessage(userID int64, content string, promptstr string) {
 	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?', '~'}
 	splitProbability := config.GetSplitByPuntuations()
 
@@ -995,12 +1007,12 @@ func SendSSEPrivateMessage(userID int64, content string) {
 		}
 
 		// 发送SSE消息函数
-		SendPrivateMessageSSE(userID, messageSSE)
+		SendPrivateMessageSSE(userID, messageSSE, promptstr)
 	}
 }
 
 // SendSSEPrivateMessageWithKeyboard 分割并发送消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateMessageWithKeyboard(userID int64, content string, keyboard []string) {
+func SendSSEPrivateMessageWithKeyboard(userID int64, content string, keyboard []string, promptstr string) {
 	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?', '~'}
 	splitProbability := config.GetSplitByPuntuations()
 
@@ -1057,12 +1069,12 @@ func SendSSEPrivateMessageWithKeyboard(userID int64, content string, keyboard []
 		}
 
 		// 发送SSE消息函数
-		SendPrivateMessageSSE(userID, messageSSE)
+		SendPrivateMessageSSE(userID, messageSSE, promptstr)
 	}
 }
 
 // SendSSEPrivateMessageByline 分割并发送消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateMessageByLine(userID int64, content string, keyboard []string) {
+func SendSSEPrivateMessageByLine(userID int64, content string, keyboard []string, promptstr string) {
 	// 直接使用 strings.Split 按行分割字符串
 	parts := strings.Split(content, "\n")
 
@@ -1105,12 +1117,12 @@ func SendSSEPrivateMessageByLine(userID int64, content string, keyboard []string
 		}
 
 		// 发送SSE消息函数
-		SendPrivateMessageSSE(userID, messageSSE)
+		SendPrivateMessageSSE(userID, messageSSE, promptstr)
 	}
 }
 
 // SendSSEPrivateSafeMessage 分割并发送安全消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
+func SendSSEPrivateSafeMessage(userID int64, saveresponse string, promptstr string) {
 	// 将字符串转换为rune切片，以正确处理多字节字符
 	runes := []rune(saveresponse)
 
@@ -1137,14 +1149,14 @@ func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
 		State:   1,
 	}
 
-	SendPrivateMessageSSE(userID, messageSSE)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr)
 
 	// 中间
 	messageSSE = structs.InterfaceBody{
 		Content: parts[1],
 		State:   11,
 	}
-	SendPrivateMessageSSE(userID, messageSSE)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr)
 
 	// 从配置中获取恢复响应数组
 	RestoreResponses := config.GetRestoreCommand()
@@ -1172,11 +1184,11 @@ func SendSSEPrivateSafeMessage(userID int64, saveresponse string) {
 	}
 
 	// 发送SSE私人消息
-	SendPrivateMessageSSE(userID, messageSSE)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr)
 }
 
 // SendSSEPrivateRestoreMessage 分割并发送重置消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
+func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string, promptstr string) {
 	// 将字符串转换为rune切片，以正确处理多字节字符
 	runes := []rune(RestoreResponse)
 
@@ -1204,14 +1216,14 @@ func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
 		State:   1,
 	}
 
-	SendPrivateMessageSSE(userID, messageSSE)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr)
 
 	//中间
 	messageSSE = structs.InterfaceBody{
 		Content: parts[1],
 		State:   11,
 	}
-	SendPrivateMessageSSE(userID, messageSSE)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr)
 
 	// 从配置中获取promptkeyboard
 	promptkeyboard := config.GetPromptkeyboard()
@@ -1224,11 +1236,11 @@ func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string) {
 	}
 
 	// 发送SSE私人消息
-	SendPrivateMessageSSE(userID, messageSSE)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr)
 }
 
 // LanguageIntercept 检查文本语言，如果不在允许列表中，则返回 true 并发送消息
-func LanguageIntercept(text string, message structs.OnebotGroupMessage, selfid string) bool {
+func LanguageIntercept(text string, message structs.OnebotGroupMessage, selfid string, promptstr string) bool {
 	hintWords := config.GetGroupHintWords()
 	// 遍历所有触发词，将其从文本中剔除
 	for _, word := range hintWords {
@@ -1253,12 +1265,12 @@ func LanguageIntercept(text string, message structs.OnebotGroupMessage, selfid s
 	// 发送响应消息
 	if message.RealMessageType == "group_private" || message.MessageType == "private" {
 		if !config.GetUsePrivateSSE() {
-			SendPrivateMessage(message.UserID, responseMessage, selfid)
+			SendPrivateMessage(message.UserID, responseMessage, selfid, promptstr)
 		} else {
-			SendSSEPrivateMessage(message.UserID, responseMessage)
+			SendSSEPrivateMessage(message.UserID, responseMessage, promptstr)
 		}
 	} else {
-		SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid)
+		SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid, promptstr)
 	}
 
 	return true // 拦截
@@ -1301,7 +1313,7 @@ func FriendlyLanguageNameCN(lang whatlanggo.Lang) string {
 }
 
 // LengthIntercept 检查文本长度，如果超过最大长度，则返回 true 并发送消息
-func LengthIntercept(text string, message structs.OnebotGroupMessage, selfid string) bool {
+func LengthIntercept(text string, message structs.OnebotGroupMessage, selfid string, promptstr string) bool {
 	maxLen := config.GetQuestionMaxLenth()
 	if len(text) > maxLen {
 		// 长度超出限制，获取并发送响应消息
@@ -1310,12 +1322,12 @@ func LengthIntercept(text string, message structs.OnebotGroupMessage, selfid str
 		// 根据消息类型发送响应
 		if message.RealMessageType == "group_private" || message.MessageType == "private" {
 			if !config.GetUsePrivateSSE() {
-				SendPrivateMessage(message.UserID, responseMessage, selfid)
+				SendPrivateMessage(message.UserID, responseMessage, selfid, promptstr)
 			} else {
-				SendSSEPrivateMessage(message.UserID, responseMessage)
+				SendSSEPrivateMessage(message.UserID, responseMessage, promptstr)
 			}
 		} else {
-			SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid)
+			SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid, promptstr)
 		}
 
 		return true // 拦截
@@ -1485,4 +1497,46 @@ func MakeAlternating(messages []structs.MessageContent) []structs.MessageContent
 	}
 
 	return correctedMessages
+}
+
+// ReplaceTextIn 使用给定的替换对列表对文本进行替换
+func ReplaceTextIn(text string, promptstr string) string {
+	// 调用 GetReplacementPairsIn 函数获取替换对列表
+	replacementPairs := config.GetReplacementPairsIn(promptstr)
+
+	fmt.Printf("测试测试:%+v,%v", replacementPairs, promptstr)
+
+	if len(replacementPairs) == 0 {
+		return text
+	}
+
+	// 遍历所有的替换对，并在文本中进行替换
+	for _, pair := range replacementPairs {
+		// 使用 strings.Replace 替换文本中的所有出现
+		// 注意这里我们使用 -1 作为最后的参数，表示替换文本中的所有匹配项
+		text = strings.Replace(text, pair.OriginalWord, pair.TargetWord, -1)
+	}
+
+	// 返回替换后的文本
+	return text
+}
+
+// ReplaceTextOut 使用给定的替换对列表对文本进行替换
+func ReplaceTextOut(text string, promptstr string) string {
+	// 调用 GetReplacementPairsIn 函数获取替换对列表
+	replacementPairs := config.GetReplacementPairsOut(promptstr)
+
+	if len(replacementPairs) == 0 {
+		return text
+	}
+
+	// 遍历所有的替换对，并在文本中进行替换
+	for _, pair := range replacementPairs {
+		// 使用 strings.Replace 替换文本中的所有出现
+		// 注意这里我们使用 -1 作为最后的参数，表示替换文本中的所有匹配项
+		text = strings.Replace(text, pair.OriginalWord, pair.TargetWord, -1)
+	}
+
+	// 返回替换后的文本
+	return text
 }

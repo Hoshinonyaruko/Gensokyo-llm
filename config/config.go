@@ -3015,76 +3015,6 @@ func getTemperatureHunyuanInternal(options ...string) float64 {
 	return value
 }
 
-// // 获取助手ID
-// func GetYuanqiAssistantID(options ...string) string {
-// 	mu.Lock()
-// 	defer mu.Unlock()
-// 	return getYuanqiAssistantIDInternal(options...)
-// }
-
-// func getYuanqiAssistantIDInternal(options ...string) string {
-// 	if len(options) == 0 || options[0] == "" {
-// 		if instance != nil {
-// 			return instance.Settings.YuanqiAssistantID
-// 		}
-// 		return "" // 默认值或错误处理
-// 	}
-
-// 	basename := options[0]
-// 	assistantIDInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiAssistantID")
-// 	if err != nil {
-// 		log.Println("Error retrieving YuanqiAssistantID:", err)
-// 		return getYuanqiAssistantIDInternal() // 递归调用内部函数，不传递任何参数
-// 	}
-
-// 	assistantID, ok := assistantIDInterface.(string)
-// 	if !ok { // 检查类型断言是否失败
-// 		log.Println("Type assertion failed for YuanqiAssistantID, fetching default")
-// 		return getYuanqiAssistantIDInternal() // 递归调用内部函数，不传递任何参数
-// 	}
-
-// 	if assistantID == "" {
-// 		return getYuanqiAssistantIDInternal() // 递归调用内部函数，不传递任何参数
-// 	}
-
-// 	return assistantID
-// }
-
-// // 获取Token
-// func GetYuanqiToken(options ...string) string {
-// 	mu.Lock()
-// 	defer mu.Unlock()
-// 	return getYuanqiTokenInternal(options...)
-// }
-
-// func getYuanqiTokenInternal(options ...string) string {
-// 	if len(options) == 0 || options[0] == "" {
-// 		if instance != nil {
-// 			return instance.Settings.YuanqiToken
-// 		}
-// 		return "" // 默认值或错误处理
-// 	}
-
-// 	basename := options[0]
-// 	YuanqiTokenInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiToken")
-// 	if err != nil {
-// 		log.Println("Error retrieving YuanqiToken:", err)
-// 		return getYuanqiTokenInternal() // 递归调用内部函数，不传递任何参数
-// 	}
-
-// 	YuanqiToken, ok := YuanqiTokenInterface.(string)
-// 	if !ok { // 检查类型断言是否失败
-// 		log.Println("Type assertion failed for YuanqiToken, fetching default")
-// 		return getYuanqiTokenInternal() // 递归调用内部函数，不传递任何参数
-// 	}
-
-// 	if YuanqiToken == "" {
-// 		return getYuanqiTokenInternal() // 递归调用内部函数，不传递任何参数
-// 	}
-
-// 	return YuanqiToken
-// }
-
 // GetYuanqiConf return conf.YuanqiAssistantID, conf.YuanqiToken
 func GetYuanqiConf(options ...string) (string, string) {
 	mu.Lock()
@@ -3102,9 +3032,6 @@ func getYuanqiConfInternal(options ...string) (string, string) {
 			conf := instance.Settings.Yuanqiconfs[index]
 			return conf.YuanqiAssistantID, conf.YuanqiToken
 		}
-	} else {
-		log.Println("No configurations available in instance or default behavior")
-		return "", "" // 默认值或错误处理
 	}
 
 	// 使用prompt包从指定的文件名中获取配置
@@ -3131,6 +3058,84 @@ func getYuanqiConfInternal(options ...string) (string, string) {
 	index := rand.Intn(len(confs))
 	conf := confs[index]
 	return conf.YuanqiAssistantID, conf.YuanqiToken
+}
+
+// 获取 ReplacementPairsIn
+func GetReplacementPairsIn(options ...string) []structs.ReplacementPair {
+	mu.Lock()
+	defer mu.Unlock()
+	return getReplacementPairsInInternal(options...)
+}
+
+// getReplacementPairsInInternal 内部递归函数，处理配置获取逻辑
+func getReplacementPairsInInternal(options ...string) []structs.ReplacementPair {
+	// 从instance中读取配置数组
+	if instance != nil && len(instance.Settings.ReplacementPairsIn) > 0 {
+		if len(options) == 0 || options[0] == "" {
+			return instance.Settings.ReplacementPairsIn
+		}
+	}
+
+	// 使用prompt包从指定的文件名中获取配置
+	basename := options[0]
+	confInterface, err := prompt.GetSettingFromFilename(basename, "ReplacementPairsIn")
+	if err != nil {
+		log.Printf("Error retrieving settings from file: %s, error: %v", basename, err)
+		return getReplacementPairsInInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	// 断言获取的interface{}为[]ReplacementPair
+	confs, ok := confInterface.([]structs.ReplacementPair)
+	if !ok {
+		log.Println("Type assertion failed for ReplacementPair, attempting default behavior")
+		return getReplacementPairsInInternal() // 递归调用内部函数，尝试默认配置
+	}
+
+	if len(confs) == 0 {
+		log.Println("No configurations found in file:", basename)
+		return getReplacementPairsInInternal() // 递归调用内部函数，尝试默认配置
+	}
+
+	return confs
+}
+
+// 获取 ReplacementPairsOut
+func GetReplacementPairsOut(options ...string) []structs.ReplacementPair {
+	mu.Lock()
+	defer mu.Unlock()
+	return getReplacementPairsOutInternal(options...)
+}
+
+// getReplacementPairsInOutternal 内部递归函数，处理配置获取逻辑
+func getReplacementPairsOutInternal(options ...string) []structs.ReplacementPair {
+	// 从instance中读取配置数组
+	if instance != nil && len(instance.Settings.ReplacementPairsOut) > 0 {
+		if len(options) == 0 || options[0] == "" {
+			return instance.Settings.ReplacementPairsOut
+		}
+	}
+
+	// 使用prompt包从指定的文件名中获取配置
+	basename := options[0]
+	confInterface, err := prompt.GetSettingFromFilename(basename, "ReplacementPairsOut")
+	if err != nil {
+		log.Printf("Error retrieving settings from file: %s, error: %v", basename, err)
+		return getReplacementPairsOutInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	// 断言获取的interface{}为[]ReplacementPair
+	confs, ok := confInterface.([]structs.ReplacementPair)
+	if !ok {
+		log.Println("Type assertion failed for ReplacementPair, attempting default behavior")
+		return getReplacementPairsOutInternal() // 递归调用内部函数，尝试默认配置
+	}
+
+	if len(confs) == 0 {
+		log.Println("No configurations found in file:", basename)
+		return getReplacementPairsOutInternal() // 递归调用内部函数，尝试默认配置
+	}
+
+	return confs
 }
 
 // 获取助手版本
