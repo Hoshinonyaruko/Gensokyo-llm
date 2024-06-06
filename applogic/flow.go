@@ -16,7 +16,7 @@ import (
 func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
-		userid = message.GroupID
+		userid = message.GroupID + message.SelfID
 	}
 
 	// 检查是否启用了EnhancedQA
@@ -139,7 +139,7 @@ func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message
 func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
-		userid = message.GroupID
+		userid = message.GroupID + message.SelfID
 	}
 
 	// 检查是否启用了EnhancedQA
@@ -251,7 +251,7 @@ func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message 
 func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *structs.OnebotGroupMessage) {
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
-		userid = message.GroupID
+		userid = message.GroupID + message.SelfID
 	}
 
 	// promptstr 随 switchOnQ 变化
@@ -357,7 +357,7 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
-		userid = message.GroupID
+		userid = message.GroupID + message.SelfID
 	}
 
 	// 获取用户剧情存档中的当前状态
@@ -434,7 +434,7 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 func (app *App) HandleExit(exitText string, message *structs.OnebotGroupMessage, selfid string, promptstr string) {
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
-		userid = message.GroupID
+		userid = message.GroupID + message.SelfID
 	}
 
 	fmt.Printf("处理重置操作on:%v", exitText)
@@ -461,7 +461,7 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
-		userid = message.GroupID
+		userid = message.GroupID + message.SelfID
 	}
 
 	// 获取用户剧情存档中的当前状态
@@ -538,7 +538,7 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *structs.OnebotGroupMessage) {
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
-		userid = message.GroupID
+		userid = message.GroupID + message.SelfID
 	}
 
 	// 获取与 switchOnA 相关的选择
@@ -624,7 +624,7 @@ func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *str
 func (app *App) ApplyPromptChoiceA(promptstr string, response string, message *structs.OnebotGroupMessage) string {
 	userid := message.UserID
 	if config.GetGroupContext() && message.MessageType != "private" {
-		userid = message.GroupID
+		userid = message.GroupID + message.SelfID
 	}
 
 	promptChoices := config.GetPromptChoicesA(promptstr)
