@@ -16,6 +16,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
+	"github.com/hoshinonyaruko/gensokyo-llm/prompt"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
@@ -134,14 +135,27 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 判断是否是群聊 然后判断触发词
+	// 判断是否是群聊，然后检查触发词
 	if message.RealMessageType != "group_private" && message.MessageType != "private" {
 		if !checkMessageForHints(utils.RemoveBracketsContent(message.RawMessage)) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Group message not hint words."))
-			return
+			// 获取概率值
+			chance := config.GetGroupHintChance()
+
+			// 生成0-100之间的随机数
+			randomValue := rand.Intn(100)
+
+			// 比较随机值与配置中的概率
+			if randomValue >= chance {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("Group message not hint words."))
+				return
+			} else {
+				// 记录日志，表明概率检查通过
+				fmt.Printf("Probability check passed: %d%% chance, random value: %d\n", chance, randomValue)
+			}
 		}
 	}
+
 	var CustomRecord *structs.CustomRecord
 	if config.GetGroupContext() && message.MessageType != "private" {
 		// 从数据库读取用户的剧情存档
@@ -709,6 +723,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			baseURL = config.GetLotus(promptstr) + basePath
 		}
 
+		// 在加入prompt之前 判断promptstr.yml是否存在
+		if !prompt.CheckPromptExistence(promptstr) {
+			fmtf.Printf("该请求内容所对应yml文件不存在:[%v]:[%v]\n", requestmsg, promptstr)
+			promptstr = ""
+		}
+
 		// 使用net/url包来构建和编码URL
 		urlParams := url.Values{}
 		if promptstr != "" {
@@ -903,7 +923,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						if !config.GetHideExtraLogs() {
 							fmtf.Printf("收到流数据,切割并发送信息: %s", string(line))
 						}
-						splitAndSendMessages(string(line), newmsg, selfid)
+						splitAndSendMessages(string(line), newmsg, selfid, promptstr)
 					}
 				}
 			}
@@ -1085,7 +1105,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func splitAndSendMessages(line string, newmesssage string, selfid string) {
+func splitAndSendMessages(line string, newmesssage string, selfid string, promptstr string) {
 	// 提取JSON部分
 	dataPrefix := "data: "
 	jsonStr := strings.TrimPrefix(line, dataPrefix)
@@ -1103,13 +1123,13 @@ func splitAndSendMessages(line string, newmesssage string, selfid string) {
 
 	if sseData.Response != "\n\n" {
 		// 处理提取出的信息
-		processMessage(sseData.Response, sseData.ConversationId, newmesssage, selfid)
+		processMessage(sseData.Response, sseData.ConversationId, newmesssage, selfid, promptstr)
 	} else {
 		fmtf.Printf("忽略llm末尾的换行符")
 	}
 }
 
-func processMessage(response string, conversationid string, newmesssage string, selfid string) {
+func processMessage(response string, conversationid string, newmesssage string, selfid string, promptstr string) {
 	// 从conversation对应的sync map取出对应的用户和群号,避免高并发内容发送错乱
 	userinfo, _ := GetUserInfo(conversationid)
 	key := utils.GetKey(userinfo.GroupID, userinfo.UserID)
@@ -1119,7 +1139,7 @@ func processMessage(response string, conversationid string, newmesssage string, 
 
 	for _, char := range response {
 		AppendRune(conversationid, char)
-		if utils.ContainsRune(punctuations, char, userinfo.GroupID) {
+		if utils.ContainsRune(punctuations, char, userinfo.GroupID, promptstr) {
 			// 达到标点符号，发送累积的整个消息
 			if GetMessageLength(conversationid) > 0 {
 				accumulatedMessage, _ := GetCurrentMessage(conversationid)
