@@ -176,7 +176,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	var CustomRecord *structs.CustomRecord
 	if config.GetGroupContext() && message.MessageType != "private" {
 		// 从数据库读取用户的剧情存档
-		CustomRecord, err = app.FetchCustomRecord(message.GroupID)
+		CustomRecord, err = app.FetchCustomRecord(message.GroupID + message.SelfID)
 		if err != nil {
 			fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 		}
@@ -197,7 +197,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			newPromptStrStat := CustomRecord.PromptStrStat - 1
 			// 根据条件区分群和私聊
 			if config.GetGroupContext() && message.MessageType != "private" {
-				err = app.InsertCustomTableRecord(message.GroupID, promptstr, newPromptStrStat)
+				err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newPromptStrStat)
 				if err != nil {
 					fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
 				}
@@ -211,7 +211,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// MARK: 提示词之间 整体切换Q
 		if config.GetGroupContext() && message.MessageType != "private" {
-			app.ProcessPromptMarks(message.GroupID, message.Message.(string), &promptstr)
+			app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
 		} else {
 			app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
 		}
@@ -234,7 +234,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 				// 刷新新的提示词给用户目前的状态 新的场景应该从1开始
 				if config.GetGroupContext() && message.MessageType != "private" {
-					app.InsertCustomTableRecord(message.GroupID, newPromptStr, 1)
+					app.InsertCustomTableRecord(message.GroupID+message.SelfID, newPromptStr, 1)
 				} else {
 					app.InsertCustomTableRecord(message.UserID, newPromptStr, 1)
 				}
@@ -246,7 +246,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// MARK: 提示词之间 整体切换Q 当用户没有存档时
 		if config.GetGroupContext() && message.MessageType != "private" {
-			app.ProcessPromptMarks(message.GroupID, message.Message.(string), &promptstr)
+			app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
 		} else {
 			app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
 		}
@@ -260,7 +260,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 初始状态就是 1 设置了1000以上长度的是固有场景,不可切换
 		if config.GetGroupContext() && message.MessageType != "private" {
-			err = app.InsertCustomTableRecord(message.GroupID, promptstr, newstat)
+			err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newstat)
 		} else {
 			err = app.InsertCustomTableRecord(message.UserID, promptstr, newstat)
 		}
@@ -353,7 +353,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		if isResetCommand {
 			fmtf.Println("处理重置操作")
 			if config.GetGroupContext() && message.MessageType != "private" {
-				app.migrateUserToNewContext(message.GroupID)
+				app.migrateUserToNewContext(message.GroupID + message.SelfID)
 			} else {
 				app.migrateUserToNewContext(message.UserID)
 			}
@@ -369,7 +369,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			// 处理故事情节的重置
 			if config.GetGroupContext() && message.MessageType != "private" {
-				app.deleteCustomRecord(message.GroupID)
+				app.deleteCustomRecord(message.GroupID + message.SelfID)
 			} else {
 				app.deleteCustomRecord(message.UserID)
 			}
@@ -558,7 +558,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		var conversationID, parentMessageID string
 		// 请求conversation api 增加当前群/用户上下文
 		if config.GetGroupContext() && message.MessageType != "private" {
-			conversationID, parentMessageID, err = app.handleUserContext(message.GroupID)
+			conversationID, parentMessageID, err = app.handleUserContext(message.GroupID + message.SelfID)
 		} else {
 			conversationID, parentMessageID, err = app.handleUserContext(message.UserID)
 		}
@@ -674,7 +674,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		// 从数据库读取用户的剧情存档
 		var CustomRecord *structs.CustomRecord
 		if config.GetGroupContext() && message.MessageType != "private" {
-			CustomRecord, err = app.FetchCustomRecord(message.GroupID)
+			CustomRecord, err = app.FetchCustomRecord(message.GroupID + message.SelfID)
 			if err != nil {
 				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 			}
@@ -706,7 +706,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if config.GetGroupContext() && message.MessageType != "private" {
-			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.GroupID, requestmsg)
+			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.GroupID+message.SelfID, requestmsg)
 		} else {
 			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID, requestmsg)
 		}
@@ -964,7 +964,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			if lastMessageID != "" {
 				fmtf.Printf("lastMessageID: %s\n", lastMessageID)
 				if config.GetGroupContext() && message.MessageType != "private" {
-					err := app.updateUserContext(message.GroupID, lastMessageID)
+					err := app.updateUserContext(message.GroupID+message.SelfID, lastMessageID)
 					if err != nil {
 						fmtf.Printf("Error updating user context: %v\n", err)
 					}
@@ -1069,7 +1069,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			// 更新用户上下文
 			if messageId, ok := responseData["messageId"].(string); ok {
 				if config.GetGroupContext() && message.MessageType != "private" {
-					err := app.updateUserContext(message.GroupID, messageId)
+					err := app.updateUserContext(message.GroupID+message.SelfID, messageId)
 					if err != nil {
 						fmtf.Printf("Error updating user context: %v\n", err)
 					}
