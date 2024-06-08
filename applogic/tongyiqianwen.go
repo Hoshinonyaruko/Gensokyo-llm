@@ -232,7 +232,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 	useSSE := config.GetuseSse(promptstr)
 	apiKey := config.GetTyqwKey(promptstr)
 	var requestBody map[string]interface{}
-	if useSSE {
+	if useSSE == 2 {
 		// 构建请求体，根据提供的文档重新调整
 		requestBody = map[string]interface{}{
 			"parameters": map[string]interface{}{
@@ -299,7 +299,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	// 根据是否使用SSE来设置Accept和X-DashScope-SSE
-	if useSSE {
+	if useSSE == 2 {
 		req.Header.Set("Accept", "text/event-stream")
 		req.Header.Set("X-DashScope-SSE", "enable")
 	}
@@ -319,7 +319,7 @@ func (app *App) ChatHandlerTyqw(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	if !config.GetuseSse(promptstr) {
+	if config.GetuseSse(promptstr) < 2 {
 		// 处理响应
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {

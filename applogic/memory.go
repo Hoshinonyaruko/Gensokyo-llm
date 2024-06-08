@@ -85,7 +85,7 @@ func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID 
 	conversationTitle := "2024-5-19/18:26" // 默认标题，根据实际需求可能需要调整为动态生成的时间戳
 
 	userid := msg.UserID
-	if config.GetGroupContext() && msg.MessageType != "private" {
+	if config.GetGroupContext() == 2 && msg.MessageType != "private" {
 		userid = msg.GroupID
 	}
 
@@ -131,7 +131,7 @@ func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID 
 func (app *App) handleMemoryList(msg structs.OnebotGroupMessage, promptstr string) {
 
 	userid := msg.UserID
-	if config.GetGroupContext() && msg.MessageType != "private" {
+	if config.GetGroupContext() == 2 && msg.MessageType != "private" {
 		userid = msg.GroupID
 	}
 
@@ -179,7 +179,7 @@ func (app *App) handleMemoryList(msg structs.OnebotGroupMessage, promptstr strin
 func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetCommand string, promptstr string) {
 
 	userid := msg.UserID
-	if config.GetGroupContext() && msg.MessageType != "private" {
+	if config.GetGroupContext() == 2 && msg.MessageType != "private" {
 		userid = msg.GroupID
 	}
 
@@ -285,7 +285,7 @@ func (app *App) handleNewConversation(msg structs.OnebotGroupMessage, conversati
 	conversationTitle := "2024-5-19/18:26" // 实际应用中应使用动态生成的时间戳
 	userid := msg.UserID
 
-	if config.GetGroupContext() && msg.MessageType != "private" {
+	if config.GetGroupContext() == 2 && msg.MessageType != "private" {
 		userid = msg.GroupID
 	}
 

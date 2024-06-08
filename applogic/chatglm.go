@@ -271,7 +271,7 @@ func (app *App) ChatHandlerGlm(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	if !config.GetuseSse(promptstr) {
+	if config.GetuseSse(promptstr) < 2 {
 		// 处理响应
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {

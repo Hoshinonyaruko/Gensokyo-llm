@@ -80,7 +80,7 @@ func (app *App) ChatHandlerErnieFunction(w http.ResponseWriter, r *http.Request)
 	payload.ToolChoice.Function.Name = "predict_followup_questions"
 
 	// 是否sse
-	if config.GetuseSse() {
+	if config.GetuseSse() == 2 {
 		payload.Stream = true
 	}
 
@@ -130,7 +130,7 @@ func (app *App) ChatHandlerErnieFunction(w http.ResponseWriter, r *http.Request)
 		rateLimitRequests, rateLimitTokens, remainingRequests, remainingTokens)
 
 	// 检查是否不使用SSE
-	if !config.GetuseSse() {
+	if config.GetuseSse() < 2 {
 		// 读取整个响应体到内存中
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
