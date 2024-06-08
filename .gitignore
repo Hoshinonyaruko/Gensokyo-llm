@@ -6,6 +6,7 @@
 
 # Go specific
 *.exe
+*.exe~
 
 # log
 log
