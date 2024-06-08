@@ -174,7 +174,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var CustomRecord *structs.CustomRecord
-	if config.GetGroupContext() && message.MessageType != "private" {
+	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		// 从数据库读取用户的剧情存档
 		CustomRecord, err = app.FetchCustomRecord(message.GroupID + message.SelfID)
 		if err != nil {
@@ -196,7 +196,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("刷新prompt参数: %s,newPromptStrStat:%d\n", promptstr, CustomRecord.PromptStrStat-1)
 			newPromptStrStat := CustomRecord.PromptStrStat - 1
 			// 根据条件区分群和私聊
-			if config.GetGroupContext() && message.MessageType != "private" {
+			if config.GetGroupContext() == 2 && message.MessageType != "private" {
 				err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newPromptStrStat)
 				if err != nil {
 					fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
@@ -210,7 +210,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// MARK: 提示词之间 整体切换Q
-		if config.GetGroupContext() && message.MessageType != "private" {
+		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
 		} else {
 			app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
@@ -233,7 +233,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				// 刷新新的提示词给用户目前的状态 新的场景应该从1开始
-				if config.GetGroupContext() && message.MessageType != "private" {
+				if config.GetGroupContext() == 2 && message.MessageType != "private" {
 					app.InsertCustomTableRecord(message.GroupID+message.SelfID, newPromptStr, 1)
 				} else {
 					app.InsertCustomTableRecord(message.UserID, newPromptStr, 1)
@@ -245,7 +245,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// MARK: 提示词之间 整体切换Q 当用户没有存档时
-		if config.GetGroupContext() && message.MessageType != "private" {
+		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
 		} else {
 			app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
@@ -259,7 +259,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 初始状态就是 1 设置了1000以上长度的是固有场景,不可切换
-		if config.GetGroupContext() && message.MessageType != "private" {
+		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newstat)
 		} else {
 			err = app.InsertCustomTableRecord(message.UserID, promptstr, newstat)
@@ -333,7 +333,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 去除at自己的 CQ码,如果不是指向自己的,则不响应
-		checkResetCommand = utils.RemoveAtTagContentConditional(checkResetCommand, message.SelfID)
+		checkResetCommand = utils.RemoveAtTagContentConditionalWithoutAddNick(checkResetCommand, message)
 
 		// 检查checkResetCommand是否在restoreCommands列表中
 		isResetCommand := false
@@ -352,7 +352,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		//处理重置指令
 		if isResetCommand {
 			fmtf.Println("处理重置操作")
-			if config.GetGroupContext() && message.MessageType != "private" {
+			if config.GetGroupContext() == 2 && message.MessageType != "private" {
 				app.migrateUserToNewContext(message.GroupID + message.SelfID)
 			} else {
 				app.migrateUserToNewContext(message.UserID)
@@ -368,7 +368,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid, promptstr)
 			}
 			// 处理故事情节的重置
-			if config.GetGroupContext() && message.MessageType != "private" {
+			if config.GetGroupContext() == 2 && message.MessageType != "private" {
 				app.deleteCustomRecord(message.GroupID + message.SelfID)
 			} else {
 				app.deleteCustomRecord(message.UserID)
@@ -428,7 +428,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 如果使用向量缓存 或者使用 向量安全词
-		if config.GetUseCache(promptstr) || config.GetVectorSensitiveFilter() {
+		if config.GetUseCache(promptstr) == 2 || config.GetVectorSensitiveFilter() {
 			if config.GetPrintHanming() {
 				fmtf.Printf("计算向量的文本: %v", newmsg)
 			}
@@ -463,7 +463,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 缓存省钱部分
-		if config.GetUseCache(promptstr) {
+		if config.GetUseCache(promptstr) == 2 {
 			//fmtf.Printf("计算向量: %v", vector)
 			cacheThreshold := config.GetCacheThreshold()
 			// 搜索相似文本和对应的ID
@@ -557,7 +557,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		var conversationID, parentMessageID string
 		// 请求conversation api 增加当前群/用户上下文
-		if config.GetGroupContext() && message.MessageType != "private" {
+		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			conversationID, parentMessageID, err = app.handleUserContext(message.GroupID + message.SelfID)
 		} else {
 			conversationID, parentMessageID, err = app.handleUserContext(message.UserID)
@@ -673,7 +673,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 从数据库读取用户的剧情存档
 		var CustomRecord *structs.CustomRecord
-		if config.GetGroupContext() && message.MessageType != "private" {
+		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			CustomRecord, err = app.FetchCustomRecord(message.GroupID + message.SelfID)
 			if err != nil {
 				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
@@ -696,7 +696,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		requestmsg = utils.ReplaceTextIn(requestmsg, promptstr)
 
 		// 去除不是针对自己的at CQ码 不响应目标不是自己的at信息
-		requestmsg = utils.RemoveAtTagContentConditional(requestmsg, message.SelfID)
+		requestmsg = utils.RemoveAtTagContentConditional(requestmsg, message, promptstr)
 		if requestmsg == "" {
 			fmtf.Printf("requestmsg is empty")
 			// 发送响应
@@ -705,7 +705,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if config.GetGroupContext() && message.MessageType != "private" {
+		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.GroupID+message.SelfID, requestmsg)
 		} else {
 			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID, requestmsg)
@@ -779,7 +779,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		var response string
 		var EnhancedAContent string
 
-		if config.GetuseSse(promptstr) {
+		if config.GetuseSse(promptstr) == 2 {
 			// 处理SSE流式响应
 			reader := bufio.NewReader(resp.Body)
 			for {
@@ -925,7 +925,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							app.ProcessPromptMarks(userinfo.UserID, response, &promptstr)
 							// 清空之前加入缓存
 							// 缓存省钱部分 这里默认不被覆盖,如果主配置开了缓存,始终缓存.
-							if config.GetUseCache() {
+							if config.GetUseCache() == 2 {
 								if response != "" {
 									fmtf.Printf("缓存了Q:%v,A:%v,向量ID:%v", newmsg, response, lastSelectedVectorID)
 									app.InsertQAEntry(newmsg, response, lastSelectedVectorID)
@@ -963,7 +963,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			// 在SSE流结束后更新用户上下文 在这里调用gensokyo流式接口的最后一步 插推荐气泡
 			if lastMessageID != "" {
 				fmtf.Printf("lastMessageID: %s\n", lastMessageID)
-				if config.GetGroupContext() && message.MessageType != "private" {
+				if config.GetGroupContext() == 2 && message.MessageType != "private" {
 					err := app.updateUserContext(message.GroupID+message.SelfID, lastMessageID)
 					if err != nil {
 						fmtf.Printf("Error updating user context: %v\n", err)
@@ -1068,7 +1068,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 			// 更新用户上下文
 			if messageId, ok := responseData["messageId"].(string); ok {
-				if config.GetGroupContext() && message.MessageType != "private" {
+				if config.GetGroupContext() == 2 && message.MessageType != "private" {
 					err := app.updateUserContext(message.GroupID+message.SelfID, messageId)
 					if err != nil {
 						fmtf.Printf("Error updating user context: %v\n", err)

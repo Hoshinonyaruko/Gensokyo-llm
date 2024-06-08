@@ -50,7 +50,12 @@ settings:
   urlSendPics : false                           #自己构造图床加速图片发送.需配置公网ip+放通port+设置正确的selfPath
   groupHintWords : []                           #当机器人位于群内时,需满足包含groupHintWords数组任意内容如[CQ:at,qq=2] 机器人的名字 等
   groupHintChance : 0                           #需与groupHintWords联用,代表不满足hintwords时概率触发,不启用groupHintWords相当于百分百概率回复.
-  groupContext : false                          #群上下文 在智能体在群内时,以群为单位处理上下文.
+  groupContext : 0                              #群上下文 在智能体在群内时,以群为单位处理上下文. 0=默认 1=一个人一个上下文 2=群聊共享上下文
+  groupAddNicknameToQ : 0                       #群上下文增加message.sender.nickname到上下文(昵称)让模型能知道发送者名字 0=默认 1=false 2=true
+  groupAddCardToQ : 0                           #群上下文增加message.sender.card到上下文(群名片)让模型能知道发送者名字 0=默认 1=false 2=true
+  specialNameToQ:                               #开启groupAddNicknameToQ和groupAddCardToQ时有效,应用特殊规则,让模型对某个id产生特殊称谓
+  - id: 12345
+    name: ""
   replacementPairsIn:                           #每个不同的yml文件,都可以有自己独立的替换词规则,IN OUT分离
   - originalWord: "hello"
     targetWord: "hi"
@@ -83,7 +88,7 @@ settings:
   #不同种类的向量,维度和模型不同,所以请一开始决定好使用的向量,或者自行将数据库备份\对应,不同种类向量没有互相检索的能力。
 
   embeddingType : 0                             #0=混元向量 1=文心向量,需设置wenxinEmbeddingUrl 2=chatgpt向量,需设置gptEmbeddingUrl
-  useCache : false                              #使用缓存省钱.
+  useCache : 1                              #使用缓存省钱.
   cacheThreshold : 100                          #阈值,以汉明距离单位. hunyuan建议250-300 文心v1建议80-100,越小越精确.
   cacheChance : 100                             #使用缓存的概率,前期10,积攒缓存,后期酌情增加,测试时100
   printHanming : true                           #输出汉明距离,还有分片基数(norm*CacheK)等完全确认下来汉明距离、分片数后，再关闭这个选项。

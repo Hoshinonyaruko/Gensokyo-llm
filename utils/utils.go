@@ -887,31 +887,20 @@ func RemoveBracketsContent(input string) string {
 	return re.ReplaceAllString(input, "")
 }
 
-// RemoveAtTagContent 接收一个字符串，并移除所有[@任意字符]的内容
-func RemoveAtTagContent(input string) string {
-	// 编译一个正则表达式，用于匹配[@任意字符]的模式
-	re := regexp.MustCompile(`\[@.*?\]`)
-	// 使用正则表达式的ReplaceAllString方法删除匹配的部分
-	cleaned := re.ReplaceAllString(input, "")
-	// 去除前后的空格
-	cleaned = strings.TrimSpace(cleaned)
-	return cleaned
-}
-
 // RemoveAtTagContentConditional 接收一个字符串和一个 int64 类型的 selfid，
 // 并根据条件移除[@selfowd]格式的内容，然后去除前后的空格。
 // 只有当标签中的ID与传入的selfid相匹配时才进行移除，
 // 如果没有任何[@xxx]出现或者所有出现的[@xxx]中的xxx都不等于selfid时，返回原字符串。
-func RemoveAtTagContentConditional(input string, selfid int64) string {
+func RemoveAtTagContentConditionalWithoutAddNick(input string, message structs.OnebotGroupMessage) string {
 	// 将 int64 类型的 selfid 转换为字符串
-	selfidStr := strconv.FormatInt(selfid, 10)
+	selfidStr := strconv.FormatInt(message.SelfID, 10)
 
 	// 编译一个正则表达式，用于匹配并捕获[@任意字符]的模式
 	re := regexp.MustCompile(`\[@(.*?)\]`)
 	matches := re.FindAllStringSubmatch(input, -1)
 
-	// 如果没有找到任何匹配项，直接返回原输入
-	if len(matches) == 0 {
+	// 如果没有找到任何匹配项,直接返回原输入,代表不带at的信息,会在更上方判断是否处理.同时根据配置项为请求增加名字.
+	if len(matches) == 0 { //私聊无法at 只会走这里,只会有nick生效
 		return input
 	}
 
@@ -923,11 +912,138 @@ func RemoveAtTagContentConditional(input string, selfid int64) string {
 			// 如果找到与selfid相匹配的标签，替换该标签
 			input = strings.Replace(input, match[0], "", -1)
 			foundSelfId = true // 标记已找到至少一个与selfid相匹配的标签
+		} else {
+			input = strings.Replace(input, match[0], "", -1)
 		}
 	}
 
+	// 只有在包含了at 但是at不包含自己,才忽略信息
 	if !foundSelfId {
-		// 如果没有找到任何与selfid相匹配的标签，将输入置为空
+		// 如果没有找到任何与selfid相匹配的标签，将输入置为空,代表不响应这一条信息
+		input = ""
+	}
+
+	// 去除前后的空格
+	cleaned := strings.TrimSpace(input)
+	return cleaned
+}
+
+// RemoveAtTagContentConditional 接收一个字符串和一个 int64 类型的 selfid，
+// 并根据条件移除[@selfowd]格式的内容，然后去除前后的空格。
+// 只有当标签中的ID与传入的selfid相匹配时才进行移除，
+// 如果没有任何[@xxx]出现或者所有出现的[@xxx]中的xxx都不等于selfid时，返回原字符串。
+func RemoveAtTagContentConditional(input string, message structs.OnebotGroupMessage, promptstr string) string {
+
+	// 获取特殊名称替换对数组
+	specialNames := config.GetSpecialNameToQ(promptstr)
+
+	// 将 int64 类型的 selfid 转换为字符串
+	selfidStr := strconv.FormatInt(message.SelfID, 10)
+
+	// 编译一个正则表达式，用于匹配并捕获[@任意字符]的模式
+	re := regexp.MustCompile(`\[@(.*?)\]`)
+	matches := re.FindAllStringSubmatch(input, -1)
+
+	// 如果没有找到任何匹配项,直接返回原输入,代表不带at的信息,会在更上方判断是否处理.同时根据配置项为请求增加名字.
+	if len(matches) == 0 { //私聊无法at 只会走这里,只会有nick生效
+		var name string
+		name = ""
+		// 可以都是2 打开 呈现覆盖关系
+		if config.GetGroupAddCardToQ(promptstr) == 2 {
+			if message.Sender.Card != "" {
+				name = "[name:" + message.Sender.Card + "]"
+			}
+		}
+
+		if config.GetGroupAddNicknameToQ(promptstr) == 2 && name == "" {
+			if message.Sender.Nickname != "" {
+				name = "[name:" + message.Sender.Nickname + "]"
+			}
+		}
+
+		useridstr := strconv.FormatInt(message.UserID, 10)
+		// 遍历特殊名称数组，检查是否需要进行进一步替换
+		for _, replacement := range specialNames {
+			if useridstr == replacement.ID {
+				name = "[name:" + replacement.Name + "]"
+				break // 找到匹配，跳出循环
+			}
+		}
+
+		if name != "" {
+			input = name + input
+		}
+
+		return input
+	}
+
+	foundSelfId := false // 用于跟踪是否找到与selfid相匹配的标签
+
+	// 遍历所有匹配项
+	for _, match := range matches {
+		if match[1] == selfidStr {
+			// 把at自己的信息替换为当前at自己的人的昵称或者群名片
+			var name string
+			name = "" // 初始状态
+
+			// 可以都是2 打开 呈现覆盖关系
+			if config.GetGroupAddCardToQ(promptstr) == 2 {
+				if message.Sender.Card != "" {
+					name = "[name:" + message.Sender.Card + "]"
+				}
+			}
+
+			if config.GetGroupAddNicknameToQ(promptstr) == 2 && name == "" {
+				if message.Sender.Nickname != "" {
+					name = "[name:" + message.Sender.Nickname + "]"
+				}
+			}
+
+			useridstr := strconv.FormatInt(message.UserID, 10)
+			// 遍历特殊名称数组，检查是否需要进行进一步替换
+			for _, replacement := range specialNames {
+				if useridstr == replacement.ID {
+					name = "[name:" + replacement.Name + "]"
+					break // 找到匹配，跳出循环
+				}
+			}
+
+			// 如果找到与selfid相匹配的标签，替换该标签
+			input = strings.Replace(input, match[0], name, -1)
+			foundSelfId = true // 标记已找到至少一个与selfid相匹配的标签
+		} else {
+			var name string
+			name = ""
+
+			// 可以都是2 打开 呈现覆盖关系
+			if config.GetGroupAddCardToQ(promptstr) == 2 {
+				if message.Sender.Card != "" {
+					name = "[name:" + message.Sender.Card + "]"
+				}
+			}
+
+			// 将CQat标签替换为名字
+			if config.GetGroupAddNicknameToQ(promptstr) == 2 && name == "" {
+				if message.Sender.Nickname != "" {
+					name = "[name:" + message.Sender.Nickname + "]"
+				}
+			}
+
+			// 遍历特殊名称数组，检查是否需要进行进一步替换
+			for _, replacement := range specialNames {
+				if match[1] == replacement.ID {
+					name = "[name:" + replacement.Name + "]"
+					break // 找到匹配，跳出循环
+				}
+			}
+
+			input = strings.Replace(input, match[0], name, -1)
+		}
+	}
+
+	// 只有在包含了at 但是at不包含自己,才忽略信息
+	if !foundSelfId {
+		// 如果没有找到任何与selfid相匹配的标签，将输入置为空,代表不响应这一条信息
 		input = ""
 	}
 
