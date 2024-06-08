@@ -244,7 +244,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmtf.Sprintf("hunyuanapi返回错误: %v", err), http.StatusInternalServerError)
 			return
 		}
-		if !config.GetuseSse(promptstr) {
+		if config.GetuseSse(promptstr) < 2 {
 			// 解析响应
 			var responseTextBuilder strings.Builder
 			var totalUsage structs.UsageInfo
@@ -412,7 +412,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmtf.Sprintf("hunyuanapi返回错误: %v", err), http.StatusInternalServerError)
 			return
 		}
-		if !config.GetuseSse(promptstr) {
+		if config.GetuseSse(promptstr) < 2 {
 			// 解析响应
 			var responseTextBuilder strings.Builder
 			var totalUsage structs.UsageInfo
@@ -598,7 +598,7 @@ func (app *App) ChatHandlerHunyuan(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmtf.Sprintf("hunyuanapi返回错误: %v", err), http.StatusInternalServerError)
 			return
 		}
-		if !config.GetuseSse(promptstr) {
+		if config.GetuseSse(promptstr) < 2 {
 			// 解析响应
 			var responseTextBuilder strings.Builder
 			var totalUsage structs.UsageInfo

@@ -226,11 +226,16 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 	// 保持QA顺序 即使用户发送多张图片
 	messages = utils.MakeAlternating(messages)
 
+	usesse := false
+	if config.GetuseSse(promptstr) == 2 {
+		usesse = true
+	}
+
 	// 创建请求数据结构体
 	requestBody = structs.RequestDataYuanQi{
 		AssistantID: assistantID,
 		UserID:      useridstr,
-		Stream:      config.GetuseSse(promptstr),
+		Stream:      usesse,
 		ChatType:    config.GetYuanqiChatType(promptstr),
 		Messages:    messages,
 	}
@@ -281,7 +286,7 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	if !config.GetuseSse(promptstr) {
+	if config.GetuseSse(promptstr) < 2 {
 		// 处理响应
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {

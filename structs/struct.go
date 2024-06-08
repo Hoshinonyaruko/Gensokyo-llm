@@ -251,29 +251,38 @@ type ReplacementPair struct {
 	TargetWord   string `yaml:"targetWord"`
 }
 
+// ReplacementNamePair 表示一个名字，其中包含id和目标名字。
+type ReplacementNamePair struct {
+	ID   string `yaml:"id"`
+	Name string `yaml:"name"`
+}
+
 type Settings struct {
-	AllApi                  bool              `yaml:"allApi"`
-	SecretId                string            `yaml:"secretId"`
-	SecretKey               string            `yaml:"secretKey"`
-	Region                  string            `yaml:"region"`
-	UseSse                  bool              `yaml:"useSse"`
-	Port                    int               `yaml:"port"`
-	SelfPath                string            `yaml:"selfPath"`
-	HttpPath                string            `yaml:"path"`
-	HttpPaths               []string          `yaml:"paths"`
-	Lotus                   string            `yaml:"lotus"`
-	PathToken               string            `yaml:"pathToken"`
-	SystemPrompt            []string          `yaml:"systemPrompt"`
-	IPWhiteList             []string          `yaml:"iPWhiteList"`
-	ApiType                 int               `yaml:"apiType"`
-	Proxy                   string            `yaml:"proxy"`
-	UrlSendPics             bool              `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
-	MdPromptKeyboardAtGroup bool              `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
-	GroupHintWords          []string          `yaml:"groupHintWords"`
-	GroupHintChance         int               `yaml:"groupHintChance"`
-	GroupContext            bool              `yaml:"groupContext"`
-	ReplacementPairsIn      []ReplacementPair `yaml:"replacementPairsIn"`
-	ReplacementPairsOut     []ReplacementPair `yaml:"replacementPairsOut"`
+	AllApi                  bool                  `yaml:"allApi"`
+	SecretId                string                `yaml:"secretId"`
+	SecretKey               string                `yaml:"secretKey"`
+	Region                  string                `yaml:"region"`
+	UseSse                  int                   `yaml:"useSse"` // 0 false 1 false 2 true
+	Port                    int                   `yaml:"port"`
+	SelfPath                string                `yaml:"selfPath"`
+	HttpPath                string                `yaml:"path"`
+	HttpPaths               []string              `yaml:"paths"`
+	Lotus                   string                `yaml:"lotus"`
+	PathToken               string                `yaml:"pathToken"`
+	SystemPrompt            []string              `yaml:"systemPrompt"`
+	IPWhiteList             []string              `yaml:"iPWhiteList"`
+	ApiType                 int                   `yaml:"apiType"`
+	Proxy                   string                `yaml:"proxy"`
+	UrlSendPics             bool                  `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
+	MdPromptKeyboardAtGroup bool                  `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
+	GroupHintWords          []string              `yaml:"groupHintWords"`
+	GroupHintChance         int                   `yaml:"groupHintChance"`
+	GroupContext            int                   `yaml:"groupContext"` // 0 false 1 false 2 true
+	ReplacementPairsIn      []ReplacementPair     `yaml:"replacementPairsIn"`
+	ReplacementPairsOut     []ReplacementPair     `yaml:"replacementPairsOut"`
+	GroupAddNicknameToQ     int                   `yaml:"groupAddNicknameToQ"`
+	GroupAddCardToQ         int                   `yaml:"groupAddCardToQ"`
+	SpecialNameToQ          []ReplacementNamePair `yaml:"specialNameToQ"`
 
 	HunyuanType             int     `yaml:"hunyuanType"`
 	MaxTokensHunyuan        int     `yaml:"maxTokensHunyuan"`
@@ -323,10 +332,10 @@ type Settings struct {
 	Savelogs             bool     `yaml:"savelogs"`
 	AntiPromptLimit      float64  `yaml:"antiPromptLimit"`
 
-	UseCache       bool `yaml:"useCache"`
-	CacheThreshold int  `yaml:"cacheThreshold"`
-	CacheChance    int  `yaml:"cacheChance"`
-	EmbeddingType  int  `yaml:"embeddingType"`
+	UseCache       int `yaml:"useCache"`
+	CacheThreshold int `yaml:"cacheThreshold"`
+	CacheChance    int `yaml:"cacheChance"`
+	EmbeddingType  int `yaml:"embeddingType"`
 
 	PrintHanming  bool    `yaml:"printHanming"`
 	CacheK        float64 `yaml:"cacheK"`

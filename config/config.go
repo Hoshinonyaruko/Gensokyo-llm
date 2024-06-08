@@ -104,20 +104,20 @@ func Getregion() string {
 }
 
 // 获取useSse
-func GetuseSse(options ...string) bool {
+func GetuseSse(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
 	return getUseSseInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getUseSseInternal(options ...string) bool {
+func getUseSseInternal(options ...string) int {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
 			return instance.Settings.UseSse
 		}
-		return false
+		return 0
 	}
 
 	// 使用传入的 basename
@@ -128,8 +128,8 @@ func getUseSseInternal(options ...string) bool {
 		return getUseSseInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	useSse, ok := useSseInterface.(bool)
-	if !ok { // 检查是否断言失败
+	useSse, ok := useSseInterface.(int)
+	if !ok || useSse == 0 { // 检查是否断言失败 或者是0
 		log.Println("Type assertion failed for UseSse, fetching default")
 		return getUseSseInternal() // 递归调用内部函数，不传递任何参数
 	}
@@ -945,20 +945,20 @@ func GetAntiPromptLimit() float64 {
 }
 
 // 获取UseCache，增加可选参数支持动态配置查询
-func GetUseCache(options ...string) bool {
+func GetUseCache(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
 	return getUseCacheInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getUseCacheInternal(options ...string) bool {
+func getUseCacheInternal(options ...string) int {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
 			return instance.Settings.UseCache
 		}
-		return false
+		return 0
 	}
 
 	// 使用传入的 basename
@@ -969,8 +969,8 @@ func getUseCacheInternal(options ...string) bool {
 		return getUseCacheInternal() // 如果出错，递归调用自身，不传递任何参数
 	}
 
-	useCache, ok := useCacheInterface.(bool)
-	if !ok {
+	useCache, ok := useCacheInterface.(int)
+	if !ok || useCache == 0 {
 		log.Println("Type assertion failed for UseCache")
 		return getUseCacheInternal() // 如果类型断言失败，递归调用自身，不传递任何参数
 	}
@@ -1217,13 +1217,37 @@ func GetNoContext() bool {
 }
 
 // 获取GroupContext
-func GetGroupContext() bool {
+func GetGroupContext(options ...string) int {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GroupContext
+	return getGroupContextInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGroupContextInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GroupContext
+		}
+		return 0
 	}
-	return false
+
+	// 使用传入的 basename
+	basename := options[0]
+	GroupContextInterface, err := prompt.GetSettingFromFilename(basename, "GroupContext")
+	if err != nil {
+		log.Println("Error retrieving GroupContext:", err)
+		return getGroupContextInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	GroupContext, ok := GroupContextInterface.(int)
+	if !ok || GroupContext == 0 { // 检查是否断言失败或结果为空字符串
+		log.Println("Type assertion failed or empty string for GroupContext, fetching default")
+		return getGroupContextInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return GroupContext
 }
 
 // 获取WithdrawCommand
@@ -3285,4 +3309,121 @@ func getYuanqiMaxTokenInternal(options ...string) int {
 	}
 
 	return YuanqiMaxToken
+}
+
+// 获取GroupAddNicknameToQ
+func GetGroupAddNicknameToQ(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getGroupAddNicknameToQInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGroupAddNicknameToQInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GroupAddNicknameToQ
+		}
+		return 0
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	YuanqiMaxTokenInterface, err := prompt.GetSettingFromFilename(basename, "GroupAddNicknameToQ")
+	if err != nil {
+		log.Println("Error retrieving GroupAddNicknameToQ:", err)
+		return getGroupAddNicknameToQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	GroupAddNicknameToQ, ok := YuanqiMaxTokenInterface.(int)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for GroupAddNicknameToQ, fetching default")
+		return getGroupAddNicknameToQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if GroupAddNicknameToQ == 0 {
+		return getGroupAddNicknameToQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return GroupAddNicknameToQ
+}
+
+// 获取GroupAddCardToQ
+func GetGroupAddCardToQ(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getGroupAddCardToQInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getGroupAddCardToQInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.GroupAddCardToQ
+		}
+		return 0
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	GroupAddCardToQInterface, err := prompt.GetSettingFromFilename(basename, "GroupAddCardToQ")
+	if err != nil {
+		log.Println("Error retrieving GroupAddCardToQ:", err)
+		return getGroupAddCardToQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	GroupAddCardToQ, ok := GroupAddCardToQInterface.(int)
+	if !ok { // 检查是否断言失败
+		fmt.Println("Type assertion failed for GroupAddCardToQ, fetching default")
+		return getGroupAddCardToQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if GroupAddCardToQ == 0 {
+		return getGroupAddCardToQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return GroupAddCardToQ
+}
+
+// 获取 SpecialNameToQ
+func GetSpecialNameToQ(options ...string) []structs.ReplacementNamePair {
+	mu.Lock()
+	defer mu.Unlock()
+	return getSpecialNameToQInternal(options...)
+}
+
+// getReplacementPairsInOutternal 内部递归函数，处理配置获取逻辑
+func getSpecialNameToQInternal(options ...string) []structs.ReplacementNamePair {
+	// 从instance中读取配置数组
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil && len(instance.Settings.SpecialNameToQ) > 0 {
+			return instance.Settings.SpecialNameToQ
+		} else {
+			return nil
+		}
+	}
+
+	// 使用prompt包从指定的文件名中获取配置
+	basename := options[0]
+	confInterface, err := prompt.GetSettingFromFilename(basename, "SpecialNameToQ")
+	if err != nil {
+		log.Printf("Error retrieving settings from file: %s, error: %v", basename, err)
+		return getSpecialNameToQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	// 断言获取的interface{}为[]ReplacementPair
+	confs, ok := confInterface.([]structs.ReplacementNamePair)
+	if !ok {
+		log.Println("Type assertion failed for ReplacementPair, attempting default behavior")
+		return getSpecialNameToQInternal() // 递归调用内部函数，尝试默认配置
+	}
+
+	if len(confs) == 0 {
+		log.Println("No configurations found in file:", basename)
+		return getSpecialNameToQInternal() // 递归调用内部函数，尝试默认配置
+	}
+
+	return confs
 }

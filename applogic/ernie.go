@@ -196,7 +196,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 	payload.MaxOutputTokens = MaxOutputTokens
 
 	// 是否sse
-	if config.GetuseSse(promptstr) {
+	if config.GetuseSse(promptstr) == 2 {
 		payload.Stream = true
 	}
 
@@ -258,7 +258,7 @@ func (app *App) ChatHandlerErnie(w http.ResponseWriter, r *http.Request) {
 		rateLimitRequests, rateLimitTokens, remainingRequests, remainingTokens)
 
 	// 检查是否不使用SSE
-	if !config.GetuseSse(promptstr) {
+	if config.GetuseSse(promptstr) < 2 {
 		// 读取整个响应体到内存中
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
