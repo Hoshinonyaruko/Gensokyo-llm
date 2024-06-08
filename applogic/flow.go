@@ -14,7 +14,7 @@ import (
 
 // ApplyPromptChoiceQ 应用promptchoiceQ的逻辑，动态修改requestmsg
 func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
-	userid := message.UserID
+	userid := message.UserID + message.SelfID
 	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		userid = message.GroupID + message.SelfID
 	}
@@ -137,7 +137,7 @@ func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message
 
 // ApplyPromptCoverQ 应用promptCoverQ的逻辑，动态覆盖requestmsg
 func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
-	userid := message.UserID
+	userid := message.UserID + message.SelfID
 	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		userid = message.GroupID + message.SelfID
 	}
@@ -249,7 +249,7 @@ func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message 
 
 // ApplySwitchOnQ 应用switchOnQ的逻辑，动态修改promptstr
 func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *structs.OnebotGroupMessage) {
-	userid := message.UserID
+	userid := message.UserID + message.SelfID
 	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		userid = message.GroupID + message.SelfID
 	}
@@ -355,7 +355,7 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 		return
 	}
 
-	userid := message.UserID
+	userid := message.UserID + message.SelfID
 	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		userid = message.GroupID + message.SelfID
 	}
@@ -432,7 +432,7 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 
 // HandleExit 处理用户退出逻辑，包括发送消息和重置用户状态。
 func (app *App) HandleExit(exitText string, message *structs.OnebotGroupMessage, selfid string, promptstr string) {
-	userid := message.UserID
+	userid := message.UserID + message.SelfID
 	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		userid = message.GroupID + message.SelfID
 	}
@@ -459,7 +459,7 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 		return
 	}
 
-	userid := message.UserID
+	userid := message.UserID + message.SelfID
 	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		userid = message.GroupID + message.SelfID
 	}
@@ -536,7 +536,7 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 
 // ApplySwitchOnA 应用switchOnA的逻辑，动态修改promptstr
 func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *structs.OnebotGroupMessage) {
-	userid := message.UserID
+	userid := message.UserID + message.SelfID
 	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		userid = message.GroupID + message.SelfID
 	}
@@ -622,7 +622,7 @@ func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *str
 
 // ApplyPromptChoiceA 应用故事模式的情绪增强逻辑，并返回增强内容。
 func (app *App) ApplyPromptChoiceA(promptstr string, response string, message *structs.OnebotGroupMessage) string {
-	userid := message.UserID
+	userid := message.UserID + message.SelfID
 	if config.GetGroupContext() == 2 && message.MessageType != "private" {
 		userid = message.GroupID + message.SelfID
 	}
