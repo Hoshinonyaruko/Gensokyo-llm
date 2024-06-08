@@ -202,7 +202,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 					fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
 				}
 			} else {
-				err = app.InsertCustomTableRecord(message.UserID, promptstr, newPromptStrStat)
+				err = app.InsertCustomTableRecord(message.UserID+message.SelfID, promptstr, newPromptStrStat)
 				if err != nil {
 					fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
 				}
@@ -213,7 +213,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
 		} else {
-			app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
+			app.ProcessPromptMarks(message.UserID+message.SelfID, message.Message.(string), &promptstr)
 		}
 
 		// 提示词之间流转 达到信号量
@@ -236,7 +236,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if config.GetGroupContext() == 2 && message.MessageType != "private" {
 					app.InsertCustomTableRecord(message.GroupID+message.SelfID, newPromptStr, 1)
 				} else {
-					app.InsertCustomTableRecord(message.UserID, newPromptStr, 1)
+					app.InsertCustomTableRecord(message.UserID+message.SelfID, newPromptStr, 1)
 				}
 
 				fmt.Printf("流转prompt参数: %s,newPromptStrStat:%d\n", newPromptStr, 1)
@@ -248,7 +248,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
 		} else {
-			app.ProcessPromptMarks(message.UserID, message.Message.(string), &promptstr)
+			app.ProcessPromptMarks(message.UserID+message.SelfID, message.Message.(string), &promptstr)
 		}
 
 		var newstat int
@@ -262,7 +262,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newstat)
 		} else {
-			err = app.InsertCustomTableRecord(message.UserID, promptstr, newstat)
+			err = app.InsertCustomTableRecord(message.UserID+message.SelfID, promptstr, newstat)
 		}
 
 		if err != nil {
@@ -708,7 +708,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.GroupID+message.SelfID, requestmsg)
 		} else {
-			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID, requestmsg)
+			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID+message.SelfID, requestmsg)
 		}
 
 		requestBody, err := json.Marshal(map[string]interface{}{
@@ -969,7 +969,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						fmtf.Printf("Error updating user context: %v\n", err)
 					}
 				} else {
-					err := app.updateUserContext(message.UserID, lastMessageID)
+					err := app.updateUserContext(message.UserID+message.SelfID, lastMessageID)
 					if err != nil {
 						fmtf.Printf("Error updating user context: %v\n", err)
 					}
@@ -1074,7 +1074,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						fmtf.Printf("Error updating user context: %v\n", err)
 					}
 				} else {
-					err := app.updateUserContext(message.UserID, messageId)
+					err := app.updateUserContext(message.UserID+message.SelfID, messageId)
 					if err != nil {
 						fmtf.Printf("Error updating user context: %v\n", err)
 					}
