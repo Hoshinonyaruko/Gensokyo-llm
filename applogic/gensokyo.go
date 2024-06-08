@@ -182,7 +182,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// 从数据库读取用户的剧情存档
-		CustomRecord, err = app.FetchCustomRecord(message.UserID)
+		CustomRecord, err = app.FetchCustomRecord(message.UserID + message.SelfID)
 		if err != nil {
 			fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 		}
@@ -355,7 +355,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			if config.GetGroupContext() == 2 && message.MessageType != "private" {
 				app.migrateUserToNewContext(message.GroupID + message.SelfID)
 			} else {
-				app.migrateUserToNewContext(message.UserID)
+				app.migrateUserToNewContext(message.UserID + message.SelfID)
 			}
 			RestoreResponse := config.GetRandomRestoreResponses()
 			if message.RealMessageType == "group_private" || message.MessageType == "private" {
@@ -371,7 +371,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			if config.GetGroupContext() == 2 && message.MessageType != "private" {
 				app.deleteCustomRecord(message.GroupID + message.SelfID)
 			} else {
-				app.deleteCustomRecord(message.UserID)
+				app.deleteCustomRecord(message.UserID + message.SelfID)
 			}
 			return
 		}
@@ -560,7 +560,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		if config.GetGroupContext() == 2 && message.MessageType != "private" {
 			conversationID, parentMessageID, err = app.handleUserContext(message.GroupID + message.SelfID)
 		} else {
-			conversationID, parentMessageID, err = app.handleUserContext(message.UserID)
+			conversationID, parentMessageID, err = app.handleUserContext(message.UserID + message.SelfID)
 		}
 
 		// 使用map映射conversationID和uid gid的关系
@@ -679,7 +679,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 			}
 		} else {
-			CustomRecord, err = app.FetchCustomRecord(message.UserID)
+			CustomRecord, err = app.FetchCustomRecord(message.UserID + message.SelfID)
 			if err != nil {
 				fmt.Printf("app.FetchCustomRecord 出错: %s\n", err)
 			}
