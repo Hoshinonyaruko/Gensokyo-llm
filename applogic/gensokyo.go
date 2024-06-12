@@ -154,7 +154,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		checkstr := utils.RemoveBracketsContent(message.RawMessage)
 		if !checkMessageForHints(checkstr, message.SelfID, promptstr) {
 			// 获取概率值
-			chance := config.GetGroupHintChance()
+			chance := config.GetGroupHintChance(promptstr)
 
 			// 生成0-100之间的随机数
 			randomValue := rand.Intn(100)
