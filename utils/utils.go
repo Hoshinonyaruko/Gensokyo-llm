@@ -951,13 +951,13 @@ func RemoveAtTagContentConditional(input string, message structs.OnebotGroupMess
 		// 可以都是2 打开 呈现覆盖关系
 		if config.GetGroupAddCardToQ(promptstr) == 2 {
 			if message.Sender.Card != "" {
-				name = "[name:" + message.Sender.Card + "]"
+				name = "[username:" + message.Sender.Card + "]"
 			}
 		}
 
 		if config.GetGroupAddNicknameToQ(promptstr) == 2 && name == "" {
 			if message.Sender.Nickname != "" {
-				name = "[name:" + message.Sender.Nickname + "]"
+				name = "[username:" + message.Sender.Nickname + "]"
 			}
 		}
 
@@ -965,7 +965,7 @@ func RemoveAtTagContentConditional(input string, message structs.OnebotGroupMess
 		// 遍历特殊名称数组，检查是否需要进行进一步替换
 		for _, replacement := range specialNames {
 			if useridstr == replacement.ID {
-				name = "[name:" + replacement.Name + "]"
+				name = "[username:" + replacement.Name + "]"
 				break // 找到匹配，跳出循环
 			}
 		}
@@ -989,13 +989,13 @@ func RemoveAtTagContentConditional(input string, message structs.OnebotGroupMess
 			// 可以都是2 打开 呈现覆盖关系
 			if config.GetGroupAddCardToQ(promptstr) == 2 {
 				if message.Sender.Card != "" {
-					name = "[name:" + message.Sender.Card + "]"
+					name = "[username:" + message.Sender.Card + "]"
 				}
 			}
 
 			if config.GetGroupAddNicknameToQ(promptstr) == 2 && name == "" {
 				if message.Sender.Nickname != "" {
-					name = "[name:" + message.Sender.Nickname + "]"
+					name = "[username:" + message.Sender.Nickname + "]"
 				}
 			}
 
@@ -1003,7 +1003,7 @@ func RemoveAtTagContentConditional(input string, message structs.OnebotGroupMess
 			// 遍历特殊名称数组，检查是否需要进行进一步替换
 			for _, replacement := range specialNames {
 				if useridstr == replacement.ID {
-					name = "[name:" + replacement.Name + "]"
+					name = "[username:" + replacement.Name + "]"
 					break // 找到匹配，跳出循环
 				}
 			}
@@ -1018,21 +1018,21 @@ func RemoveAtTagContentConditional(input string, message structs.OnebotGroupMess
 			// 可以都是2 打开 呈现覆盖关系
 			if config.GetGroupAddCardToQ(promptstr) == 2 {
 				if message.Sender.Card != "" {
-					name = "[name:" + message.Sender.Card + "]"
+					name = "[username:" + message.Sender.Card + "]"
 				}
 			}
 
 			// 将CQat标签替换为名字
 			if config.GetGroupAddNicknameToQ(promptstr) == 2 && name == "" {
 				if message.Sender.Nickname != "" {
-					name = "[name:" + message.Sender.Nickname + "]"
+					name = "[username:" + message.Sender.Nickname + "]"
 				}
 			}
 
 			// 遍历特殊名称数组，检查是否需要进行进一步替换
 			for _, replacement := range specialNames {
 				if match[1] == replacement.ID {
-					name = "[name:" + replacement.Name + "]"
+					name = "[username:" + replacement.Name + "]"
 					break // 找到匹配，跳出循环
 				}
 			}
