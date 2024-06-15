@@ -117,34 +117,20 @@ func fieldIndex(field string) int {
 }
 
 func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr *string) {
-	// 根据 promptStr 获取 PromptMarkType
-	markType := config.GetPromptMarkType(*promptStr)
 
-	// 如果 markType 是 0，则不执行任何操作
-	if markType == 0 {
-		return
-	}
+	// 获取 PromptMarks
+	PromptMarks := config.GetPromptMarks(*promptStr)
+	maxMatchCount := 0
+	bestPromptStr := ""
+	bestPromptMarksLength := 0
 
-	// 如果 markType 是 1，执行以下操作
-	if markType == 1 {
-		// 获取 PromptMarks
-		PromptMarks := config.GetPromptMarks(*promptStr)
-		maxMatchCount := 0
-		bestPromptStr := ""
-		bestPromptMarksLength := 0
-
-		for _, mark := range PromptMarks {
-			// 提取冒号右侧的文本，并转换为数组
-			parts := strings.Split(mark, ":")
-			if len(parts) < 2 {
-				continue
-			}
-			codes := strings.Split(parts[1], "-")
-
-			// 检查 QorA 是否包含数组中的任意一个成员
+	for _, mark := range PromptMarks {
+		// 如果没有设置keyword则不处理
+		if len(mark.Keywords) != 0 {
+			// 检查 QorA 是否包含 Keywords 中的任意一个成员
 			matchCount := 0
-			for _, code := range codes {
-				if strings.Contains(QorA, code) {
+			for _, keyword := range mark.Keywords {
+				if strings.Contains(QorA, keyword) {
 					matchCount++
 				}
 			}
@@ -152,7 +138,7 @@ func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr *string)
 			// 更新找到含有最多匹配项的新 promptStr
 			if matchCount > maxMatchCount {
 				maxMatchCount = matchCount
-				bestPromptStr = parts[0]
+				bestPromptStr = mark.BranchName
 				bestPromptMarksLength = config.GetPromptMarksLength(bestPromptStr)
 			}
 		}

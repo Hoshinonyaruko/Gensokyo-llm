@@ -26,23 +26,6 @@ type Config struct {
 	Settings structs.Settings `yaml:"settings"`
 }
 
-// // 防抖
-// type ConfigFileLoader struct {
-// 	EventDelay time.Duration
-// 	LastLoad   time.Time
-// }
-
-// // 防抖
-// func (fl *ConfigFileLoader) LoadConfigF(path string) (*Config, error) {
-// 	now := time.Now()
-// 	if now.Sub(fl.LastLoad) < fl.EventDelay {
-// 		return instance, nil
-// 	}
-// 	fl.LastLoad = now
-
-// 	return LoadConfig(path)
-// }
-
 func LoadConfig(path string) (*Config, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -1660,40 +1643,6 @@ func getStandardGptApiInternal(options ...string) bool {
 	return standardGptApi
 }
 
-// 获取 PromptMarkType
-func GetPromptMarkType(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getPromptMarkTypeInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptMarkTypeInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.PromptMarkType
-		}
-		return 0 // 默认返回 0 或一个合理的默认值
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	promptMarkTypeInterface, err := prompt.GetSettingFromFilename(basename, "PromptMarkType")
-	if err != nil {
-		log.Println("Error retrieving PromptMarkType:", err)
-		return getPromptMarkTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	promptMarkType, ok := promptMarkTypeInterface.(int)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for PromptMarkType, fetching default")
-		return getPromptMarkTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return promptMarkType
-}
-
 // 获取 PromptMarksLength
 func GetPromptMarksLength(options ...string) int {
 	mu.Lock()
@@ -1729,14 +1678,14 @@ func getPromptMarksLengthInternal(options ...string) int {
 }
 
 // 获取 PromptMarks
-func GetPromptMarks(options ...string) []string {
+func GetPromptMarks(options ...string) []structs.BranchConfig {
 	mu.Lock()
 	defer mu.Unlock()
 	return getPromptMarksInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptMarksInternal(options ...string) []string {
+func getPromptMarksInternal(options ...string) []structs.BranchConfig {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -1753,7 +1702,7 @@ func getPromptMarksInternal(options ...string) []string {
 		return getPromptMarksInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	promptMarks, ok := promptMarksInterface.([]string)
+	promptMarks, ok := promptMarksInterface.([]structs.BranchConfig)
 	if !ok { // 检查是否断言失败
 		fmt.Println("Type assertion failed for PromptMarks, fetching default")
 		return getPromptMarksInternal() // 递归调用内部函数，不传递任何参数
@@ -1797,14 +1746,14 @@ func getEnhancedQAInternal(options ...string) bool {
 }
 
 // 获取 PromptChoicesQ
-func GetPromptChoicesQ(options ...string) []string {
+func GetPromptChoicesQ(options ...string) []structs.PromptChoice {
 	mu.Lock()
 	defer mu.Unlock()
 	return getPromptChoicesQInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptChoicesQInternal(options ...string) []string {
+func getPromptChoicesQInternal(options ...string) []structs.PromptChoice {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -1821,7 +1770,7 @@ func getPromptChoicesQInternal(options ...string) []string {
 		return getPromptChoicesQInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	promptChoices, ok := promptChoicesInterface.([]string)
+	promptChoices, ok := promptChoicesInterface.([]structs.PromptChoice)
 	if !ok { // 检查是否断言失败
 		log.Println("Type assertion failed for PromptChoicesQ, fetching default")
 		return getPromptChoicesQInternal() // 递归调用内部函数，不传递任何参数
@@ -1830,15 +1779,49 @@ func getPromptChoicesQInternal(options ...string) []string {
 	return promptChoices
 }
 
+// 获取 PromptChanceQ
+func GetPromptChanceQ(options ...string) []structs.PromptChance {
+	mu.Lock()
+	defer mu.Unlock()
+	return getPromptChanceQInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getPromptChanceQInternal(options ...string) []structs.PromptChance {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.PromptChanceQ
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	promptChanceInterface, err := prompt.GetSettingFromFilename(basename, "PromptChanceQ")
+	if err != nil {
+		log.Println("Error retrieving PromptChanceQ:", err)
+		return getPromptChanceQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	promptChances, ok := promptChanceInterface.([]structs.PromptChance)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for PromptChanceQ, fetching default")
+		return getPromptChanceQInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return promptChances
+}
+
 // 获取 PromptChoicesA
-func GetPromptChoicesA(options ...string) []string {
+func GetPromptChoicesA(options ...string) []structs.PromptChoice {
 	mu.Lock()
 	defer mu.Unlock()
 	return getPromptChoicesAInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptChoicesAInternal(options ...string) []string {
+func getPromptChoicesAInternal(options ...string) []structs.PromptChoice {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -1855,7 +1838,7 @@ func getPromptChoicesAInternal(options ...string) []string {
 		return getPromptChoicesAInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	promptChoices, ok := promptChoicesInterface.([]string)
+	promptChoices, ok := promptChoicesInterface.([]structs.PromptChoice)
 	if !ok { // 检查是否断言失败
 		log.Println("Type assertion failed for PromptChoicesA, fetching default")
 		return getPromptChoicesAInternal() // 递归调用内部函数，不传递任何参数
@@ -1864,49 +1847,15 @@ func getPromptChoicesAInternal(options ...string) []string {
 	return promptChoices
 }
 
-// 获取enhancedpromptChoices
-func GetEnhancedPromptChoices(options ...string) bool {
-	mu.Lock()
-	defer mu.Unlock()
-	return getEnhancedPromptChoicesInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getEnhancedPromptChoicesInternal(options ...string) bool {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.EnhancedPromptChoices
-		}
-		return false // 如果实例或设置未定义，返回默认值false
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	enhancedPromptChoicesInterface, err := prompt.GetSettingFromFilename(basename, "EnhancedPromptChoices")
-	if err != nil {
-		log.Println("Error retrieving EnhancedPromptChoices:", err)
-		return getEnhancedPromptChoicesInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	enhancedPromptChoices, ok := enhancedPromptChoicesInterface.(bool)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for EnhancedPromptChoices, fetching default")
-		return getEnhancedPromptChoicesInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return enhancedPromptChoices
-}
-
 // 获取switchOnQ
-func GetSwitchOnQ(options ...string) []string {
+func GetSwitchOnQ(options ...string) []structs.PromptSwitch {
 	mu.Lock()
 	defer mu.Unlock()
 	return getSwitchOnQInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getSwitchOnQInternal(options ...string) []string {
+func getSwitchOnQInternal(options ...string) []structs.PromptSwitch {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -1923,7 +1872,7 @@ func getSwitchOnQInternal(options ...string) []string {
 		return getSwitchOnQInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	switchOnQ, ok := switchOnQInterface.([]string)
+	switchOnQ, ok := switchOnQInterface.([]structs.PromptSwitch)
 	if !ok { // 检查是否断言失败
 		log.Println("Type assertion failed for SwitchOnQ, fetching default")
 		return getSwitchOnQInternal() // 递归调用内部函数，不传递任何参数
@@ -1933,14 +1882,14 @@ func getSwitchOnQInternal(options ...string) []string {
 }
 
 // 获取switchOnA
-func GetSwitchOnA(options ...string) []string {
+func GetSwitchOnA(options ...string) []structs.PromptSwitch {
 	mu.Lock()
 	defer mu.Unlock()
 	return getSwitchOnAInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getSwitchOnAInternal(options ...string) []string {
+func getSwitchOnAInternal(options ...string) []structs.PromptSwitch {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -1957,7 +1906,7 @@ func getSwitchOnAInternal(options ...string) []string {
 		return getSwitchOnAInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	switchOnA, ok := switchOnAInterface.([]string)
+	switchOnA, ok := switchOnAInterface.([]structs.PromptSwitch)
 	if !ok { // 检查是否断言失败
 		log.Println("Type assertion failed for SwitchOnA, fetching default")
 		return getSwitchOnAInternal() // 递归调用内部函数，不传递任何参数
@@ -1967,14 +1916,14 @@ func getSwitchOnAInternal(options ...string) []string {
 }
 
 // 获取ExitOnQ
-func GetExitOnQ(options ...string) []string {
+func GetExitOnQ(options ...string) []structs.PromptExit {
 	mu.Lock()
 	defer mu.Unlock()
 	return getExitOnQInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getExitOnQInternal(options ...string) []string {
+func getExitOnQInternal(options ...string) []structs.PromptExit {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -1991,7 +1940,7 @@ func getExitOnQInternal(options ...string) []string {
 		return getExitOnQInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	exitOnQ, ok := exitOnQInterface.([]string)
+	exitOnQ, ok := exitOnQInterface.([]structs.PromptExit)
 	if !ok { // 检查是否断言失败
 		log.Println("Type assertion failed for ExitOnQ, fetching default")
 		return getExitOnQInternal() // 递归调用内部函数，不传递任何参数
@@ -2001,14 +1950,14 @@ func getExitOnQInternal(options ...string) []string {
 }
 
 // 获取ExitOnA
-func GetExitOnA(options ...string) []string {
+func GetExitOnA(options ...string) []structs.PromptExit {
 	mu.Lock()
 	defer mu.Unlock()
 	return getExitOnAInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getExitOnAInternal(options ...string) []string {
+func getExitOnAInternal(options ...string) []structs.PromptExit {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -2025,7 +1974,7 @@ func getExitOnAInternal(options ...string) []string {
 		return getExitOnAInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	exitOnA, ok := exitOnAInterface.([]string)
+	exitOnA, ok := exitOnAInterface.([]structs.PromptExit)
 	if !ok { // 检查是否断言失败
 		log.Println("Type assertion failed for ExitOnA, fetching default")
 		return getExitOnAInternal() // 递归调用内部函数，不传递任何参数
@@ -2069,14 +2018,14 @@ func getEnvTypeInternal(options ...string) int {
 }
 
 // 获取 PromptCoverQ
-func GetPromptCoverQ(options ...string) []string {
+func GetPromptCoverQ(options ...string) []structs.PromptChoice {
 	mu.Lock()
 	defer mu.Unlock()
 	return getPromptCoverQInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptCoverQInternal(options ...string) []string {
+func getPromptCoverQInternal(options ...string) []structs.PromptChoice {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -2093,7 +2042,7 @@ func getPromptCoverQInternal(options ...string) []string {
 		return getPromptCoverQInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	promptCover, ok := promptCoverInterface.([]string)
+	promptCover, ok := promptCoverInterface.([]structs.PromptChoice)
 	if !ok { // 检查是否断言失败
 		log.Println("Type assertion failed for PromptCoverQ, fetching default")
 		return getPromptCoverQInternal() // 递归调用内部函数，不传递任何参数
@@ -2103,14 +2052,14 @@ func getPromptCoverQInternal(options ...string) []string {
 }
 
 // 获取 PromptCoverA
-func GetPromptCoverA(options ...string) []string {
+func GetPromptCoverA(options ...string) []structs.PromptChoice {
 	mu.Lock()
 	defer mu.Unlock()
 	return getPromptCoverAInternal(options...)
 }
 
 // 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptCoverAInternal(options ...string) []string {
+func getPromptCoverAInternal(options ...string) []structs.PromptChoice {
 	// 检查是否有参数传递进来，以及是否为空字符串
 	if len(options) == 0 || options[0] == "" {
 		if instance != nil {
@@ -2127,7 +2076,7 @@ func getPromptCoverAInternal(options ...string) []string {
 		return getPromptCoverAInternal() // 递归调用内部函数，不传递任何参数
 	}
 
-	promptCover, ok := promptCoverInterface.([]string)
+	promptCover, ok := promptCoverInterface.([]structs.PromptChoice)
 	if !ok { // 检查是否断言失败
 		log.Println("Type assertion failed for PromptCoverA, fetching default")
 		return getPromptCoverAInternal() // 递归调用内部函数，不传递任何参数

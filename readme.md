@@ -202,21 +202,9 @@ GET /conversation?prompt=example
 
 YAML 文件的配置格式请参考 **YAML配置文件格式** 部分。以下列出的配置项支持在请求中动态覆盖：
 
-实现了配置覆盖的函数
-- [x] GetWenxinApiPath
-- [x] GetGptModel
-- [x] GetGptApiPath
-- [x] GetGptToken
-- [x] GetMaxTokenGpt
-- [x] GetUseCache（bool）
-- [x] GetProxy
-- [x] GetRwkvMaxTokens
-- [x] GetLotus
-- [x] GetuseSse（bool）
-- [x] GetAIPromptkeyboardPath
-- [x] EnhancedQA（bool）
+每一种参数都实现了配置覆盖
 
-对于不在上述列表中的配置项，如果需要支持覆盖，请[提交 issue](#)。
+如果有疏漏，需要支持配置覆盖，请[提交 issue](#)。
 
 所有的bool值在配置文件覆盖的yml中必须指定,否则将会被认为是false.
 
@@ -226,53 +214,79 @@ YAML 文件的配置格式请参考 **YAML配置文件格式** 部分。以下�
 
 ## 故事模式(测试中 设计中)
 
-readme的说明较难懂,可到语雀查看[ai整理的文档](https://www.yuque.com/km57bt/hlhnxg/lakhq3ph2kkexks5)
+本项目实现了一种提示词控制流，一种可控上下文构造方式，基于本项目实现的多配置文件，可实现配置文件之间按条件跳转、切换，
 
-本项目实践了一个基础的，实验性的，提示词和上下文构造方式，基于本项目实现的多配置文件，本项目设计了几个额外的参数，结合数据库储存每个用户的状态，
+实现了让用户在多个提示词中，按照一些条件，有顺序，可选择的，在多套提示词中进行流转，实现文字恋爱游戏、探险游戏、非连续性多支线的故事剧情、类工作流提示词系统。
 
-实现了一种简易的文本控制流,用于生成分支故事,交互式故事格式，参考了一些知名项目的设计思路，（参考部分）
-
-实现了让用户在多个提示词中，按照一些条件，有顺序，可选择的，在多套提示词中进行流转，实现类似文字恋爱游戏的非连续性多支线的故事剧情。
-
-有关的参数，思路来自**Inklewriter**的**ink**语言，一种用于描述非ai分支式故事的语言。将其与大模型ai进行了结合和简化。需要一定的学习，掌握后可以编写ai故事。
-
-- [x]  promptMarkType : 0
-- [x]  promptMarksLength : 1
-- [x]  promptMarks : ["去逛街路上","在家准备"] #当promptMarkType==0 比较简单,达到promptMarksLength就会随机一个分支进行跳转
-- [x]  promptMarks : ["去逛街路上:坐车-走路-触发","在家准备:等一下-慢慢-准备"] #当promptMarkType==1 :后 是关键词,Q和A包含任意关键词就会跳转到 去逛街路上.yml 这个分支
-- [x]  enhancedQA : true
-- [x]  promptChoicesQ: ["1:回家吧/我累了/不想去了/-我们打车去/快点去/想去/早点-我们走着去/不着急-等下-拉手"] #当用户本轮包含了我累了、不想去了，本轮用户Q会被叠加(回家吧)
-- [x]  promptChoicesA: ["1:饿/我想吃饭/-难受/哄哄我"] #当AI本轮回复包含了，我想吃饭，本轮AI回复会被附加（饿），如果希望无条件附加，可以在末尾多加一个/，饿这个分支就是多加了一个/
-- [x]  promptCoverQ : [] #一样的语法,但是覆盖
-- [x]  promptCoverA : [] #同上
-- [x]  switchOnQ : ["1:故事退出分支/不想/累了-下一个分支/想/不累"]  #和promptMarks一样，可选,比promptMarks更具体，区分了Q和A，以及轮次1:
-- [x]  switchOnA : ["1:晚上分支/时间不早了"]
-- [x]  exitOnQ : ["1:退出/忘了吧/重置/无聊"] #捕获关键字来实现退出剧情,也可以使用全局的退出指令词。
-- [x]  exitOnA : ["1:退出/我是一个AI/我是一个人工/我是一个基于"]
-- [x]  enhancedPromptChoices: true  #promptChoicesQA  switchOnQA exitOnQA的语法，false时是随机模式 1:回家吧-不回家-原地休息 没有后方的/，随机一个分支跳转。true是具有关键词条件 1:回家吧/a/b/c-不回家/a/b/c
-- [x]  envType : 0 #0=不使用场景描述,1=在本轮llm回复前发送场景描述,2=在本轮llm回复后发送场景描述,场景描述支持[image:xxx][pic:xxx][图片:xxx][背景:xxx]标签,xxx为相对或绝对路径,需在exe运行目录下
-- [x]  envPics : [] #现阶段ai速度太慢,人工指定,数组代表多个,每个数组成员以1: 2: 开始代表对应第几轮.
-- [x]  envContents : [] #如果要跳过某个轮次,直接指定文字是2: 图片也是2: 代表本轮文图是空的. 
+```yaml
+- [x] promptMarksLength: 1
+- [x] promptMarks:
+    - BranchName: "去逛街路上"
+      Keywords: ["坐车", "走路", "触发"]
+    - BranchName: "在家准备"
+      Keywords: ["等一下", "慢慢", "准备"]
+- [x] enhancedQA: true
+- [x] promptChoicesQ:
+    - Round: 1
+      ReplaceText: "回家吧"
+      Keywords: ["我累了", "不想去了"]
+    - Round: 2
+      ReplaceText: "我们打车去"
+      Keywords: ["快点去", "想去", "早点"]
+    - Round: 3
+      ReplaceText: "我们走着去"
+      Keywords: ["不着急", "等下"]
+    - Round: 1
+      ReplaceText: "放松一下"
+      Keywords: [] # 相当于 enhancedChoices = false
+- [x] promptChoicesA: 同上。
+- [x] promptCoverQ: 只有Q没有A，格式同上，Choices是附加，cover是覆盖。
+- [x] promptCoverA: # 同上
+- [x] switchOnQ:
+    - round: 1
+      switch: ["故事退出分支", "下一个分支"]
+      keywords: ["不想", "累了", "想", "不累"]
+- [x] switchOnA:
+    - round: 1
+      switch: ["晚上分支"]
+      keywords: ["时间不早了"]
+- [x] exitOnQ:
+    - round: 1
+      keywords: ["退出", "忘了吧", "重置", "无聊"]
+- [x] exitOnA:
+    - round: 1
+      keywords: ["退出", "我是一个AI", "我是一个人工", "我是一个基于"]
+- [x] envType: 0 # 0=不使用场景描述, 1=在本轮llm回复前发送场景描述, 2=在本轮llm回复后发送场景描述, 场景描述支持[image:xxx][pic:xxx][图片:xxx][背景:xxx]标签, xxx为相对或绝对路径, 需在exe运行目录下
+- [x] envPics: [] # 现阶段ai速度太慢,人工指定,数组代表多个,每个数组成员以1: 2: 开始代表对应第几轮.
+- [x] envContents: [] # 如果要跳过某个轮次,直接指定文字是2: 图片也是2: 代表本轮文图是空的.
+- [x] promptChanceQ:
+    - probability: 50
+      text: "让我们休息一下"
+    - probability: 30
+      text: "继续前进"
+    - probability: 70
+      text: "停下来看看周围"
+    - probability: 10
+      text: "尝试一些新东西"
+```
  
-含义解释，以上参数均位于多配置文件的settings部分，你可以决定每个场景的提示词长度，每个场景的长度promptMarksLength,来控制剧情的颗粒度。
+以上参数均位于多配置文件的settings部分，你可以决定每个场景的提示词长度，每个场景的长度promptMarksLength,来控制剧情的颗粒度。
 
-故事模式触发方式一，中间件控制,需要使用支持onebotv11标准的机器人框架和ob11插件应用端，以及本项目（3者联用），本项目面向的是有一定开发和试错能力的对话机器人开发者。
+故事模式触发方式一，中间件控制,自行调用/gensokyo端口附加不同的prompt参数，手动切断
 
-使用反向ws，使用ob11插件应用端与obv11机器人框架连接，当ob11插件应用端收到反向ws事件时，自行编写插件拦截ws的json，
+在gsk-llm设置ob11机器人框架的http api地址，ob11插件应用端不负责发信息，只是根据信息内容进行条件判断，作为控制中间件，给开发者自己控制条件的开发自由度。
 
-通过json中的用户id，message内容，调用gsk-llm（本项目）的http /gensokyo端口，在这个环节，自行判断用户条件（如好感度），在/gensokyo端口附加不同的prompt参数，
-
-故事模式触发方式二,通过配置默认配置文件config.yml的switchOnQ和switchOnA,可以根据关键词切换分支,
+故事模式触发方式二,通过配置默认配置文件config.yml的switchOnQ和switchOnA,可以根据关键词自动切换分支,
 
 结合prompt参数中配置文件的自己推进故事走向的能力，可以实现基础的，以提示词为主的ai故事情节，此外还需要为每一个prompt.yml设计对应的-keyboard.yml，生成气泡。
 
-之后，在gsk-llm设置ob11机器人框架的http api地址，ob11插件应用端不负责发信息，只是根据信息内容进行条件判断，作为控制中间件，给开发者自己控制条件的开发自由度。
-
-promptMarkType=0代表按promptMarksLength来切换提示词文件，promptMarksLength代表本提示词文件维持的上下文长度，
+promptMarks的keywords为[]代表按promptMarksLength来切换提示词文件，promptMarksLength代表本提示词文件维持的上下文长度，
 
 当promptMarksLength小于0时，会从promptMarks中读取之后的分支，并从中随机一个切换，当promptMarkType=1时， 
 
-1=按条件触发,promptMarksLength达到时也触发.条件格式aaaa:xxx-xxx-xxxx-xxx,aaa是promptmark中的yml,xxx是标记,
+1=按条件触发,promptMarksLength达到时也触发.
+
+配置详见[流程控制-promptmarks.md](/docs/流程控制-promptmarks.md)
 
 识别到用户和模型说出标记就会触发这个支线(需要自行写好提示词,让llm能根据条件说出.)
 
@@ -284,17 +298,20 @@ promptMarkType=0代表按promptMarksLength来切换提示词文件，promptMarks
 
 目前是会与当前用户的历史QA进行混合和融合，实现对用户输入进行一定程度的引导，从而左右故事进程的走向。
 
+---
+## 配置模版
+
 引入了“配置控制流”参数，这是一种相比ai-agent灵活性更低,但剧情可控性更高,生成速度和成本更低的方式。
 
-promptChoicesQ: []                             #当enhancedQA为true时,若数组为空。将附加配置覆盖yml中最后一个Q到用户的当前输入中,格式Q:xxx(yml最后一个Q)。如果数组不为空,且格式需为"轮次编号:文本1-文本2-文本3"，例如"1:hello-goodbye-hi",会在符合的对话轮次中随机选择一个文本添加。所设置的promptChoices数量不能大于当前yml的promptMarksLength。
+promptChoicesQ & promptChoicesA 文档: [流程控制-promptchoicesQ](/docs/流程控制-promptchoicesQ.md)
+[流程控制-promptCoverQ](/docs/流程控制-promptCoverQ.md)
 
-promptChoicesA: []                            #规则同上,对llm的A生效.我用于追加LLM的情绪和做一个补充的引导,比如llm的a回复包含了饿,可补充(想去吃饭,带我去吃饭...),会追加到当前A,对剧情起到推动和修饰.
+switchOnQ代表在Q中寻找到匹配文本时切换当前分支,switchOnA同理,其配置方式和promptChoices一致.
 
-enhancedPromptChoices: false                  #当设为true时,promptChoices的格式变化为"轮次编号:附加文本/触发词1/触发词2/触发词3-附加文本/触发词4/触发词5/触发词6"，如"1:hello/aaa/bbb/ccc-goodbye/ddd/eee/fff"。在指定轮次，根据触发词的匹配数量选择最适合的文本添加，匹配越多触发词的组合附加的文本越优先被选择。
+[流程控制-switchonQA](/docs/流程控制-switchonQA.md)
 
-switchOnQ代表在Q中寻找到匹配文本时切换当前分支,A同理,其语法和promptChoices一致.
-
-exitOnQ需要enhancedPromptChoices=true,其实enhancedPromptChoices最好就是true的,其/左侧固定为退出(这里任意,右侧是触发词,退出没有具体作用)
+exitOnQ则是代表检测到指定关键字会退出当前的分支。
+[流程控制-exitonQA](/docs/流程控制-exitonQA.md)
 
 promptMarks和switchOnQ、switchOnA在功能上是相同的，都是根据关键字跳转分支，promptMarks先执行，不分轮次不分QA，switchOnQ和switchOnA更具体，区分Q和A，区分轮次，实现细节跳转。
 
