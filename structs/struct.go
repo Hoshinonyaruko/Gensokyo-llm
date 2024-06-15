@@ -484,6 +484,12 @@ type PromptExit struct {
 	Keywords []string `yaml:"keywords"` // 匹配词列表
 }
 
+type YuanqiConf struct {
+	YuanqiAssistantID string `yaml:"yuanqiAssistantID"` // 助手ID
+	YuanqiToken       string `yaml:"yuanqiToken"`       // Token
+	YuanqiName        string `yaml:"yuanqiName"`        // 名字
+}
+
 type MetaEvent struct {
 	PostType      string `json:"post_type"`
 	MetaEventType string `json:"meta_event_type"`
