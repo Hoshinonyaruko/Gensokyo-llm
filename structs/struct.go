@@ -429,22 +429,59 @@ type Settings struct {
 	WSServerToken string `yaml:"wsServerToken"`
 	WSPath        string `yaml:"wsPath"`
 
-	PromptMarkType        int      `yaml:"promptMarkType"`
-	PromptMarksLength     int      `yaml:"promptMarksLength"`
-	PromptMarks           []string `yaml:"promptMarks"`
-	EnhancedQA            bool     `yaml:"enhancedQA"`
-	PromptChoicesQ        []string `yaml:"promptChoicesQ"`
-	PromptChoicesA        []string `yaml:"promptChoicesA"`
-	EnhancedPromptChoices bool     `yaml:"enhancedPromptChoices"`
-	SwitchOnQ             []string `yaml:"switchOnQ"`
-	SwitchOnA             []string `yaml:"switchOnA"`
-	ExitOnQ               []string `yaml:"exitOnQ"`
-	ExitOnA               []string `yaml:"exitOnA"`
-	EnvType               int      `yaml:"envType"`
-	EnvPics               []string `yaml:"envPics"`     //ai太慢了,而且影响气泡了,只能手动了
-	EnvContents           []string `yaml:"envContents"` //ai太慢了,而且影响气泡了,只能手动了
-	PromptCoverQ          []string `yaml:"promptCoverQ"`
-	PromptCoverA          []string `yaml:"promptCoverA"` //暂时用不上 待实现
+	PromptMarksLength int            `yaml:"promptMarksLength"`
+	PromptMarks       []BranchConfig `yaml:"promptMarks"`
+	EnhancedQA        bool           `yaml:"enhancedQA"`
+	PromptChanceQ     []PromptChance `yaml:"promptChanceQ"`
+	PromptChoicesQ    []PromptChoice `yaml:"promptChoicesQ"`
+	PromptChoicesA    []PromptChoice `yaml:"promptChoicesA"`
+	SwitchOnQ         []PromptSwitch `yaml:"switchOnQ"`
+	SwitchOnA         []PromptSwitch `yaml:"switchOnA"`
+	ExitOnQ           []PromptExit   `yaml:"exitOnQ"`
+	ExitOnA           []PromptExit   `yaml:"exitOnA"`
+	EnvType           int            `yaml:"envType"`
+	EnvPics           []string       `yaml:"envPics"`     //ai太慢了,而且影响气泡了,只能手动了
+	EnvContents       []string       `yaml:"envContents"` //ai太慢了,而且影响气泡了,只能手动了
+	PromptCoverQ      []PromptChoice `yaml:"promptCoverQ"`
+	PromptCoverA      []PromptChoice `yaml:"promptCoverA"` //暂时用不上 待实现
+}
+
+type YuanqiConf struct {
+	YuanqiAssistantID string `yaml:"yuanqiAssistantID"` // 助手ID
+	YuanqiToken       string `yaml:"yuanqiToken"`       // Token
+	YuanqiName        string `yaml:"yuanqiName"`        // 名字
+}
+
+// PromptChance 定义了包含概率和文本的结构体
+type PromptChance struct {
+	Probability int    `yaml:"probability"` // 概率值
+	Text        string `yaml:"text"`        // 相关文本
+}
+
+// BranchConfig 用于存储分支标诈和关键字的结构体
+type BranchConfig struct {
+	BranchName string   `yaml:"branchName"` // 分支标识 yml的名称
+	Keywords   []string `yaml:"keywords"`   // 关键字列表
+}
+
+// PromptChoice 用于存储轮次、替换词和匹配词的结构体
+type PromptChoice struct {
+	Round       int      `yaml:"round"`       // 轮次编号
+	ReplaceText []string `yaml:"replaceText"` // 替换词
+	Keywords    []string `yaml:"keywords"`    // 匹配词列表
+}
+
+// PromptSwitch 用于存储轮次、切换分支和匹配词的结构体
+type PromptSwitch struct {
+	Round    int      `yaml:"round"`    // 轮次编号
+	Switch   []string `yaml:"switch"`   // 切换分支
+	Keywords []string `yaml:"keywords"` // 匹配词列表
+}
+
+// PromptExit 用于存储轮次、切换分支和匹配词的结构体
+type PromptExit struct {
+	Round    int      `yaml:"round"`    // 轮次编号
+	Keywords []string `yaml:"keywords"` // 匹配词列表
 }
 
 type YuanqiConf struct {

@@ -217,20 +217,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 提示词之间流转 达到信号量
-		markType := config.GetPromptMarkType(promptstr)
-		if (markType == 0 || markType == 1) && (CustomRecord.PromptStrStat-1 <= 0) {
+		if CustomRecord.PromptStrStat-1 <= 0 {
 			PromptMarks := config.GetPromptMarks(promptstr)
 			if len(PromptMarks) != 0 {
 				randomIndex := rand.Intn(len(PromptMarks))
-				newPromptStr := PromptMarks[randomIndex]
-
-				// 如果 markType 是 1，提取 "aaa" 部分
-				if markType == 1 {
-					parts := strings.Split(newPromptStr, ":")
-					if len(parts) > 0 {
-						newPromptStr = parts[0] // 取冒号前的部分作为新的提示词
-					}
-				}
+				selectedBranch := PromptMarks[randomIndex]
+				newPromptStr := selectedBranch.BranchName
 
 				// 刷新新的提示词给用户目前的状态 新的场景应该从1开始
 				if config.GetGroupContext() == 2 && message.MessageType != "private" {
@@ -239,7 +231,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 					app.InsertCustomTableRecord(message.UserID+message.SelfID, newPromptStr, 1)
 				}
 
-				fmt.Printf("流转prompt参数: %s,newPromptStrStat:%d\n", newPromptStr, 1)
+				fmt.Printf("流转prompt参数: %s, newPromptStrStat: %d\n", newPromptStr, 1)
 				promptstr = newPromptStr
 			}
 		}
@@ -659,6 +651,8 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			requestmsg = acnode.CheckWordIN(requestmsg)
 		}
 
+		// MARK: 对当前的Q进行各种处理
+
 		// 关键词退出部分ExitChoicesQ
 		app.ProcessExitChoicesQ(promptstr, &requestmsg, &message, selfid) // 适配群
 
@@ -670,6 +664,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// promptstr 随 switchOnQ 变化 切换Q
 		app.ApplySwitchOnQ(&promptstr, &requestmsg, &message) // 适配群
+
+		// 概率的添加内容到当前的Q后方
+		app.ApplyPromptChanceQ(promptstr, &requestmsg, &message) // 适配群
 
 		// 从数据库读取用户的剧情存档
 		var CustomRecord *structs.CustomRecord

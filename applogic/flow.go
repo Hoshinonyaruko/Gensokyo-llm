@@ -3,7 +3,6 @@ package applogic
 import (
 	"fmt"
 	"math/rand"
-	"strconv"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
@@ -52,69 +51,43 @@ func (app *App) ApplyPromptChoiceQ(promptstr string, requestmsg *string, message
 			currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 			fmt.Printf("故事模式:当前对话轮次Q %v\n", currentRound)
 
-			enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
-			if enhancedChoices {
-				// 遍历所有的promptChoices配置项
-				for _, choice := range promptChoices {
-					parts := strings.Split(choice, ":")
-					roundNumberStr, triggerGroups := parts[0], parts[1]
-					// 将字符串轮次号转换为整数
-					roundNumber, err := strconv.Atoi(roundNumberStr)
-					if err != nil {
-						fmt.Printf("Error converting round number: %v\n", err)
-						continue // 如果转换出错，跳过当前循环
-					}
-					// 检查当前轮次是否符合条件
-					if roundNumber == currentRound {
-						triggerSets := strings.Split(triggerGroups, "-")
+			// 遍历所有的 promptChoices 配置项
+			var randomChoices []structs.PromptChoice
+			for _, choice := range promptChoices {
+				if choice.Round == currentRound {
+					if len(choice.Keywords) == 0 {
+						// Keywords 为空，收集所有符合条件的 ReplaceText
+						randomChoices = append(randomChoices, choice)
+					} else {
 						bestMatchCount := 0
 						bestText := ""
 						// 遍历每组触发词设置
-						for _, triggerSet := range triggerSets {
-							triggerDetails := strings.Split(triggerSet, "/")
-							addedText := triggerDetails[0] // 提取附加文本
-							triggers := triggerDetails[1:] // 提取所有触发词
+						for _, keyword := range choice.Keywords {
 							matchCount := 0
-							// 计算当前消息中包含的触发词数量
-							for _, trigger := range triggers {
-								if strings.Contains(*requestmsg, trigger) {
-									matchCount++
-								}
+							if strings.Contains(*requestmsg, keyword) {
+								matchCount++
 							}
 							// 如果当前组的匹配数量最高，更新最佳文本
 							if matchCount > bestMatchCount {
 								bestMatchCount = matchCount
-								bestText = addedText
+								bestText = choice.ReplaceText[rand.Intn(len(choice.ReplaceText))]
 							}
 						}
 						// 如果找到了有效的触发词组合，附加最佳文本到消息中
 						if bestMatchCount > 0 {
 							*requestmsg += " (" + bestText + ")"
-							ischange = true
-						}
-					}
-				}
-			} else {
-				// 当enhancedChoices为false时的处理逻辑
-				for _, choice := range promptChoices {
-					parts := strings.Split(choice, ":")
-					roundNumberStr, addedTexts := parts[0], parts[1]
-					roundNumber, err := strconv.Atoi(roundNumberStr)
-					if err != nil {
-						fmt.Printf("Error converting round number: %v\n", err)
-						continue // 如果轮次号转换出错，跳过当前循环
-					}
-					// 如果当前轮次符合条件，随机选择一个文本添加
-					if roundNumber == currentRound {
-						texts := strings.Split(addedTexts, "-")
-						if len(texts) > 0 {
-							selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-							*requestmsg += " (" + selectedText + ")"
-							ischange = true
+
 						}
 					}
 				}
 			}
+
+			// 处理 randomChoices 中的随机选择 从符合轮次的里选一个 如果选出的包含多个 就再随机选一个
+			if len(randomChoices) > 0 {
+				selectedChoice := randomChoices[rand.Intn(len(randomChoices))]
+				*requestmsg += " (" + selectedChoice.ReplaceText[rand.Intn(len(selectedChoice.ReplaceText))] + ")"
+			}
+
 			// 如果内容没有改变,回滚到用最后一个Q来加入对话中
 			if !ischange {
 				// 获取系统历史，但不包括系统消息
@@ -164,69 +137,44 @@ func (app *App) ApplyPromptCoverQ(promptstr string, requestmsg *string, message 
 			currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 			fmt.Printf("故事模式覆盖Q:当前对话轮次Q %v\n", currentRound)
 
-			enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
-			if enhancedChoices {
-				// 遍历所有的promptChoices配置项
-				for _, choice := range promptCover {
-					parts := strings.Split(choice, ":")
-					roundNumberStr, triggerGroups := parts[0], parts[1]
-					// 将字符串轮次号转换为整数
-					roundNumber, err := strconv.Atoi(roundNumberStr)
-					if err != nil {
-						fmt.Printf("Error converting round number: %v\n", err)
-						continue // 如果转换出错，跳过当前循环
-					}
-					// 检查当前轮次是否符合条件
-					if roundNumber == currentRound {
-						triggerSets := strings.Split(triggerGroups, "-")
+			// 遍历所有的 promptChoices 配置项
+			var randomChoices []structs.PromptChoice
+			for _, choice := range promptCover {
+				if choice.Round == currentRound {
+					if len(choice.Keywords) == 0 {
+						// Keywords 为空，收集所有符合条件的 ReplaceText
+						randomChoices = append(randomChoices, choice)
+					} else {
 						bestMatchCount := 0
 						bestText := ""
 						// 遍历每组触发词设置
-						for _, triggerSet := range triggerSets {
-							triggerDetails := strings.Split(triggerSet, "/")
-							addedText := triggerDetails[0] // 提取附加文本
-							triggers := triggerDetails[1:] // 提取所有触发词
+						for _, keyword := range choice.Keywords {
 							matchCount := 0
-							// 计算当前消息中包含的触发词数量
-							for _, trigger := range triggers {
-								if strings.Contains(*requestmsg, trigger) {
-									matchCount++
-								}
+							if strings.Contains(*requestmsg, keyword) {
+								matchCount++
 							}
 							// 如果当前组的匹配数量最高，更新最佳文本
 							if matchCount > bestMatchCount {
 								bestMatchCount = matchCount
-								bestText = addedText
+								bestText = choice.ReplaceText[rand.Intn(len(choice.ReplaceText))]
 							}
 						}
-						// 如果找到了有效的触发词组合，覆盖最佳文本到消息中
+						// 如果找到了有效的触发词组合，附加最佳文本到消息中
 						if bestMatchCount > 0 {
 							*requestmsg = bestText
 							ischange = true
 						}
 					}
 				}
-			} else {
-				// 当enhancedChoices为false时的处理逻辑
-				for _, choice := range promptCover {
-					parts := strings.Split(choice, ":")
-					roundNumberStr, addedTexts := parts[0], parts[1]
-					roundNumber, err := strconv.Atoi(roundNumberStr)
-					if err != nil {
-						fmt.Printf("Error converting round number: %v\n", err)
-						continue // 如果轮次号转换出错，跳过当前循环
-					}
-					// 如果当前轮次符合条件，随机选择一个文本覆盖
-					if roundNumber == currentRound {
-						texts := strings.Split(addedTexts, "-")
-						if len(texts) > 0 {
-							selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-							*requestmsg = selectedText
-							ischange = true
-						}
-					}
-				}
 			}
+
+			// 处理 randomChoices 中的随机选择 从符合轮次的里选一个 如果选出的包含多个 就再随机选一个
+			if len(randomChoices) > 0 {
+				selectedChoice := randomChoices[rand.Intn(len(randomChoices))]
+				*requestmsg = selectedChoice.ReplaceText[rand.Intn(len(selectedChoice.ReplaceText))]
+				ischange = true
+			}
+
 			// 如果内容没有改变,回滚到用最后一个Q来覆盖对话中
 			if !ischange {
 				// 获取系统历史，但不包括系统消息
@@ -271,40 +219,26 @@ func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *s
 		currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 		fmt.Printf("关键词切换分支状态:当前对话轮次Q %v,当前promptstr:%s\n", currentRound, *promptstr)
 
-		enhancedChoices := config.GetEnhancedPromptChoices(*promptstr)
-		fmt.Printf("关键词切换分支状态:%v\n", enhancedChoices)
-		if enhancedChoices {
-			// 遍历所有的promptChoices配置项
-			for _, choice := range promptstrChoices {
-				parts := strings.Split(choice, ":")
-				roundNumberStr, triggerGroups := parts[0], parts[1]
-				// 将字符串轮次号转换为整数
-				roundNumber, err := strconv.Atoi(roundNumberStr)
-				if err != nil {
-					fmt.Printf("Error converting round number: %v\n", err)
-					continue // 如果转换出错，跳过当前循环
-				}
-				// 检查当前轮次是否符合条件
-				if roundNumber == currentRound {
-					triggerSets := strings.Split(triggerGroups, "-")
+		// 遍历所有的PromptSwitch配置项
+		var randomChoices []structs.PromptSwitch
+		for _, choice := range promptstrChoices {
+			if choice.Round == currentRound {
+				if len(choice.Keywords) == 0 {
+					// Keywords为空，收集所有符合条件的Switch
+					randomChoices = append(randomChoices, choice)
+				} else {
 					bestMatchCount := 0
-					bestText := ""
-					// 遍历每组触发词设置
-					for _, triggerSet := range triggerSets {
-						triggerDetails := strings.Split(triggerSet, "/")
-						addedText := triggerDetails[0] // 提取附加文本
-						triggers := triggerDetails[1:] // 提取所有触发词
+					var bestText string
+					// 遍历每组关键词设置
+					for _, keyword := range choice.Keywords {
 						matchCount := 0
-						// 计算当前消息中包含的触发词数量
-						for _, trigger := range triggers {
-							if strings.Contains(*requestmsg, trigger) {
-								matchCount++
-							}
+						if strings.Contains(*requestmsg, keyword) {
+							matchCount++
 						}
 						// 如果当前组的匹配数量最高，更新最佳文本
 						if matchCount > bestMatchCount {
 							bestMatchCount = matchCount
-							bestText = addedText
+							bestText = choice.Switch[rand.Intn(len(choice.Switch))]
 						}
 					}
 					// 如果找到了有效的触发词组合，修改分支
@@ -313,38 +247,27 @@ func (app *App) ApplySwitchOnQ(promptstr *string, requestmsg *string, message *s
 						// 获取新的信号长度 刷新持久化数据库
 						PromptMarksLength := config.GetPromptMarksLength(*promptstr)
 						app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
-						fmt.Printf("enhancedChoices=true,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", *promptstr, PromptMarksLength)
-						// 故事模式规则 应用 PromptChoiceQ 这一次是为了,替换了分支后,再次用新的分支的promptstr处理一次,因为原先的promptstr是跳转前,要用跳转后的再替换一次
-						app.ApplyPromptChoiceQ(*promptstr, requestmsg, message)
-					}
-				}
-			}
-		} else {
-			// 当enhancedChoices为false时的处理逻辑
-			for _, choice := range promptstrChoices {
-				parts := strings.Split(choice, ":")
-				roundNumberStr, addedTexts := parts[0], parts[1]
-				roundNumber, err := strconv.Atoi(roundNumberStr)
-				if err != nil {
-					fmt.Printf("Error converting round number: %v\n", err)
-					continue // 如果轮次号转换出错，跳过当前循环
-				}
-				// 如果当前轮次符合条件，随机选择一个分支跳转
-				if roundNumber == currentRound {
-					texts := strings.Split(addedTexts, "-")
-					if len(texts) > 0 {
-						selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-						*promptstr = selectedText
-						// 获取新的信号长度 刷新持久化数据库
-						PromptMarksLength := config.GetPromptMarksLength(*promptstr)
-						app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
-						fmt.Printf("enhancedChoices=false,根据关键词切换prompt为: %s,newPromptStrStat:%d\n", *promptstr, PromptMarksLength)
-						// 故事模式规则 应用 PromptChoiceQ 这一次是为了,替换了分支后,再次用新的分支的promptstr处理一次,因为原先的promptstr是跳转前,要用跳转后的再替换一次
+						fmt.Printf("根据关键词切换prompt为: %s, newPromptStrStat: %d\n", *promptstr, PromptMarksLength)
+						// 应用 PromptChoiceQ
 						app.ApplyPromptChoiceQ(*promptstr, requestmsg, message)
 					}
 				}
 			}
 		}
+
+		// 处理 randomChoices 中的随机选择 从符合轮次的里选一个 如果选出的包含多个 就再随机选一个
+		if len(randomChoices) > 0 {
+			selectedChoice := randomChoices[rand.Intn(len(randomChoices))]
+			selectedText := selectedChoice.Switch[rand.Intn(len(selectedChoice.Switch))]
+			*promptstr = selectedText
+			// 获取新的信号长度 刷新持久化数据库
+			PromptMarksLength := config.GetPromptMarksLength(*promptstr)
+			app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
+			fmt.Printf("随机选择prompt为: %s, newPromptStrStat: %d\n", *promptstr, PromptMarksLength)
+			// 应用 PromptChoiceQ
+			app.ApplyPromptChoiceQ(*promptstr, requestmsg, message)
+		}
+
 	}
 }
 
@@ -374,57 +297,27 @@ func (app *App) ProcessExitChoicesQ(promptstr string, requestmsg *string, messag
 	currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 	fmt.Printf("关键词判断退出分支:当前对话轮次Q %v\n", currentRound)
 
-	enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
-	if enhancedChoices {
-		for _, choice := range exitChoices {
-			parts := strings.Split(choice, ":")
-			roundNumberStr, triggerGroups := parts[0], parts[1]
-			roundNumber, err := strconv.Atoi(roundNumberStr)
-			if err != nil {
-				fmt.Printf("Error converting round number: %v\n", err)
-				continue // 如果转换出错，跳过当前循环
-			}
-			if roundNumber == currentRound {
-				triggerSets := strings.Split(triggerGroups, "-")
-				bestMatchCount := 0
-				bestText := ""
-				for _, triggerSet := range triggerSets {
-					triggerDetails := strings.Split(triggerSet, "/")
-					addedText := triggerDetails[0]
-					triggers := triggerDetails[1:]
-					matchCount := 0
-					for _, trigger := range triggers {
-						if strings.Contains(*requestmsg, trigger) {
-							matchCount++
-						}
-					}
-					if matchCount > bestMatchCount {
-						bestMatchCount = matchCount
-						bestText = addedText
-					}
+	// 遍历所有的 promptChoices 配置项
+	for _, choice := range exitChoices {
+		if choice.Round == currentRound {
+			bestMatchCount := 0
+			bestText := ""
+			// 遍历每组触发词设置
+			for _, keyword := range choice.Keywords {
+				matchCount := 0
+				if strings.Contains(*requestmsg, keyword) {
+					matchCount++
 				}
-				if bestMatchCount > 0 {
-					app.HandleExit(bestText, message, selfid, promptstr)
-					return
+				// 如果当前组的匹配数量最高，更新最佳文本
+				if matchCount > bestMatchCount {
+					bestMatchCount = matchCount
+					bestText = keyword
 				}
 			}
-		}
-	} else {
-		for _, choice := range exitChoices {
-			parts := strings.Split(choice, ":")
-			roundNumberStr, addedTexts := parts[0], parts[1]
-			roundNumber, err := strconv.Atoi(roundNumberStr)
-			if err != nil {
-				fmt.Printf("Error converting round number: %v\n", err)
-				continue
-			}
-			if roundNumber == currentRound {
-				texts := strings.Split(addedTexts, "-")
-				if len(texts) > 0 {
-					selectedText := texts[rand.Intn(len(texts))]
-					app.HandleExit(selectedText, message, selfid, promptstr)
-					return
-				}
+			// 如果找到了有效的触发词组合，就退出分支
+			if bestMatchCount > 0 {
+				app.HandleExit(bestText, message, selfid, promptstr)
+				return
 			}
 		}
 	}
@@ -478,57 +371,27 @@ func (app *App) ProcessExitChoicesA(promptstr string, response *string, message 
 	currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 	fmt.Printf("关键词判断退出分支:当前对话轮次A %v\n", currentRound)
 
-	enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
-	if enhancedChoices {
-		for _, choice := range exitChoices {
-			parts := strings.Split(choice, ":")
-			roundNumberStr, triggerGroups := parts[0], parts[1]
-			roundNumber, err := strconv.Atoi(roundNumberStr)
-			if err != nil {
-				fmt.Printf("Error converting round number: %v\n", err)
-				continue
-			}
-			if roundNumber == currentRound {
-				triggerSets := strings.Split(triggerGroups, "-")
-				bestMatchCount := 0
-				bestText := ""
-				for _, triggerSet := range triggerSets {
-					triggerDetails := strings.Split(triggerSet, "/")
-					addedText := triggerDetails[0]
-					triggers := triggerDetails[1:]
-					matchCount := 0
-					for _, trigger := range triggers {
-						if strings.Contains(*response, trigger) {
-							matchCount++
-						}
-					}
-					if matchCount > bestMatchCount {
-						bestMatchCount = matchCount
-						bestText = addedText
-					}
+	// 遍历所有的 promptChoices 配置项
+	for _, choice := range exitChoices {
+		if choice.Round == currentRound {
+			bestMatchCount := 0
+			bestText := ""
+			// 遍历每组触发词设置
+			for _, keyword := range choice.Keywords {
+				matchCount := 0
+				if strings.Contains(*response, keyword) {
+					matchCount++
 				}
-				if bestMatchCount > 0 {
-					app.HandleExit(bestText, message, selfid, promptstr)
-					return
+				// 如果当前组的匹配数量最高，更新最佳文本
+				if matchCount > bestMatchCount {
+					bestMatchCount = matchCount
+					bestText = keyword
 				}
 			}
-		}
-	} else {
-		for _, choice := range exitChoices {
-			parts := strings.Split(choice, ":")
-			roundNumberStr, addedTexts := parts[0], parts[1]
-			roundNumber, err := strconv.Atoi(roundNumberStr)
-			if err != nil {
-				fmt.Printf("Error converting round number: %v\n", err)
-				continue
-			}
-			if roundNumber == currentRound {
-				texts := strings.Split(addedTexts, "-")
-				if len(texts) > 0 {
-					selectedText := texts[rand.Intn(len(texts))]
-					app.HandleExit(selectedText, message, selfid, promptstr)
-					return
-				}
+			// 如果找到了有效的触发词组合，就退出分支
+			if bestMatchCount > 0 {
+				app.HandleExit(bestText, message, selfid, promptstr)
+				return
 			}
 		}
 	}
@@ -558,64 +421,49 @@ func (app *App) ApplySwitchOnA(promptstr *string, response *string, message *str
 		currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 		fmt.Printf("关键词[%v]切换分支状态:当前对话轮次A %v", *response, currentRound)
 
-		enhancedChoices := config.GetEnhancedPromptChoices(*promptstr)
-		fmt.Printf("关键词切换分支状态:%v\n", enhancedChoices)
-		if enhancedChoices {
-			for _, choice := range promptstrChoices {
-				parts := strings.Split(choice, ":")
-				roundNumberStr, triggerGroups := parts[0], parts[1]
-				roundNumber, err := strconv.Atoi(roundNumberStr)
-				if err != nil {
-					fmt.Printf("Error converting round number: %v\n", err)
-					continue // 如果转换出错，跳过当前循环
-				}
-				if roundNumber == currentRound {
-					triggerSets := strings.Split(triggerGroups, "-")
+		// 遍历所有的PromptSwitch配置项
+		var randomChoices []structs.PromptSwitch
+		for _, choice := range promptstrChoices {
+			if choice.Round == currentRound {
+				if len(choice.Keywords) == 0 {
+					// Keywords为空，收集所有符合条件的Switch
+					randomChoices = append(randomChoices, choice)
+				} else {
 					bestMatchCount := 0
-					bestText := ""
-					for _, triggerSet := range triggerSets {
-						triggerDetails := strings.Split(triggerSet, "/")
-						addedText := triggerDetails[0] // 提取附加文本
-						triggers := triggerDetails[1:] // 提取所有触发词
+					var bestText string
+					// 遍历每组关键词设置
+					for _, keyword := range choice.Keywords {
 						matchCount := 0
-						for _, trigger := range triggers {
-							if strings.Contains(*response, trigger) {
-								matchCount++
-							}
+						if strings.Contains(*response, keyword) {
+							matchCount++
 						}
+						// 如果当前组的匹配数量最高，更新最佳文本
 						if matchCount > bestMatchCount {
 							bestMatchCount = matchCount
-							bestText = addedText
+							bestText = choice.Switch[rand.Intn(len(choice.Switch))]
 						}
 					}
+					// 如果找到了有效的触发词组合，修改分支
 					if bestMatchCount > 0 {
 						*promptstr = bestText
+						// 获取新的信号长度 刷新持久化数据库
 						PromptMarksLength := config.GetPromptMarksLength(*promptstr)
 						app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
-						fmt.Printf("enhancedChoices=true,根据关键词A切换prompt为: %s,newPromptStrStat:%d\n", *promptstr, PromptMarksLength)
+						fmt.Printf("根据关键词切换prompt为: %s, newPromptStrStat: %d\n", *promptstr, PromptMarksLength)
 					}
 				}
 			}
-		} else {
-			for _, choice := range promptstrChoices {
-				parts := strings.Split(choice, ":")
-				roundNumberStr, addedTexts := parts[0], parts[1]
-				roundNumber, err := strconv.Atoi(roundNumberStr)
-				if err != nil {
-					fmt.Printf("Error converting round number: %v\n", err)
-					continue
-				}
-				if roundNumber == currentRound {
-					texts := strings.Split(addedTexts, "-")
-					if len(texts) > 0 {
-						selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-						*promptstr = selectedText
-						PromptMarksLength := config.GetPromptMarksLength(*promptstr)
-						app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
-						fmt.Printf("enhancedChoices=false,根据关键词A切换prompt为: %s,newPromptStrStat:%d\n", *promptstr, PromptMarksLength)
-					}
-				}
-			}
+		}
+
+		// 处理 randomChoices 中的随机选择 从符合轮次的里选一个 如果选出的包含多个 就再随机选一个
+		if len(randomChoices) > 0 {
+			selectedChoice := randomChoices[rand.Intn(len(randomChoices))]
+			selectedText := selectedChoice.Switch[rand.Intn(len(selectedChoice.Switch))]
+			*promptstr = selectedText
+			// 获取新的信号长度 刷新持久化数据库
+			PromptMarksLength := config.GetPromptMarksLength(*promptstr)
+			app.InsertCustomTableRecord(userid, *promptstr, PromptMarksLength)
+			fmt.Printf("随机选择prompt为: %s, newPromptStrStat: %d\n", *promptstr, PromptMarksLength)
 		}
 	}
 }
@@ -660,57 +508,61 @@ func (app *App) ApplyPromptChoiceA(promptstr string, response string, message *s
 	currentRound := PromptMarksLength - CustomRecord.PromptStrStat + 1
 	fmt.Printf("故事模式:当前对话轮次A %v\n", currentRound)
 
-	enhancedChoices := config.GetEnhancedPromptChoices(promptstr)
-	if enhancedChoices {
-		for _, choice := range promptChoices {
-			parts := strings.Split(choice, ":")
-			roundNumberStr, triggerGroups := parts[0], parts[1]
-			roundNumber, err := strconv.Atoi(roundNumberStr)
-			if err != nil {
-				fmt.Printf("Error converting round number: %v\n", err)
-				continue // 如果转换出错，跳过当前循环
-			}
-			if roundNumber == currentRound {
-				triggerSets := strings.Split(triggerGroups, "-")
+	// 遍历所有的 promptChoices 配置项
+	var randomChoices []structs.PromptChoice
+	for _, choice := range promptChoices {
+		if choice.Round == currentRound {
+			if len(choice.Keywords) == 0 {
+				// Keywords 为空，收集所有符合条件的 ReplaceText
+				randomChoices = append(randomChoices, choice)
+			} else {
 				bestMatchCount := 0
 				bestText := ""
-				for _, triggerSet := range triggerSets {
-					triggerDetails := strings.Split(triggerSet, "/")
-					addedText := triggerDetails[0] // 提取附加文本
-					triggers := triggerDetails[1:] // 提取所有触发词
+				// 遍历每组触发词设置
+				for _, keyword := range choice.Keywords {
 					matchCount := 0
-					for _, trigger := range triggers {
-						if strings.Contains(response, trigger) {
-							matchCount++
-						}
+					if strings.Contains(response, keyword) {
+						matchCount++
 					}
+					// 如果当前组的匹配数量最高，更新最佳文本
 					if matchCount > bestMatchCount {
 						bestMatchCount = matchCount
-						bestText = addedText
+						bestText = choice.ReplaceText[rand.Intn(len(choice.ReplaceText))]
 					}
 				}
+				// 如果找到了有效的触发词组合，返回最佳文本，会附加到当前的llm回复后方
 				if bestMatchCount > 0 {
 					return "(" + bestText + ")"
-				}
-			}
-		}
-	} else {
-		for _, choice := range promptChoices {
-			parts := strings.Split(choice, ":")
-			roundNumberStr, addedTexts := parts[0], parts[1]
-			roundNumber, err := strconv.Atoi(roundNumberStr)
-			if err != nil {
-				fmt.Printf("Error converting round number: %v\n", err)
-				continue // 如果轮次号转换出错，跳过当前循环
-			}
-			if roundNumber == currentRound {
-				texts := strings.Split(addedTexts, "-")
-				if len(texts) > 0 {
-					selectedText := texts[rand.Intn(len(texts))] // 随机选择一个文本
-					return "(" + selectedText + ")"
+
 				}
 			}
 		}
 	}
+
+	// 处理 randomChoices 中的随机选择 从符合轮次的里选一个 如果选出的包含多个 就再随机选一个
+	if len(randomChoices) > 0 {
+		selectedChoice := randomChoices[rand.Intn(len(randomChoices))]
+		return " (" + selectedChoice.ReplaceText[rand.Intn(len(selectedChoice.ReplaceText))] + ")"
+	}
+
+	// 默认 没有匹配到任何内容时
 	return ""
+}
+
+// ApplyPromptChanceQ 应用promptChanceQ的逻辑，动态修改requestmsg
+func (app *App) ApplyPromptChanceQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
+
+	// 检查是否启用了EnhancedQA
+	if config.GetEnhancedQA(promptstr) {
+		// 获取PromptChance数组
+		promptChances := config.GetPromptChanceQ(promptstr)
+
+		// 遍历所有的 promptChances 配置项
+		for _, chance := range promptChances {
+			// 基于概率进行计算
+			if rand.Intn(100) < chance.Probability {
+				*requestmsg += " (" + chance.Text + ")"
+			}
+		}
+	}
 }
