@@ -305,6 +305,7 @@ promptMarks的keywords为[]代表按promptMarksLength来切换提示词文件，
 
 promptChoicesQ & promptChoicesA 文档: [流程控制-promptchoicesQ](/docs/流程控制-promptchoicesQ.md)
 [流程控制-promptCoverQ](/docs/流程控制-promptCoverQ.md)
+[流程控制-promptChanceQ](/docs/流程控制-promptChanceQ.md)
 
 switchOnQ代表在Q中寻找到匹配文本时切换当前分支,switchOnA同理,其配置方式和promptChoices一致.
 

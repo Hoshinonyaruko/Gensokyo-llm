@@ -551,18 +551,14 @@ func (app *App) ApplyPromptChoiceA(promptstr string, response string, message *s
 
 // ApplyPromptChanceQ 应用promptChanceQ的逻辑，动态修改requestmsg
 func (app *App) ApplyPromptChanceQ(promptstr string, requestmsg *string, message *structs.OnebotGroupMessage) {
+	// 获取PromptChance数组
+	promptChances := config.GetPromptChanceQ(promptstr)
 
-	// 检查是否启用了EnhancedQA
-	if config.GetEnhancedQA(promptstr) {
-		// 获取PromptChance数组
-		promptChances := config.GetPromptChanceQ(promptstr)
-
-		// 遍历所有的 promptChances 配置项
-		for _, chance := range promptChances {
-			// 基于概率进行计算
-			if rand.Intn(100) < chance.Probability {
-				*requestmsg += " (" + chance.Text + ")"
-			}
+	// 遍历所有的 promptChances 配置项
+	for _, chance := range promptChances {
+		// 基于概率进行计算
+		if rand.Intn(100) < chance.Probability {
+			*requestmsg += " (" + chance.Text + ")"
 		}
 	}
 }
