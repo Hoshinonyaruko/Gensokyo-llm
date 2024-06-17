@@ -86,7 +86,7 @@ func (app *App) handleSaveMemory(msg structs.OnebotGroupMessage, ConversationID 
 
 	userid := msg.UserID
 	if config.GetGroupContext() == 2 && msg.MessageType != "private" {
-		userid = msg.GroupID
+		userid = msg.GroupID + msg.SelfID
 	}
 
 	// 添加用户记忆
@@ -132,7 +132,7 @@ func (app *App) handleMemoryList(msg structs.OnebotGroupMessage, promptstr strin
 
 	userid := msg.UserID
 	if config.GetGroupContext() == 2 && msg.MessageType != "private" {
-		userid = msg.GroupID
+		userid = msg.GroupID + msg.SelfID
 	}
 
 	memories, err := app.GetUserMemories(userid)
@@ -157,10 +157,8 @@ func (app *App) handleMemoryList(msg structs.OnebotGroupMessage, promptstr strin
 	}
 
 	for _, memory := range memories {
-		responseBuilder.WriteString(memory.ConversationTitle + "\n")
-		// 更新键盘数组，确保最多只有4个元素
-		if len(keyboard) >= 4 {
-			keyboard = keyboard[1:] // 移除最早的元素
+		if config.GetMemoryListMD() == 0 {
+			responseBuilder.WriteString(memory.ConversationTitle + "\n")
 		}
 		keyboard = append(keyboard, loadMemoryCommand+" "+memory.ConversationTitle) // 添加新的标题
 	}
@@ -169,7 +167,17 @@ func (app *App) handleMemoryList(msg structs.OnebotGroupMessage, promptstr strin
 	if len(memories) > 0 {
 		exampleTitle = string([]rune(memories[0].ConversationTitle)[:3])
 	}
-	responseBuilder.WriteString(fmt.Sprintf("提示：发送 %s 任意标题开头的前n字即可载入记忆\n如：%s %s", loadMemoryCommand, loadMemoryCommand, exampleTitle))
+
+	if config.GetMemoryListMD() == 0 {
+		responseBuilder.WriteString(fmt.Sprintf("提示：发送 %s 任意标题开头的前n字即可载入记忆\n如：%s %s", loadMemoryCommand, loadMemoryCommand, exampleTitle))
+	} else {
+		if len(keyboard) == 0 {
+			responseBuilder.WriteString("目前还没有对话记忆...点按记忆按钮来保存新的记忆吧")
+		} else {
+			responseBuilder.WriteString("点击蓝色文字载入记忆")
+		}
+
+	}
 
 	// 发送组合后的信息，包括键盘数组
 	app.sendMemoryResponseByline(msg, responseBuilder.String(), keyboard, promptstr)
@@ -180,7 +188,7 @@ func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetComma
 
 	userid := msg.UserID
 	if config.GetGroupContext() == 2 && msg.MessageType != "private" {
-		userid = msg.GroupID
+		userid = msg.GroupID + msg.SelfID
 	}
 
 	// 从配置获取载入记忆指令
@@ -261,10 +269,22 @@ func (app *App) sendMemoryResponseByline(msg structs.OnebotGroupMessage, respons
 		if !config.GetUsePrivateSSE() {
 			utils.SendPrivateMessage(msg.UserID, response, strSelfID, promptstr)
 		} else {
+			// 更新键盘数组，确保最多只有三个元素
+			if len(keyboard) >= 3 {
+				keyboard = keyboard[:3]
+			}
 			utils.SendSSEPrivateMessageByLine(msg.UserID, response, keyboard, promptstr)
 		}
 	} else {
-		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID, promptstr)
+		if config.GetMemoryListMD() == 0 {
+			utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID, promptstr)
+		} else {
+			// 更新键盘数组，确保最多只有五个元素
+			if len(keyboard) >= 5 {
+				keyboard = keyboard[:5]
+			}
+			utils.SendGroupMessageMdPromptKeyboardV2(msg.GroupID, msg.UserID, response, strSelfID, promptstr, keyboard)
+		}
 	}
 }
 
@@ -286,7 +306,7 @@ func (app *App) handleNewConversation(msg structs.OnebotGroupMessage, conversati
 	userid := msg.UserID
 
 	if config.GetGroupContext() == 2 && msg.MessageType != "private" {
-		userid = msg.GroupID
+		userid = msg.GroupID + msg.SelfID
 	}
 
 	// 添加用户记忆

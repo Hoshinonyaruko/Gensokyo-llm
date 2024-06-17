@@ -66,7 +66,11 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 		fmt.Printf("Error reading response body: %v\n", err)
 		return config.GetPromptkeyboard()
 	}
-	fmt.Printf("Response: %s\n", string(responseBody))
+	fmt.Printf("气泡Response: %s\n", string(responseBody))
+
+	// 使用正则表达式替换不正确的转义字符
+	re := regexp.MustCompile(`\\+`)
+	responseBody = re.ReplaceAll(responseBody, []byte(`\`))
 
 	var responseData ResponseDataPromptKeyboard
 	if err := json.Unmarshal(responseBody, &responseData); err != nil {
@@ -77,14 +81,20 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	var keyboardPrompts []string
 	// 预处理响应数据，移除可能的换行符
 	preprocessedResponse := strings.TrimSpace(responseData.Response)
+	// 假设 originalContent 是包含错误转义的原始字符串
+	preprocessedResponse = strings.ReplaceAll(preprocessedResponse, `\\`, `\`)
+	preprocessedResponse = strings.ReplaceAll(preprocessedResponse, `\\`, `\`)
+	preprocessedResponse = strings.ReplaceAll(preprocessedResponse, `\\`, `\`)
 
 	// 预处理响应数据，移除非JSON内容
 	preprocessedResponse = preprocessResponse(preprocessedResponse)
 
+	fmtf.Printf("准备解析气泡: %v\n", preprocessedResponse)
+
 	// 尝试直接解析JSON
 	err = json.Unmarshal([]byte(preprocessedResponse), &keyboardPrompts)
 	if err != nil {
-		fmt.Printf("Error unmarshalling nested response: %v\n", err)
+		fmtf.Printf("Error unmarshalling nested response: %v\n", err)
 		return config.GetPromptkeyboard()
 	}
 

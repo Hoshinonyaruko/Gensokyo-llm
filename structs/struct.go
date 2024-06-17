@@ -356,7 +356,7 @@ type Settings struct {
 	MemoryCommand             []string `yaml:"memoryCommand"`
 	MemoryLoadCommand         []string `yaml:"memoryLoadCommand"`
 	NewConversationCommand    []string `yaml:"newConversationCommand"`
-	MemoryListMD              bool     `yaml:"memoryListMD"`
+	MemoryListMD              int      `yaml:"memoryListMD"`
 	FunctionMode              bool     `yaml:"functionMode"`
 	FunctionPath              string   `yaml:"functionPath"`
 	UseFunctionPromptkeyboard bool     `yaml:"useFunctionPromptkeyboard"`

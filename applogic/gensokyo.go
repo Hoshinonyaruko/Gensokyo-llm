@@ -684,7 +684,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 生成场景
 		if config.GetEnvType(promptstr) == 1 {
-			fmtf.Printf("ai生成背景type=1:%v,当前场景stat:%v\n", "Q"+newmsg, CustomRecord.PromptStrStat)
+			fmtf.Printf("ai生成背景type=1:%v,当前场景stat:%v,当前promptstr:%v\n", "Q"+newmsg, CustomRecord.PromptStrStat, promptstr)
 			PromptMarksLength := config.GetPromptMarksLength(promptstr)
 			app.GetAndSendEnv(requestmsg, promptstr, message, selfid, CustomRecord.PromptStrStat, PromptMarksLength)
 		}
@@ -860,9 +860,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart, selfid, newmsg, response, promptstr)
+												go utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart+EnhancedAContent, selfid, newmsg, response, promptstr)
+												go utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart+EnhancedAContent, selfid, newmsg, response, promptstr)
 											}
 										}
 									}
@@ -909,9 +909,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response, selfid, newmsg, response, promptstr)
+												go utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response+EnhancedAContent, selfid, newmsg, response, promptstr)
+												go utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response+EnhancedAContent, selfid, newmsg, response, promptstr)
 											}
 										}
 
