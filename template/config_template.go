@@ -6,7 +6,7 @@ settings:
 
   #通用配置项
   allApi : false                                #以conversation_ernie conversation_hunyuan形式同时开启全部api,请设置好iPWhiteList避免被盗用.
-  useSse : false                                #智能体场景开启,其他场景,比如普通onebotv11不开启
+  useSse : 0                                    #智能体场景开启,其他场景,比如普通onebotv11不开启 0、1=false 2=true
   port : 46233                                  #本程序监听端口,支持gensokyo http上报,   请在gensokyo的反向http配置加入 post_url: ["http://127.0.0.1:port/gensokyo"] 
   selfPath : ""                                 #本程序监听地址,不包含http头,请放通port到公网,仅发图场景需要填写,可以是域名,暂不支持https.
   path : "http://123.123.123.123:11111"         #调用gensokyo api的地址,填入 gensokyo 的 正向http地址   http_address: "0.0.0.0:46231"  对应填入 "http://127.0.0.1:46231"
@@ -45,7 +45,7 @@ settings:
   memoryCommand : ["记忆"]                      #记忆指令
   memoryLoadCommand : ["载入"]                  #载入指令
   newConversationCommand : ["新对话"]           #新对话指令
-  memoryListMD : false                          #记忆列表使用md按钮(qq开放平台)
+  memoryListMD : 0                              #记忆列表使用md按钮(qq开放平台) 0=不用 1=按钮 2=inlinecmd(文字链)
   hideExtraLogs : false                         #忽略流信息的log,提高性能
   urlSendPics : false                           #自己构造图床加速图片发送.需配置公网ip+放通port+设置正确的selfPath
   groupHintWords : []                           #当机器人位于群内时,需满足包含groupHintWords数组任意内容如[CQ:at,qq=2] 机器人的名字 等
@@ -100,17 +100,39 @@ settings:
   vertorSensitiveThreshold : 200                #汉明距离,满足距离代表向量含义相近,可给出拦截.
 
   #多配置覆盖,切换条件等设置 该类配置比较绕,可咨询QQ2022717137
-  promptMarkType : 0                            #0=多个里随机一个,promptMarksLength达到时触发 1=按条件触发,promptMarksLength达到时也触发.条件格式aaaa:xxx-xxx-xxxx-xxx,aaa是promptmark中的yml,xxx是标记,识别到用户和模型说出标记就会触发这个支线(需要自行写好提示词,让llm能根据条件说出.)
-  promptMarksLength : 2                         #promptMarkType=0时,多少轮开始切换上下文.
-  promptMarks : []                              #prompts文件夹内的文件,一个代表一个配置文件,当promptMarkType为0是,直接是prompts文件夹内的yml名字,当为1时,格式在上面.
-  enhancedQA : false                            #默认是false,用于在故事支线将firstQA的位置从顶部移动到用户之前,从而增强权重和效果.
-  promptChoicesQ: []                            #当enhancedQA为true时,若数组为空。将附加配置覆盖yml中最后一个Q到用户的当前输入中,格式Q:xxx(yml最后一个Q)。如果数组不为空,且格式需为"轮次编号:文本1-文本2-文本3"，例如"1:hello-goodbye-hi",会在符合的对话轮次中随机选择一个文本添加。所设置的promptChoices数量不能大于当前yml的promptMarksLength。
-  promptChoicesA: []                            #规则同上,对llm的A生效.我用于追加LLM的情绪和做一个补充的引导,比如llm的a回复包含了饿,可补充(想去吃饭,带我去吃饭...),会追加到当前A,对剧情起到推动和修饰.
-  switchOnQ : []                                #根据当前Q关键字检测切换yml分支,Q,语法与promptChoices一致,并且也取决于enhancedPromptChoices,只是将附加内容(xxx)变为,检测到关键字直接将当前分支转换到xxx.
-  switchOnA : []                                #根据当前A关键字检测切换yml分支,A,语法与promptChoices一致,并且也取决于enhancedPromptChoices,只是将附加内容(xxx)变为,检测到关键字直接将当前分支转换到xxx.
-  exitOnQ : []                                  #同上,效果和restoreCommand一致,语法与promptChoices一致,检测到关键字词触发退出故事模式.
-  exitOnA : []                                  #同上,效果和restoreCommand一致,语法与promptChoices一致,检测到关键字词触发退出故事模式.
-  enhancedPromptChoices: false                  #当设为true时,promptChoices的格式变化为"轮次编号:附加文本/触发词1/触发词2/触发词3-附加文本/触发词4/触发词5/触发词6"，如"1:hello/aaa/bbb/ccc-goodbye/ddd/eee/fff"。在指定轮次，根据触发词的匹配数量选择最适合的文本添加，匹配越多触发词的组合附加的文本越优先被选择。  
+  promptMarksLength : 99999                        #未设置keywords时,多少轮开始切换上下文.
+  enhancedQA : false                            #默认是false,用于在故事支线将firstQA的位置从顶部移动到用户之前,增强权重和效果.
+  promptMarks:
+  - branchName: "分支yml名"
+    keywords: ["触发词", "触发词2"]
+
+  promptChoicesQ:
+  - round: 1
+    replaceText: ["附加内容"]
+    keywords: ["触发词"]
+
+  promptChoicesA:
+  - round: 1
+    replaceText: ["附加内容"]
+    keywords: ["触发词"]
+
+  switchOnQ:
+  - round: 1
+    switch: ["分支", "分支"]
+    keywords: ["触发词"]
+
+  switchOnA:
+  - round: 1
+    switch: ["分支"]
+    keywords: ["触发词"]
+
+  exitOnQ:
+    - round: 1
+      keywords: ["触发词", "触发词", "触发词", "触发词"]
+
+  exitOnA:
+    - round: 1
+      keywords: ["退出"]
 
   #混元配置项
   secretId : ""                                 #腾讯云账号(右上角)-访问管理-访问密钥，生成获取
