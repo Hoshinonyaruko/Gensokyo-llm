@@ -860,9 +860,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart, selfid, newmsg, response, promptstr)
+												go utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart+EnhancedAContent, selfid, newmsg, response, promptstr)
+												go utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, newPart+EnhancedAContent, selfid, newmsg, response, promptstr)
 											}
 										}
 									}
@@ -909,9 +909,9 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 										} else {
 											// 如果没有 EnhancedAContent
 											if EnhancedAContent == "" {
-												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response, selfid, newmsg, response, promptstr)
+												go utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response, selfid, newmsg, response, promptstr)
 											} else {
-												utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response+EnhancedAContent, selfid, newmsg, response, promptstr)
+												go utils.SendGroupMessageMdPromptKeyboard(userinfo.GroupID, userinfo.UserID, response+EnhancedAContent, selfid, newmsg, response, promptstr)
 											}
 										}
 
