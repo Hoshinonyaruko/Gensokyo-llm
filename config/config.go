@@ -1303,6 +1303,16 @@ func GetUseFunctionPromptkeyboard() bool {
 	return false
 }
 
+// 获取MemoryListMD
+func GetMemoryListMD() int {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.MemoryListMD
+	}
+	return 0
+}
+
 // 获取UseAIPromptkeyboard
 func GetUseAIPromptkeyboard() bool {
 	mu.Lock()

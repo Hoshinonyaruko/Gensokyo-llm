@@ -684,7 +684,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 生成场景
 		if config.GetEnvType(promptstr) == 1 {
-			fmtf.Printf("ai生成背景type=1:%v,当前场景stat:%v\n", "Q"+newmsg, CustomRecord.PromptStrStat)
+			fmtf.Printf("ai生成背景type=1:%v,当前场景stat:%v,当前promptstr:%v\n", "Q"+newmsg, CustomRecord.PromptStrStat, promptstr)
 			PromptMarksLength := config.GetPromptMarksLength(promptstr)
 			app.GetAndSendEnv(requestmsg, promptstr, message, selfid, CustomRecord.PromptStrStat, PromptMarksLength)
 		}
