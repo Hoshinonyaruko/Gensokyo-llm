@@ -17,6 +17,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/prompt"
+	"github.com/hoshinonyaruko/gensokyo-llm/promptkb"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
@@ -981,7 +982,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							promptkeyboard = config.GetPromptkeyboard()
 						} else {
 							fmtf.Printf("ai生成气泡:%v", "Q"+newmsg+"A"+response)
-							promptkeyboard = GetPromptKeyboardAI("Q"+newmsg+"A"+response, promptstr)
+							promptkeyboard = promptkb.GetPromptKeyboardAI("Q"+newmsg+"A"+response, promptstr)
 						}
 
 						// 使用acnode.CheckWordOUT()过滤promptkeyboard中的每个字符串
