@@ -141,6 +141,20 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 打印日志信息，包括prompt参数
+	fmtf.Printf("收到onebotv11信息: %+v\n", string(body))
+
+	// 打印消息和其他相关信息
+	fmtf.Printf("Received message: %v\n", message.Message)
+	fmtf.Printf("Full message details: %+v\n", message)
+
+	// 进行array转换
+	// 检查并解析消息类型
+	if _, ok := message.Message.(string); !ok {
+		// 如果不是字符串，处理消息以转换为字符串,强制转换
+		message.Message = ParseMessageContent(message.Message)
+	}
+
 	var promptstr string
 	// 读取URL参数 "prompt"
 	promptstr = r.URL.Query().Get("prompt")
@@ -289,20 +303,6 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fmt.Printf("收到 skip_lang_check 参数: %v\n", skipLangCheck)
-	}
-
-	// 打印日志信息，包括prompt参数
-	fmtf.Printf("收到onebotv11信息: %+v\n", string(body))
-
-	// 打印消息和其他相关信息
-	fmtf.Printf("Received message: %v\n", message.Message)
-	fmtf.Printf("Full message details: %+v\n", message)
-
-	// 进行array转换
-	// 检查并解析消息类型
-	if _, ok := message.Message.(string); !ok {
-		// 如果不是字符串，处理消息以转换为字符串,强制转换
-		message.Message = ParseMessageContent(message.Message)
 	}
 
 	// 判断message.Message的类型
