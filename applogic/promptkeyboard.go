@@ -13,6 +13,7 @@ import (
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
+	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
 
 // ResponseDataPromptKeyboard 用于解析外层响应
@@ -26,12 +27,15 @@ type ResponseDataPromptKeyboard struct {
 func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	baseurl := config.GetAIPromptkeyboardPath(promptstr)
 	fmtf.Printf("获取到keyboard baseurl:%v", baseurl)
+	var keyboardprompt string
 	// 使用net/url包来构建和编码URL
 	urlParams := url.Values{}
 	if promptstr != "" {
 		urlParams.Add("prompt", promptstr+"-keyboard")
+		keyboardprompt = promptstr + "-keyboard"
 	} else {
 		urlParams.Add("prompt", "keyboard")
+		keyboardprompt = "keyboard"
 	}
 
 	// 将查询参数编码后附加到基本URL上
@@ -41,6 +45,9 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	}
 
 	fmtf.Printf("Generated PromptKeyboard URL:%v\n", fullURL)
+
+	// 按提示词区分的细化替换 这里主要不是为了安全和敏感词,而是细化效果,也就没有使用acnode提高效率
+	msg = utils.ReplaceTextIn(msg, keyboardprompt)
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"message":         msg,
@@ -72,6 +79,25 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	// 使用正则表达式替换不正确的转义字符
 	re := regexp.MustCompile(`\\+`)
 	responseBody = re.ReplaceAll(responseBody, []byte(`\`))
+	// 使用正则表达式移除所有换行符和前后的空白字符
+	re = regexp.MustCompile(`\s*\n\s*`)
+	responseBody = re.ReplaceAll(responseBody, []byte(""))
+
+	// 移除 CRLF
+	responseBody = bytes.ReplaceAll(responseBody, []byte{13, 10}, []byte(""))
+
+	// 移除 92 110 32 32
+	responseBody = bytes.ReplaceAll(responseBody, []byte{92, 110, 32, 32}, []byte(""))
+
+	// 移除 92 110
+	responseBody = bytes.ReplaceAll(responseBody, []byte{92, 110}, []byte(""))
+
+	// 移除单独的 CR 和 LF
+	responseBody = bytes.ReplaceAll(responseBody, []byte{10}, []byte("")) // LF
+	responseBody = bytes.ReplaceAll(responseBody, []byte{13}, []byte("")) // CR
+
+	fmtf.Printf("清洗后气泡Response: %v\n", responseBody)
+	//fmtf.Printf("清洗后气泡Response: %s\n", string(responseBody))
 
 	var responseData ResponseDataPromptKeyboard
 	if err := json.Unmarshal(responseBody, &responseData); err != nil {
@@ -107,6 +133,16 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 		keyboardPrompts = append(keyboardPrompts, promptkeyboard[randomIndex])
 	}
 
+	// 应用 ReplaceTextOut 替换规则
+	keyboardPrompts = ApplyReplaceTextOutToKeyboardPrompts(keyboardPrompts, keyboardprompt)
+
+	return keyboardPrompts
+}
+
+func ApplyReplaceTextOutToKeyboardPrompts(keyboardPrompts []string, promptstr string) []string {
+	for i, prompt := range keyboardPrompts {
+		keyboardPrompts[i] = utils.ReplaceTextOut(prompt, promptstr)
+	}
 	return keyboardPrompts
 }
 
