@@ -1,4 +1,4 @@
-package applogic
+package promptkb
 
 import (
 	"bytes"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
-	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
 
 // ResponseDataPromptKeyboard 用于解析外层响应
@@ -47,7 +46,7 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	fmtf.Printf("Generated PromptKeyboard URL:%v\n", fullURL)
 
 	// 按提示词区分的细化替换 这里主要不是为了安全和敏感词,而是细化效果,也就没有使用acnode提高效率
-	msg = utils.ReplaceTextIn(msg, keyboardprompt)
+	msg = ReplaceTextIn(msg, keyboardprompt)
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"message":         msg,
@@ -141,7 +140,7 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 
 func ApplyReplaceTextOutToKeyboardPrompts(keyboardPrompts []string, promptstr string) []string {
 	for i, prompt := range keyboardPrompts {
-		keyboardPrompts[i] = utils.ReplaceTextOut(prompt, promptstr)
+		keyboardPrompts[i] = ReplaceTextOut(prompt, promptstr)
 	}
 	return keyboardPrompts
 }
@@ -163,4 +162,44 @@ func preprocessResponse(response string) string {
 	}
 
 	return bestMatch
+}
+
+// ReplaceTextIn 使用给定的替换对列表对文本进行替换
+func ReplaceTextIn(text string, promptstr string) string {
+	// 调用 GetReplacementPairsIn 函数获取替换对列表
+	replacementPairs := config.GetReplacementPairsIn(promptstr)
+
+	if len(replacementPairs) == 0 {
+		return text
+	}
+
+	// 遍历所有的替换对，并在文本中进行替换
+	for _, pair := range replacementPairs {
+		// 使用 strings.Replace 替换文本中的所有出现
+		// 注意这里我们使用 -1 作为最后的参数，表示替换文本中的所有匹配项
+		text = strings.Replace(text, pair.OriginalWord, pair.TargetWord, -1)
+	}
+
+	// 返回替换后的文本
+	return text
+}
+
+// ReplaceTextOut 使用给定的替换对列表对文本进行替换
+func ReplaceTextOut(text string, promptstr string) string {
+	// 调用 GetReplacementPairsIn 函数获取替换对列表
+	replacementPairs := config.GetReplacementPairsOut(promptstr)
+
+	if len(replacementPairs) == 0 {
+		return text
+	}
+
+	// 遍历所有的替换对，并在文本中进行替换
+	for _, pair := range replacementPairs {
+		// 使用 strings.Replace 替换文本中的所有出现
+		// 注意这里我们使用 -1 作为最后的参数，表示替换文本中的所有匹配项
+		text = strings.Replace(text, pair.OriginalWord, pair.TargetWord, -1)
+	}
+
+	// 返回替换后的文本
+	return text
 }

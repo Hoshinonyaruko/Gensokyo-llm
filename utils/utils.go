@@ -23,6 +23,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
+	"github.com/hoshinonyaruko/gensokyo-llm/promptkb"
 	"github.com/hoshinonyaruko/gensokyo-llm/server"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 )
@@ -372,7 +373,7 @@ func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message strin
 		promptkeyboard = config.GetPromptkeyboard()
 	} else {
 		fmtf.Printf("ai生成气泡:%v", "Q"+newmsg+"A"+response)
-		promptkeyboard = GetPromptKeyboardAI("Q"+newmsg+"A"+response, promptstr)
+		promptkeyboard = promptkb.GetPromptKeyboardAI("Q"+newmsg+"A"+response, promptstr)
 	}
 
 	// 使用acnode.CheckWordOUT()过滤promptkeyboard中的每个字符串

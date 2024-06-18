@@ -14,6 +14,7 @@ import (
 
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
+	"github.com/hoshinonyaruko/gensokyo-llm/promptkb"
 	"github.com/hoshinonyaruko/gensokyo-llm/structs"
 	"github.com/hoshinonyaruko/gensokyo-llm/utils"
 )
@@ -60,7 +61,7 @@ func GetMemoryTitle(msg string) string {
 	}
 	fmt.Printf("Response: %s\n", string(responseBody))
 
-	var responseData ResponseDataPromptKeyboard
+	var responseData promptkb.ResponseDataPromptKeyboard
 	if err := json.Unmarshal(responseBody, &responseData); err != nil {
 		fmt.Printf("Error unmarshalling response data: %v[%v]\n", err, string(responseBody))
 		return "默认标题"
