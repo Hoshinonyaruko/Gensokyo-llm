@@ -95,8 +95,8 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 	responseBody = bytes.ReplaceAll(responseBody, []byte{10}, []byte("")) // LF
 	responseBody = bytes.ReplaceAll(responseBody, []byte{13}, []byte("")) // CR
 
-	fmtf.Printf("清洗后气泡Response: %v\n", responseBody)
-	//fmtf.Printf("清洗后气泡Response: %s\n", string(responseBody))
+	//fmtf.Printf("清洗后气泡Response: %v\n", responseBody)
+	fmtf.Printf("清洗后气泡Response: %s\n", string(responseBody))
 
 	var responseData ResponseDataPromptKeyboard
 	if err := json.Unmarshal(responseBody, &responseData); err != nil {
