@@ -104,7 +104,7 @@ func BlacklistIntercept(message structs.OnebotGroupMessage, selfid string, promp
 			if !config.GetUsePrivateSSE() {
 				SendPrivateMessage(message.UserID, responseMessage, selfid, promptstr)
 			} else {
-				SendSSEPrivateMessage(message.UserID, responseMessage, promptstr)
+				SendSSEPrivateMessage(message.UserID, responseMessage, promptstr, selfid)
 			}
 		} else {
 			SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid, promptstr)
@@ -124,7 +124,7 @@ func BlacklistIntercept(message structs.OnebotGroupMessage, selfid string, promp
 			if !config.GetUsePrivateSSE() {
 				SendPrivateMessage(message.UserID, responseMessage, selfid, promptstr)
 			} else {
-				SendSSEPrivateMessage(message.UserID, responseMessage, promptstr)
+				SendSSEPrivateMessage(message.UserID, responseMessage, promptstr, selfid)
 			}
 		} else {
 			SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid, promptstr)

@@ -3386,3 +3386,47 @@ func getSpecialNameToQInternal(options ...string) []structs.ReplacementNamePair 
 
 	return confs
 }
+
+// GetConversationPath 获取ConversationPath，可接受basename作为参数
+func GetConversationPath(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getConversationPathInternal(options...)
+}
+
+// getTyqwApiPathInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getConversationPathInternal(options ...string) string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			ConversationPath := instance.Settings.ConversationPath
+			if ConversationPath != "" {
+				return ConversationPath
+			} else {
+				return "/conversation" // 默认值 /conversation
+			}
+		}
+		// instance未加载
+		return "/conversation" // 默认值 /conversation
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	ConversationPathInterface, err := prompt.GetSettingFromFilename(basename, "ConversationPath")
+	if err != nil {
+		log.Println("Error retrieving ConversationPath:", err)
+		return getConversationPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	ConversationPath, ok := ConversationPathInterface.(string)
+	if !ok { // 检查类型断言是否失败
+		log.Println("Type assertion failed for ConversationPath, fetching default")
+		return getConversationPathInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	if ConversationPath == "" {
+		return getConversationPathInternal()
+	}
+
+	return ConversationPath
+}
