@@ -203,6 +203,9 @@ func (app *App) handleLoadMemory(msg structs.OnebotGroupMessage, checkResetComma
 	// 移除空格得到匹配词
 	matchTerm := strings.TrimSpace(checkResetCommand)
 
+	// 判断处理过的字符串是否以"+"开头 移除+号
+	matchTerm = strings.TrimPrefix(matchTerm, "+")
+
 	// 获取用户记忆
 	memories, err := app.GetUserMemories(userid)
 	if err != nil {
@@ -244,7 +247,7 @@ func (app *App) sendMemoryResponseWithkeyBoard(msg structs.OnebotGroupMessage, r
 		if !config.GetUsePrivateSSE() {
 			utils.SendPrivateMessage(msg.UserID, response, strSelfID, promptstr)
 		} else {
-			utils.SendSSEPrivateMessageWithKeyboard(msg.UserID, response, keyboard, promptstr)
+			utils.SendSSEPrivateMessageWithKeyboard(msg.UserID, response, keyboard, promptstr, strSelfID)
 		}
 	} else {
 		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID, promptstr)
@@ -257,7 +260,7 @@ func (app *App) sendMemoryResponse(msg structs.OnebotGroupMessage, response stri
 		if !config.GetUsePrivateSSE() {
 			utils.SendPrivateMessage(msg.UserID, response, strSelfID, promptstr)
 		} else {
-			utils.SendSSEPrivateMessage(msg.UserID, response, promptstr)
+			utils.SendSSEPrivateMessage(msg.UserID, response, promptstr, strSelfID)
 		}
 	} else {
 		utils.SendGroupMessage(msg.GroupID, msg.UserID, response, strSelfID, promptstr)
@@ -274,7 +277,7 @@ func (app *App) sendMemoryResponseByline(msg structs.OnebotGroupMessage, respons
 			if len(keyboard) >= 3 {
 				keyboard = keyboard[:3]
 			}
-			utils.SendSSEPrivateMessageByLine(msg.UserID, response, keyboard, promptstr)
+			utils.SendSSEPrivateMessageByLine(msg.UserID, response, keyboard, promptstr, strSelfID)
 		}
 	} else {
 		if config.GetMemoryListMD() == 0 {

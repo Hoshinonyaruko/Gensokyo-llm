@@ -355,7 +355,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 				if !config.GetUsePrivateSSE() {
 					utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid, promptstr)
 				} else {
-					utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse, promptstr)
+					utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse, promptstr, selfid)
 				}
 			} else {
 				utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid, promptstr)
@@ -490,7 +490,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							if !config.GetUsePrivateSSE() {
 								utils.SendPrivateMessage(message.UserID, responseText, selfid, promptstr)
 							} else {
-								utils.SendSSEPrivateMessage(message.UserID, responseText, promptstr)
+								utils.SendSSEPrivateMessage(message.UserID, responseText, promptstr, selfid)
 							}
 						} else {
 							utils.SendGroupMessage(message.GroupID, message.UserID, responseText, selfid, promptstr)
@@ -535,7 +535,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 						if !config.GetUsePrivateSSE() {
 							utils.SendPrivateMessage(message.UserID, saveresponse, selfid, promptstr)
 						} else {
-							utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse, promptstr)
+							utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse, promptstr, selfid)
 						}
 					} else {
 						utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse, selfid, promptstr)
@@ -727,6 +727,15 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 初始化URL，根据api参数动态调整路径
 		basePath := "/conversation"
+
+		//MARK:能定义每个yml自己要调用的conversation端点
+		newPath := config.GetConversationPath(promptstr)
+		// 允许覆盖请求不同的conversation
+		if newPath != "/conversation" && newPath != "" {
+			fmtf.Printf("覆盖api参数: %s\n", newPath)
+			basePath = newPath // 动态替换conversation部分为ConversationPath,这个配置是包含了/的
+		}
+
 		if api != "" {
 			fmtf.Printf("收到api参数: %s\n", api)
 			basePath = "/" + api // 动态替换conversation部分为api参数值
@@ -839,15 +848,15 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 											//判断是否最后一条
 											var state int
 											if EnhancedAContent == "" {
-												state = 11
+												state = 11 //结束
 											} else {
-												state = 1
+												state = 1 //继续
 											}
 											messageSSE := structs.InterfaceBody{
 												Content: newPart,
 												State:   state,
 											}
-											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr)
+											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr, selfid)
 										}
 									} else {
 										// 这里发送的是newPart api最后补充的部分
@@ -897,7 +906,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 												Content: response,
 												State:   state,
 											}
-											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr)
+											utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr, selfid)
 										}
 									} else {
 										if !config.GetMdPromptKeyboardAtGroup() {
@@ -953,7 +962,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							Content: EnhancedAContent,
 							State:   11,
 						}
-						utils.SendPrivateMessageSSE(message.UserID, messageSSE, promptstr)
+						utils.SendPrivateMessageSSE(message.UserID, messageSSE, promptstr, selfid)
 					}
 				}
 			}
@@ -1032,7 +1041,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 							State:          20,
 							PromptKeyboard: promptkeyboard,
 						}
-						utils.SendPrivateMessageSSE(message.UserID, messageSSE, promptstr)
+						utils.SendPrivateMessageSSE(message.UserID, messageSSE, promptstr, selfid)
 						ResetIndex(newmsg)
 					}
 				}
@@ -1187,14 +1196,14 @@ func processMessage(response string, conversationid string, newmesssage string, 
 								ActionButton: 10,
 								CallbackData: uerid,
 							}
-							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr)
+							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr, selfid)
 						} else {
 							//SSE的前半部分
 							messageSSE := structs.InterfaceBody{
 								Content: accumulatedMessage,
 								State:   1,
 							}
-							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr)
+							utils.SendPrivateMessageSSE(userinfo.UserID, messageSSE, promptstr, selfid)
 						}
 					}
 				} else {

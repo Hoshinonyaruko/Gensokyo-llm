@@ -330,8 +330,13 @@ func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message strin
 		// 发送消息
 		return server.SendMessageBySelfID(selfid, msg)
 	}
-	// 获取基础URL
-	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	var baseURL string
+	if len(config.GetHttpPaths()) > 0 {
+		baseURL, _ = GetBaseURLByUserID(selfid)
+	} else {
+		// 获取基础URL
+		baseURL = config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	}
 
 	// 构建完整的URL
 	baseURL = baseURL + "/send_group_msg"
@@ -575,8 +580,13 @@ func SendGroupMessageMdPromptKeyboardV2(groupID int64, userID int64, message str
 		// 发送消息
 		return server.SendMessageBySelfID(selfid, msg)
 	}
-	// 获取基础URL
-	baseURL := config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	var baseURL string
+	if len(config.GetHttpPaths()) > 0 {
+		baseURL, _ = GetBaseURLByUserID(selfid)
+	} else {
+		// 获取基础URL
+		baseURL = config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	}
 
 	// 构建完整的URL
 	baseURL = baseURL + "/send_group_msg"
@@ -948,9 +958,14 @@ func SendPrivateMessageRaw(UserID int64, message string, selfid string) error {
 	return nil
 }
 
-func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody, promptstr string) error {
-	// 获取基础URL
-	baseURL := config.GetHttpPath() // 假设config.GetHttpPath()返回基础URL
+func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody, promptstr string, selfid string) error {
+	var baseURL string
+	if len(config.GetHttpPaths()) > 0 {
+		baseURL, _ = GetBaseURLByUserID(selfid)
+	} else {
+		// 获取基础URL
+		baseURL = config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	}
 
 	// 构建完整的URL
 	baseURL = baseURL + "/send_private_msg_sse"
@@ -1327,7 +1342,7 @@ func PostSensitiveMessages() error {
 }
 
 // SendSSEPrivateMessage 分割并发送消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateMessage(userID int64, content string, promptstr string) {
+func SendSSEPrivateMessage(userID int64, content string, promptstr string, selfid string) {
 	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?', '~'}
 	splitProbability := config.GetSplitByPuntuations()
 
@@ -1379,12 +1394,12 @@ func SendSSEPrivateMessage(userID int64, content string, promptstr string) {
 		}
 
 		// 发送SSE消息函数
-		SendPrivateMessageSSE(userID, messageSSE, promptstr)
+		SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 	}
 }
 
 // SendSSEPrivateMessageWithKeyboard 分割并发送消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateMessageWithKeyboard(userID int64, content string, keyboard []string, promptstr string) {
+func SendSSEPrivateMessageWithKeyboard(userID int64, content string, keyboard []string, promptstr string, selfid string) {
 	punctuations := []rune{'。', '！', '？', '，', ',', '.', '!', '?', '~'}
 	splitProbability := config.GetSplitByPuntuations()
 
@@ -1441,12 +1456,12 @@ func SendSSEPrivateMessageWithKeyboard(userID int64, content string, keyboard []
 		}
 
 		// 发送SSE消息函数
-		SendPrivateMessageSSE(userID, messageSSE, promptstr)
+		SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 	}
 }
 
 // SendSSEPrivateMessageByline 分割并发送消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateMessageByLine(userID int64, content string, keyboard []string, promptstr string) {
+func SendSSEPrivateMessageByLine(userID int64, content string, keyboard []string, promptstr string, selfid string) {
 	// 直接使用 strings.Split 按行分割字符串
 	parts := strings.Split(content, "\n")
 
@@ -1489,12 +1504,12 @@ func SendSSEPrivateMessageByLine(userID int64, content string, keyboard []string
 		}
 
 		// 发送SSE消息函数
-		SendPrivateMessageSSE(userID, messageSSE, promptstr)
+		SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 	}
 }
 
 // SendSSEPrivateSafeMessage 分割并发送安全消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateSafeMessage(userID int64, saveresponse string, promptstr string) {
+func SendSSEPrivateSafeMessage(userID int64, saveresponse string, promptstr string, selfid string) {
 	// 将字符串转换为rune切片，以正确处理多字节字符
 	runes := []rune(saveresponse)
 
@@ -1521,14 +1536,14 @@ func SendSSEPrivateSafeMessage(userID int64, saveresponse string, promptstr stri
 		State:   1,
 	}
 
-	SendPrivateMessageSSE(userID, messageSSE, promptstr)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 
 	// 中间
 	messageSSE = structs.InterfaceBody{
 		Content: parts[1],
 		State:   11,
 	}
-	SendPrivateMessageSSE(userID, messageSSE, promptstr)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 
 	// 从配置中获取恢复响应数组
 	RestoreResponses := config.GetRestoreCommand()
@@ -1556,11 +1571,11 @@ func SendSSEPrivateSafeMessage(userID int64, saveresponse string, promptstr stri
 	}
 
 	// 发送SSE私人消息
-	SendPrivateMessageSSE(userID, messageSSE, promptstr)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 }
 
 // SendSSEPrivateRestoreMessage 分割并发送重置消息的核心逻辑，直接遍历字符串
-func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string, promptstr string) {
+func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string, promptstr string, selfid string) {
 	// 将字符串转换为rune切片，以正确处理多字节字符
 	runes := []rune(RestoreResponse)
 
@@ -1588,14 +1603,14 @@ func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string, promptst
 		State:   1,
 	}
 
-	SendPrivateMessageSSE(userID, messageSSE, promptstr)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 
 	//中间
 	messageSSE = structs.InterfaceBody{
 		Content: parts[1],
 		State:   11,
 	}
-	SendPrivateMessageSSE(userID, messageSSE, promptstr)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 
 	// 从配置中获取promptkeyboard
 	promptkeyboard := config.GetPromptkeyboard()
@@ -1608,7 +1623,7 @@ func SendSSEPrivateRestoreMessage(userID int64, RestoreResponse string, promptst
 	}
 
 	// 发送SSE私人消息
-	SendPrivateMessageSSE(userID, messageSSE, promptstr)
+	SendPrivateMessageSSE(userID, messageSSE, promptstr, selfid)
 }
 
 // LanguageIntercept 检查文本语言，如果不在允许列表中，则返回 true 并发送消息
@@ -1639,7 +1654,7 @@ func LanguageIntercept(text string, message structs.OnebotGroupMessage, selfid s
 		if !config.GetUsePrivateSSE() {
 			SendPrivateMessage(message.UserID, responseMessage, selfid, promptstr)
 		} else {
-			SendSSEPrivateMessage(message.UserID, responseMessage, promptstr)
+			SendSSEPrivateMessage(message.UserID, responseMessage, promptstr, selfid)
 		}
 	} else {
 		SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid, promptstr)
@@ -1696,7 +1711,7 @@ func LengthIntercept(text string, message structs.OnebotGroupMessage, selfid str
 			if !config.GetUsePrivateSSE() {
 				SendPrivateMessage(message.UserID, responseMessage, selfid, promptstr)
 			} else {
-				SendSSEPrivateMessage(message.UserID, responseMessage, promptstr)
+				SendSSEPrivateMessage(message.UserID, responseMessage, promptstr, selfid)
 			}
 		} else {
 			SendGroupMessage(message.GroupID, message.UserID, responseMessage, selfid, promptstr)

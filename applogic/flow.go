@@ -337,7 +337,7 @@ func (app *App) HandleExit(exitText string, message *structs.OnebotGroupMessage,
 		if !config.GetUsePrivateSSE() {
 			utils.SendPrivateMessage(message.UserID, RestoreResponse, selfid, promptstr)
 		} else {
-			utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse, promptstr)
+			utils.SendSSEPrivateRestoreMessage(message.UserID, RestoreResponse, promptstr, selfid)
 		}
 	} else {
 		utils.SendGroupMessage(message.GroupID, message.UserID, RestoreResponse, selfid, promptstr)
