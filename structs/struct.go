@@ -267,6 +267,7 @@ type Settings struct {
 	SelfPath                string                `yaml:"selfPath"`
 	HttpPath                string                `yaml:"path"`
 	HttpPaths               []string              `yaml:"paths"`
+	ConversationPath        string                `yaml:"conversationPath"`
 	Lotus                   string                `yaml:"lotus"`
 	PathToken               string                `yaml:"pathToken"`
 	SystemPrompt            []string              `yaml:"systemPrompt"`

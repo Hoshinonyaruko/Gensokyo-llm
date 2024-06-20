@@ -285,7 +285,7 @@ func (app *App) InterceptSensitiveContent(vector []float64, message structs.Oneb
 				if !config.GetUsePrivateSSE() {
 					utils.SendPrivateMessage(message.UserID, saveresponse, selfid, promptstr)
 				} else {
-					utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse, promptstr)
+					utils.SendSSEPrivateSafeMessage(message.UserID, saveresponse, promptstr, selfid)
 				}
 			} else {
 				utils.SendGroupMessage(message.GroupID, message.UserID, saveresponse, selfid, promptstr)
