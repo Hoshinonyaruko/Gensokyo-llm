@@ -187,6 +187,11 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 
 		// 添加用户历史到总历史中
 		history = append(history, userHistory...)
+	} else {
+		history, err = prompt.GetMessagesExcludingSystem(promptstr)
+		if err != nil {
+			fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+		}
 	}
 
 	apiURL := config.GetYuanqiApiPath(promptstr)

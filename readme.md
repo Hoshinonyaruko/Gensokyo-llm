@@ -47,15 +47,23 @@ _✨ 适用于Gensokyo以及Onebotv11的大模型一键端 ✨_
 
 腾讯混元
 
+腾讯元器
+
 百度文心
 
 阿里通义
 
 清华智谱
 
+字节火山(豆包)
+
 OpenAI
 
+groQ
+
 Rwkv runner
+
+One-API
 
 将这些平台的api转换为统一的api结构,并提供了上下文,支持sse方式返回
 
