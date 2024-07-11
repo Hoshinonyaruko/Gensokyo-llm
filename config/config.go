@@ -3,14 +3,18 @@ package config
 import (
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
-	"github.com/hoshinonyaruko/gensokyo-llm/prompt"
-	"github.com/hoshinonyaruko/gensokyo-llm/structs"
+	"github.com/hoshinonyaruko/gensokyo/mylog"
+	"github.com/hoshinonyaruko/gensokyo/structs"
+	"github.com/hoshinonyaruko/gensokyo/sys"
+	"github.com/hoshinonyaruko/gensokyo/template"
 	"gopkg.in/yaml.v3"
 )
 
@@ -19,751 +23,2196 @@ var (
 	mu       sync.Mutex
 )
 
-var r = rand.New(rand.NewSource(time.Now().UnixNano()))
-
 type Config struct {
 	Version  int              `yaml:"version"`
 	Settings structs.Settings `yaml:"settings"`
 }
 
-func LoadConfig(path string) (*Config, error) {
+// CommentInfo 用于存储注释及其定位信息
+type CommentBlock struct {
+	Comments  []string // 一个或多个连续的注释
+	TargetKey string   // 注释所指向的键（如果有）
+	Offset    int      // 注释与目标键之间的行数
+}
+
+// 不支持配置热重载的配置项
+var restartRequiredFields = []string{
+	"WsAddress", "WsToken", "ReconnectTimes", "HeartBeatInterval", "LaunchReconnectTimes",
+	"AppID", "Uin", "Token", "ClientSecret", "ShardCount", "ShardID", "UseUin",
+	"TextIntent",
+	"ServerDir", "Port", "BackupPort", "Lotus", "LotusPassword", "LotusWithoutIdmaps",
+	"WsServerPath", "EnableWsServer", "WsServerToken",
+	"IdentifyFile", "IdentifyAppids", "Crt", "Key",
+	"DeveloperLog", "LogLevel", "SaveLogs",
+	"DisableWebui", "Username", "Password",
+	"Title", // 继续检查和增加
+}
+
+// LoadConfig 从文件中加载配置并初始化单例配置
+func LoadConfig(path string, fastload bool) (*Config, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	conf, err := loadConfigFromFile(path)
+	configData, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	instance = conf
+	// 检查并替换视觉前缀行，如果有必要，后期会注释
+	// var isChange bool
+	// configData, isChange = replaceVisualPrefixsLine(configData)
+	// if isChange {
+	// 	// 如果配置文件已修改，重新写入修正后的数据
+	// 	if err = os.WriteFile(path, configData, 0644); err != nil {
+	// 		return nil, err // 处理写入错误
+	// 	}
+	// }
+
+	// 尝试解析配置数据
+	conf := &Config{}
+	if err = yaml.Unmarshal(configData, conf); err != nil {
+		return nil, err
+	}
+
+	if !fastload {
+		// 确保本地配置文件的完整性,添加新的字段
+		if err = ensureConfigComplete(path); err != nil {
+			return nil, err
+		}
+	} else {
+		if isValidConfig(conf) {
+			//log.Printf("instance.Settings：%v", instance.Settings)
+			// 用现有的instance比对即将覆盖赋值的conf,用[]string返回配置发生了变化的配置项
+			changedFields := compareConfigChanges("Settings", instance.Settings, conf.Settings)
+			// 根据changedFields进行进一步的操作，在不支持热重载的字段实现自动重启
+			if len(changedFields) > 0 {
+				log.Printf("配置已变更的字段：%v", changedFields)
+				checkForRestart(changedFields) // 检查变更字段是否需要重启
+			}
+		} //conf为空时不对比
+	}
+
+	// 更新单例实例，即使它已经存在 更新前检查是否有效,vscode对文件的更新行为会触发2次文件变动
+	// 第一次会让configData为空,迅速的第二次才是正常有值的configData
+	if isValidConfig(conf) {
+		instance = conf
+	}
+
 	return instance, nil
 }
 
-func loadConfigFromFile(path string) (*Config, error) {
+func isValidConfig(conf *Config) bool {
+	// 确认config不为空且必要字段已设置
+	return conf != nil && conf.Version != 0
+}
+
+// 去除Settings前缀
+func stripSettingsPrefix(fieldName string) string {
+	return strings.TrimPrefix(fieldName, "Settings.")
+}
+
+// compareConfigChanges 检查并返回发生变化的配置字段，处理嵌套结构体
+func compareConfigChanges(prefix string, oldConfig interface{}, newConfig interface{}) []string {
+	var changedFields []string
+
+	oldVal := reflect.ValueOf(oldConfig)
+	newVal := reflect.ValueOf(newConfig)
+
+	// 解引用指针
+	if oldVal.Kind() == reflect.Ptr {
+		oldVal = oldVal.Elem()
+	}
+	if newVal.Kind() == reflect.Ptr {
+		newVal = newVal.Elem()
+	}
+
+	// 遍历所有字段
+	for i := 0; i < oldVal.NumField(); i++ {
+		oldField := oldVal.Field(i)
+		newField := newVal.Field(i)
+		fieldType := oldVal.Type().Field(i)
+		fieldName := fieldType.Name
+
+		fullFieldName := fieldName
+		if prefix != "" {
+			fullFieldName = fmt.Sprintf("%s.%s", prefix, fieldName)
+		}
+
+		// 对于结构体字段递归比较
+		if oldField.Kind() == reflect.Struct || newField.Kind() == reflect.Struct {
+			subChanges := compareConfigChanges(fullFieldName, oldField.Interface(), newField.Interface())
+			changedFields = append(changedFields, subChanges...)
+		} else {
+			// 打印将要比较的字段和它们的值
+			//fmt.Printf("Comparing field: %s\nOld value: %v\nNew value: %v\n", fullFieldName, oldField.Interface(), newField.Interface())
+			if !reflect.DeepEqual(oldField.Interface(), newField.Interface()) {
+				//fmt.Println("-> Field changed")
+				// 去除Settings前缀后添加到变更字段列表
+				changedField := stripSettingsPrefix(fullFieldName)
+				changedFields = append(changedFields, changedField)
+			}
+		}
+	}
+
+	return changedFields
+}
+
+// 检查是否需要重启
+func checkForRestart(changedFields []string) {
+	for _, field := range changedFields {
+		for _, restartField := range restartRequiredFields {
+			if field == restartField {
+				fmt.Println("Configuration change requires restart:", field)
+				sys.RestartApplication() // 调用重启函数
+				return
+			}
+		}
+	}
+}
+
+func CreateAndWriteConfigTemp() error {
+	// 读取config.yml
+	configFile, err := os.ReadFile("config.yml")
+	if err != nil {
+		return err
+	}
+
+	// 获取当前日期
+	currentDate := time.Now().Format("2006-1-2")
+	// 重命名原始config.yml文件
+	err = os.Rename("config.yml", "config"+currentDate+".yml")
+	if err != nil {
+		return err
+	}
+
+	var config Config
+	err = yaml.Unmarshal(configFile, &config)
+	if err != nil {
+		return err
+	}
+
+	// 创建config_temp.yml文件
+	tempFile, err := os.Create("config.yml")
+	if err != nil {
+		return err
+	}
+	defer tempFile.Close()
+
+	// 使用yaml.Encoder写入，以保留注释
+	encoder := yaml.NewEncoder(tempFile)
+	encoder.SetIndent(2) // 设置缩进
+	err = encoder.Encode(config)
+	if err != nil {
+		return err
+	}
+
+	// 处理注释并重命名文件
+	err = addCommentsToConfigTemp(template.ConfigTemplate, "config.yml")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func parseTemplate(template string) ([]CommentBlock, map[string]string) {
+	var blocks []CommentBlock
+	lines := strings.Split(template, "\n")
+
+	var currentBlock CommentBlock
+	var lastKey string
+
+	directComments := make(map[string]string)
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			currentBlock.Comments = append(currentBlock.Comments, trimmed) // 收集注释行
+		} else {
+			if containsKey(trimmed) {
+				key := strings.SplitN(trimmed, ":", 2)[0]
+				trimmedKey := strings.TrimSpace(key)
+
+				if len(currentBlock.Comments) > 0 {
+					currentBlock.TargetKey = lastKey // 关联到上一个找到的键
+					blocks = append(blocks, currentBlock)
+					currentBlock = CommentBlock{} // 重置为新的注释块
+				}
+
+				// 如果当前行包含注释，则单独处理
+				if parts := strings.SplitN(trimmed, "#", 2); len(parts) > 1 {
+					directComments[trimmedKey] = "#" + parts[1]
+				}
+				lastKey = trimmedKey // 更新最后一个键
+			} else if len(currentBlock.Comments) > 0 {
+				// 如果当前行不是注释行且存在挂起的注释，但并没有新的键出现，将其作为独立的注释块
+				blocks = append(blocks, currentBlock)
+				currentBlock = CommentBlock{} // 重置为新的注释块
+			}
+		}
+	}
+
+	// 处理文件末尾的挂起注释块
+	if len(currentBlock.Comments) > 0 {
+		blocks = append(blocks, currentBlock)
+	}
+
+	return blocks, directComments
+}
+
+func addCommentsToConfigTemp(template, tempFilePath string) error {
+	commentBlocks, directComments := parseTemplate(template)
+	//fmt.Printf("%v\n", directComments)
+
+	// 读取并分割新生成的配置文件内容
+	content, err := os.ReadFile(tempFilePath)
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(string(content), "\n")
+
+	// 处理并插入注释
+	for _, block := range commentBlocks {
+		// 根据注释块的目标键，找到插入位置并插入注释
+		for i, line := range lines {
+			if containsKey(line) {
+				key := strings.SplitN(line, ":", 2)[0]
+				if strings.TrimSpace(key) == block.TargetKey {
+					// 计算基本插入点：在目标键之后
+					insertionPoint := i + block.Offset + 1
+
+					// 向下移动插入点直到找到键行或到达文件末尾
+					for insertionPoint < len(lines) && !containsKey(lines[insertionPoint]) {
+						insertionPoint++
+					}
+
+					// 在计算出的插入点插入注释
+					if insertionPoint >= len(lines) {
+						lines = append(lines, block.Comments...) // 如果到达文件末尾，直接追加注释
+					} else {
+						// 插入注释到计算出的位置
+						lines = append(lines[:insertionPoint], append(block.Comments, lines[insertionPoint:]...)...)
+					}
+					break
+				}
+			}
+		}
+	}
+
+	// 处理直接跟在键后面的注释
+	// 接着处理直接跟在键后面的注释
+	for i, line := range lines {
+		if containsKey(line) {
+			key := strings.SplitN(line, ":", 2)[0]
+			trimmedKey := strings.TrimSpace(key)
+			//fmt.Printf("%v\n", trimmedKey)
+			if comment, exists := directComments[trimmedKey]; exists {
+				// 如果这个键有直接的注释
+				lines[i] = line + " " + comment
+			}
+		}
+	}
+
+	// 重新组合lines为一个字符串，准备写回文件
+	updatedContent := strings.Join(lines, "\n")
+
+	// 写回更新后的内容到原配置文件
+	err = os.WriteFile(tempFilePath, []byte(updatedContent), 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// containsKey 检查给定的字符串行是否可能包含YAML键。
+// 它尝试排除注释行和冒号用于其他目的的行（例如，在URLs中）。
+func containsKey(line string) bool {
+	// 去除行首和行尾的空格
+	trimmedLine := strings.TrimSpace(line)
+
+	// 如果行是注释，直接返回false
+	if strings.HasPrefix(trimmedLine, "#") {
+		return false
+	}
+
+	// 检查是否存在冒号，如果不存在，则直接返回false
+	colonIndex := strings.Index(trimmedLine, ":")
+	return colonIndex != -1
+}
+
+// 确保配置完整性
+func ensureConfigComplete(path string) error {
+	// 读取配置文件到缓冲区
 	configData, err := os.ReadFile(path)
 	if err != nil {
-		log.Println("Failed to read file:", err)
-		return nil, err
+		return err
 	}
 
-	conf := &Config{}
-	if err := yaml.Unmarshal(configData, conf); err != nil {
-		log.Printf("failed to unmarshal YAML[%v]:%v", path, err)
-		return nil, err
-	}
-
-	log.Printf("成功加载配置文件 %s\n", path)
-	return conf, nil
-}
-
-// 获取secretId
-func GetsecretId() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.SecretId
-	}
-	return "0"
-}
-
-// 获取secretKey
-func GetsecretKey() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.SecretKey
-	}
-	return "0"
-}
-
-// 获取region
-func Getregion() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.Region
-	}
-	return "0"
-}
-
-// 获取AccessKey
-func GetAccessKey() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.AccessKey
-	}
-	return ""
-}
-
-// 获取useSse
-func GetuseSse(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getUseSseInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getUseSseInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.UseSse
-		}
-		return 0
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	useSseInterface, err := prompt.GetSettingFromFilename(basename, "UseSse")
+	// 将现有的配置解析到结构体中
+	currentConfig := &Config{}
+	err = yaml.Unmarshal(configData, currentConfig)
 	if err != nil {
-		log.Println("Error retrieving UseSse:", err)
-		return getUseSseInternal() // 递归调用内部函数，不传递任何参数
+		return err
 	}
 
-	useSse, ok := useSseInterface.(int)
-	if !ok || useSse == 0 { // 检查是否断言失败 或者是0
-		log.Println("Type assertion failed for UseSse, fetching default")
-		return getUseSseInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return useSse
-}
-
-// 获取GetPort
-func GetPort() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.Port
-	}
-	return 46230
-}
-
-// 获取GetSelfPath
-func GetSelfPath() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.SelfPath
-	}
-	return ""
-}
-
-// 获取getHttpPath
-func GetHttpPath() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.HttpPath
-	}
-	return "0"
-}
-
-// 获取getLotus
-func GetLotus(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getLotusInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getLotusInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.Lotus
-		}
-		return ""
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	lotusInterface, err := prompt.GetSettingFromFilename(basename, "Lotus")
+	// 解析默认配置模板到结构体中
+	defaultConfig := &Config{}
+	err = yaml.Unmarshal([]byte(template.ConfigTemplate), defaultConfig)
 	if err != nil {
-		log.Println("Error retrieving Lotus:", err)
-		return getLotusInternal() // 递归调用内部函数，不传递任何参数
+		return err
 	}
 
-	lotus, ok := lotusInterface.(string)
-	if !ok || lotus == "" { // 检查是否断言失败或结果为空字符串
-		log.Println("Type assertion failed or empty string for Lotus, fetching default")
-		return getLotusInternal() // 递归调用内部函数，不传递任何参数
+	// 使用反射找出结构体中缺失的设置
+	missingSettingsByReflection, err := getMissingSettingsByReflection(currentConfig, defaultConfig)
+	if err != nil {
+		return err
 	}
 
-	return lotus
-}
+	// 使用文本比对找出缺失的设置
+	missingSettingsByText, err := getMissingSettingsByText(template.ConfigTemplate, string(configData))
+	if err != nil {
+		return err
+	}
 
-// 获取SystemPrompt
-func SystemPrompt() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.SystemPrompt) > 0 {
-		prompts := instance.Settings.SystemPrompt
-		if len(prompts) == 1 {
-			// 如果只有一个成员，直接返回
-			return prompts[0]
-		} else {
-			selectedIndex := rand.Intn(len(prompts))
-			selectedPrompt := prompts[selectedIndex]
-			fmtf.Printf("Selected system prompt: %s\n", selectedPrompt) // 输出你返回的是哪个
-			return selectedPrompt
+	// 合并缺失的设置
+	allMissingSettings := mergeMissingSettings(missingSettingsByReflection, missingSettingsByText)
+
+	// 如果存在缺失的设置，处理缺失的配置行
+	if len(allMissingSettings) > 0 {
+		fmt.Println("缺失的设置:", allMissingSettings)
+		missingConfigLines, err := extractMissingConfigLines(allMissingSettings, template.ConfigTemplate)
+		if err != nil {
+			return err
 		}
-	}
-	//如果是nil返回0代表不使用系统提示词
-	return "0"
-}
 
-// 获取IPWhiteList
-func IPWhiteList() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.IPWhiteList
+		// 将缺失的配置追加到现有配置文件
+		err = appendToConfigFile(path, missingConfigLines)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("检测到配置文件缺少项。已经更新配置文件，正在重启程序以应用新的配置。")
+		sys.RestartApplication()
 	}
+
 	return nil
 }
 
-// 获取HttpPaths
-func GetHttpPaths() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.HttpPaths
+// mergeMissingSettings 合并由反射和文本比对找到的缺失设置
+func mergeMissingSettings(reflectionSettings, textSettings map[string]string) map[string]string {
+	for k, v := range textSettings {
+		reflectionSettings[k] = v
 	}
+	return reflectionSettings
+}
+
+// getMissingSettingsByReflection 使用反射来对比结构体并找出缺失的设置
+func getMissingSettingsByReflection(currentConfig, defaultConfig *Config) (map[string]string, error) {
+	missingSettings := make(map[string]string)
+	currentVal := reflect.ValueOf(currentConfig).Elem()
+	defaultVal := reflect.ValueOf(defaultConfig).Elem()
+
+	for i := 0; i < currentVal.NumField(); i++ {
+		field := currentVal.Type().Field(i)
+		yamlTag := field.Tag.Get("yaml")
+		if yamlTag == "" || field.Type.Kind() == reflect.Int || field.Type.Kind() == reflect.Bool {
+			continue // 跳过没有yaml标签的字段，或者字段类型为int或bool
+		}
+		yamlKeyName := strings.SplitN(yamlTag, ",", 2)[0]
+		if isZeroOfUnderlyingType(currentVal.Field(i).Interface()) && !isZeroOfUnderlyingType(defaultVal.Field(i).Interface()) {
+			missingSettings[yamlKeyName] = "missing"
+		}
+	}
+
+	return missingSettings, nil
+}
+
+// getMissingSettingsByText compares settings in two strings line by line, looking for missing keys.
+func getMissingSettingsByText(templateContent, currentConfigContent string) (map[string]string, error) {
+	templateKeys := extractKeysFromString(templateContent)
+	currentKeys := extractKeysFromString(currentConfigContent)
+
+	missingSettings := make(map[string]string)
+	for key := range templateKeys {
+		if _, found := currentKeys[key]; !found {
+			missingSettings[key] = "missing"
+		}
+	}
+
+	return missingSettings, nil
+}
+
+// extractKeysFromString reads a string and extracts the keys (text before the colon).
+func extractKeysFromString(content string) map[string]bool {
+	keys := make(map[string]bool)
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, ":") {
+			key := strings.TrimSpace(strings.Split(line, ":")[0])
+			keys[key] = true
+		}
+	}
+	return keys
+}
+
+func extractMissingConfigLines(missingSettings map[string]string, configTemplate string) ([]string, error) {
+	var missingConfigLines []string
+
+	lines := strings.Split(configTemplate, "\n")
+	for yamlKey := range missingSettings {
+		found := false
+		// Create a regex to match the line with optional spaces around the colon
+		regexPattern := fmt.Sprintf(`^\s*%s\s*:\s*`, regexp.QuoteMeta(yamlKey))
+		regex, err := regexp.Compile(regexPattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex pattern: %s", err)
+		}
+
+		for _, line := range lines {
+			if regex.MatchString(line) {
+				missingConfigLines = append(missingConfigLines, line)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("missing configuration for key: %s", yamlKey)
+		}
+	}
+
+	return missingConfigLines, nil
+}
+
+func appendToConfigFile(path string, lines []string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println("打开文件错误:", err)
+		return err
+	}
+	defer file.Close()
+
+	// 写入缺失的配置项
+	for _, line := range lines {
+		if _, err := file.WriteString("\n" + line); err != nil {
+			fmt.Println("写入配置错误:", err)
+			return err
+		}
+	}
+
+	// 输出写入状态
+	fmt.Println("配置已更新，写入到文件:", path)
+
 	return nil
 }
 
-// 获取最大上下文
-func GetMaxTokensHunyuan(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getMaxTokensHunyuanInternal(options...)
+func isZeroOfUnderlyingType(x interface{}) bool {
+	return reflect.DeepEqual(x, reflect.Zero(reflect.TypeOf(x)).Interface())
 }
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getMaxTokensHunyuanInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.MaxTokensHunyuan
-		}
-		return 4096 // 默认值
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	maxTokensHunyuanInterface, err := prompt.GetSettingFromFilename(basename, "MaxTokensHunyuan")
+// UpdateConfig 将配置写入文件
+func UpdateConfig(conf *Config, path string) error {
+	data, err := yaml.Marshal(conf)
 	if err != nil {
-		log.Println("Error retrieving MaxTokensHunyuan:", err)
-		return getMaxTokensHunyuanInternal() // 递归调用内部函数，不传递任何参数
+		return err
 	}
-
-	maxTokensHunyuan, ok := maxTokensHunyuanInterface.(int)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for MaxTokensHunyuan, fetching default")
-		return getMaxTokensHunyuanInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if maxTokensHunyuan == 0 {
-		return getMaxTokensHunyuanInternal()
-	}
-
-	return maxTokensHunyuan
+	return os.WriteFile(path, data, 0644)
 }
 
-// 获取Api类型
-func GetApiType() int {
+// WriteYAMLToFile 将YAML格式的字符串写入到指定的文件路径
+func WriteYAMLToFile(yamlContent string) error {
+	// 获取当前执行的可执行文件的路径
+	exePath, err := os.Executable()
+	if err != nil {
+		log.Println("Error getting executable path:", err)
+		return err
+	}
+
+	// 获取可执行文件所在的目录
+	exeDir := filepath.Dir(exePath)
+
+	// 构建config.yml的完整路径
+	configPath := filepath.Join(exeDir, "config.yml")
+
+	// 写入文件
+	os.WriteFile(configPath, []byte(yamlContent), 0644)
+
+	sys.RestartApplication()
+	return nil
+}
+
+// DeleteConfig 删除配置文件并创建一个新的配置文件模板
+func DeleteConfig() error {
+	// 获取当前执行的可执行文件的路径
+	exePath, err := os.Executable()
+	if err != nil {
+		mylog.Println("Error getting executable path:", err)
+		return err
+	}
+
+	// 获取可执行文件所在的目录
+	exeDir := filepath.Dir(exePath)
+
+	// 构建config.yml的完整路径
+	configPath := filepath.Join(exeDir, "config.yml")
+
+	// 删除配置文件
+	if err := os.Remove(configPath); err != nil {
+		mylog.Println("Error removing config file:", err)
+		return err
+	}
+
+	// 获取内网IP地址
+	ip, err := sys.GetLocalIP()
+	if err != nil {
+		mylog.Println("Error retrieving the local IP address:", err)
+		return err
+	}
+
+	// 将 <YOUR_SERVER_DIR> 替换成实际的内网IP地址
+	configData := strings.Replace(template.ConfigTemplate, "<YOUR_SERVER_DIR>", ip, -1)
+
+	// 创建一个新的配置文件模板 写到配置
+	if err := os.WriteFile(configPath, []byte(configData), 0644); err != nil {
+		mylog.Println("Error writing config.yml:", err)
+		return err
+	}
+
+	sys.RestartApplication()
+
+	return nil
+}
+
+// 获取ws地址数组
+func GetWsAddress() []string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.ApiType
+		return instance.Settings.WsAddress
 	}
-	return 0
+	return nil // 返回nil，如果instance为nil
 }
 
-// 获取WenxinAccessToken
-func GetWenxinAccessToken() string {
+// 获取gensokyo服务的地址
+func GetServer_dir() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get upload directory.")
+		return ""
+	}
+	return instance.Settings.Server_dir
+}
+
+// 获取DevBotid
+func GetDevBotid() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get DevBotid.")
+		return "1234"
+	}
+	return instance.Settings.DevBotid
+}
+
+// 获取GetForwardMsgLimit
+func GetForwardMsgLimit() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get GetForwardMsgLimit.")
+		return 3
+	}
+	return instance.Settings.ForwardMsgLimit
+}
+
+// 获取Develop_Acdir服务的地址
+func GetDevelop_Acdir() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get DevlopAcDir.")
+		return ""
+	}
+	return instance.Settings.DevlopAcDir
+}
+
+// 获取lotus的值
+func GetLotusValue() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get lotus value.")
+		return false
+	}
+	return instance.Settings.Lotus
+}
+
+// 获取双向ehco
+func GetTwoWayEcho() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get lotus value.")
+		return false
+	}
+	return instance.Settings.TwoWayEcho
+}
+
+// 获取白名单开启状态
+func GetWhitePrefixMode() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetWhitePrefixModes value.")
+		return false
+	}
+	return instance.Settings.WhitePrefixMode
+}
+
+// 获取白名单指令数组
+func GetWhitePrefixs() []string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.WenxinAccessToken
+		return instance.Settings.WhitePrefixs
+	}
+	return nil // 返回nil，如果instance为nil
+}
+
+// 获取黑名单开启状态
+func GetBlackPrefixMode() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetBlackPrefixMode value.")
+		return false
+	}
+	return instance.Settings.BlackPrefixMode
+}
+
+// 获取黑名单指令数组
+func GetBlackPrefixs() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.BlackPrefixs
+	}
+	return nil // 返回nil，如果instance为nil
+}
+
+// 获取IPurl显示开启状态
+func GetVisibleIP() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetVisibleIP value.")
+		return false
+	}
+	return instance.Settings.VisibleIp
+}
+
+// 修改 GetVisualkPrefixs 函数以返回新类型
+func GetVisualkPrefixs() []structs.VisualPrefixConfig {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		var varvisualPrefixes []structs.VisualPrefixConfig
+		for _, vp := range instance.Settings.VisualPrefixs {
+			varvisualPrefixes = append(varvisualPrefixes, structs.VisualPrefixConfig{
+				Prefix:          vp.Prefix,
+				WhiteList:       vp.WhiteList,
+				NoWhiteResponse: vp.NoWhiteResponse,
+			})
+		}
+		return varvisualPrefixes
+	}
+	return nil // 返回nil，如果instance为nil
+}
+
+// 获取LazyMessageId状态
+func GetLazyMessageId() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get LazyMessageId value.")
+		return false
+	}
+	return instance.Settings.LazyMessageId
+}
+
+// 获取HashID
+func GetHashIDValue() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get hashid value.")
+		return false
+	}
+	return instance.Settings.HashID
+}
+
+// 获取RemoveAt的值
+func GetRemoveAt() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get RemoveAt value.")
+		return false
+	}
+	return instance.Settings.RemoveAt
+}
+
+// 获取port的值
+func GetPortValue() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get port value.")
+		return ""
+	}
+	return instance.Settings.Port
+}
+
+// 获取Array的值
+func GetArrayValue() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get array value.")
+		return false
+	}
+	return instance.Settings.Array
+}
+
+// 获取AppID
+func GetAppID() uint64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.AppID
+	}
+	return 0 // or whatever default value you'd like to return if instance is nil
+}
+
+// 获取AppID String
+func GetAppIDStr() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return fmt.Sprintf("%d", instance.Settings.AppID)
 	}
 	return "0"
 }
 
-// 获取WenxinApiPath
-func GetWenxinApiPath(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getWenxinApiPathInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getWenxinApiPathInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.WenxinApiPath
-		}
-		return "0"
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "WenxinApiPath")
-	if err != nil {
-		log.Println("Error retrieving WenxinApiPath:", err)
-		return getWenxinApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	apiPath, ok := apiPathInterface.(string)
-	if !ok || apiPath == "" { // 检查是否断言失败或结果为空字符串
-		log.Println("Type assertion failed or empty string for WenxinApiPath, fetching default")
-		return getWenxinApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if apiPath == "" {
-		return getWenxinApiPathInternal()
-	}
-
-	return apiPath
-}
-
-// 获取GetMaxTokenWenxin
-func GetMaxTokenWenxin() int {
+// 获取WsToken
+func GetWsToken() []string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.MaxTokenWenxin
+		return instance.Settings.WsToken
 	}
-	return 0
+	return nil // 返回nil，如果instance为nil
 }
 
-// 获取GptModel
-func GetGptModel(options ...string) string {
+// 获取MasterID数组
+func GetMasterID() []string {
 	mu.Lock()
 	defer mu.Unlock()
-	return getGptModelInternal(options...)
+	if instance != nil {
+		return instance.Settings.MasterID
+	}
+	return nil // 返回nil，如果instance为nil
 }
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGptModelInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GptModel
-		}
+// 获取port的值
+func GetEnableWsServer() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get port value.")
+		return false
+	}
+	return instance.Settings.EnableWsServer
+}
+
+// 获取WsServerToken的值
+func GetWsServerToken() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get WsServerToken value.")
+		return ""
+	}
+	return instance.Settings.WsServerToken
+}
+
+// 获取identify_file的值
+func GetIdentifyFile() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get identify file name.")
+		return false
+	}
+	return instance.Settings.IdentifyFile
+}
+
+// 获取crt路径
+func GetCrtPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get crt path.")
+		return ""
+	}
+	return instance.Settings.Crt
+}
+
+// 获取key路径
+func GetKeyPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get key path.")
+		return ""
+	}
+	return instance.Settings.Key
+}
+
+// 开发者日志
+func GetDeveloperLog() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get developer log status.")
+		return false
+	}
+	return instance.Settings.DeveloperLog
+}
+
+// ComposeWebUIURL 组合webui的完整访问地址
+// 参数 useBackupPort 控制是否使用备用端口
+func ComposeWebUIURL(useBackupPort bool) string {
+	serverDir := GetServer_dir()
+
+	var port string
+	if useBackupPort {
+		port = GetBackupPort()
+	} else {
+		port = GetPortValue()
+	}
+
+	// 判断端口是不是443，如果是，则使用https协议
+	protocol := "http"
+	if port == "443" {
+		protocol = "https"
+	}
+
+	// 组合出完整的URL
+	return fmt.Sprintf("%s://%s:%s/webui", protocol, serverDir, port)
+}
+
+// ComposeWebUIURLv2 组合webui的完整访问地址
+// 参数 useBackupPort 控制是否使用备用端口
+func ComposeWebUIURLv2(useBackupPort bool) string {
+	ip, _ := sys.GetPublicIP()
+
+	var port string
+	if useBackupPort {
+		port = GetBackupPort()
+	} else {
+		port = GetPortValue()
+	}
+
+	// 判断端口是不是443，如果是，则使用https协议
+	protocol := "http"
+	if port == "443" {
+		protocol = "https"
+	}
+
+	// 组合出完整的URL
+	return fmt.Sprintf("%s://%s:%s/webui", protocol, ip, port)
+}
+
+// GetServerUserName 获取服务器用户名
+func GetServerUserName() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get server user name.")
+		return ""
+	}
+	return instance.Settings.Username
+}
+
+// GetServerUserPassword 获取服务器用户密码
+func GetServerUserPassword() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get server user password.")
+		return ""
+	}
+	return instance.Settings.Password
+}
+
+// GetImageLimit 返回 ImageLimit 的值
+func GetImageLimit() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get image limit value.")
+		return 0 // 或者返回一个默认的 ImageLimit 值
+	}
+
+	return instance.Settings.ImageLimit
+}
+
+// GetRemovePrefixValue 函数用于获取 remove_prefix 的配置值
+func GetRemovePrefixValue() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get remove_prefix value.")
+		return false // 或者可能是默认值，取决于您的应用程序逻辑
+	}
+	return instance.Settings.RemovePrefix
+}
+
+// GetLotusPort retrieves the LotusPort setting from your singleton instance.
+func GetBackupPort() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get LotusPort.")
+		return ""
+	}
+
+	return instance.Settings.BackupPort
+}
+
+// 获取GetDevMsgID的值
+func GetDevMsgID() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetDevMsgID value.")
+		return false
+	}
+	return instance.Settings.DevMessgeID
+}
+
+// 获取GetSaveLogs的值
+func GetSaveLogs() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetSaveLogs value.")
+		return false
+	}
+	return instance.Settings.SaveLogs
+}
+
+// 获取GetSaveLogs的值
+func GetLogLevel() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetLogLevel value.")
+		return 2
+	}
+	return instance.Settings.LogLevel
+}
+
+// 获取GetBindPrefix的值
+func GetBindPrefix() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetBindPrefix value.")
+		return "/bind"
+	}
+	return instance.Settings.BindPrefix
+}
+
+// 获取GetMePrefix的值
+func GetMePrefix() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetMePrefix value.")
+		return "/me"
+	}
+	return instance.Settings.MePrefix
+}
+
+// 获取FrpPort的值
+func GetFrpPort() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetFrpPort value.")
 		return "0"
 	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	gptModelInterface, err := prompt.GetSettingFromFilename(basename, "GptModel")
-	if err != nil {
-		log.Println("Error retrieving GptModel:", err)
-		return getGptModelInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	gptModel, ok := gptModelInterface.(string)
-	if !ok || gptModel == "" { // 检查是否断言失败或结果为空字符串
-		fmt.Println("Type assertion failed or empty string for GptModel, fetching default")
-		return getGptModelInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if gptModel == "" {
-		return getGptModelInternal()
-	}
-
-	return gptModel
+	return instance.Settings.FrpPort
 }
 
-// 获取GptApiPath
-func GetGptApiPath(options ...string) string {
+// 获取GetRemoveBotAtGroup的值
+func GetRemoveBotAtGroup() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getGptApiPathInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetRemoveBotAtGroup value.")
+		return false
+	}
+	return instance.Settings.RemoveBotAtGroup
 }
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGptApiPathInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GptApiPath
-		}
+// 获取ImageLimitB的值
+func GetImageLimitB() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to ImageLimitB value.")
+		return 100
+	}
+	return instance.Settings.ImageLimitB
+}
+
+// GetRecordSampleRate 返回 RecordSampleRate的值
+func GetRecordSampleRate() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetRecordSampleRate value.")
+		return 0 // 或者返回一个默认的 ImageLimit 值
+	}
+
+	return instance.Settings.RecordSampleRate
+}
+
+// GetRecordBitRate 返回 RecordBitRate
+func GetRecordBitRate() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetRecordBitRate value.")
+		return 0 // 或者返回一个默认的 ImageLimit 值
+	}
+
+	return instance.Settings.RecordBitRate
+}
+
+// 获取NoWhiteResponse的值
+func GetNoWhiteResponse() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to NoWhiteResponse value.")
+		return ""
+	}
+	return instance.Settings.NoWhiteResponse
+}
+
+// 获取GetSendError的值
+func GetSendError() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetSendError value.")
+		return true
+	}
+	return instance.Settings.SendError
+}
+
+// 获取GetSaveError的值
+func GetSaveError() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetSaveError value.")
+		return true
+	}
+	return instance.Settings.SaveError
+}
+
+// 获取GetAddAtGroup的值
+func GetAddAtGroup() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetAddGroupAt value.")
+		return true
+	}
+	return instance.Settings.AddAtGroup
+}
+
+// 获取GetUrlPicTransfer的值
+func GetUrlPicTransfer() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetUrlPicTransfer value.")
+		return true
+	}
+	return instance.Settings.UrlPicTransfer
+}
+
+// 获取GetLotusPassword的值
+func GetLotusPassword() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetLotusPassword value.")
+		return ""
+	}
+	return instance.Settings.LotusPassword
+}
+
+// 获取GetWsServerPath的值
+func GetWsServerPath() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetWsServerPath value.")
+		return ""
+	}
+	return instance.Settings.WsServerPath
+}
+
+// 获取GetIdmapPro的值
+func GetIdmapPro() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetIdmapPro value.")
+		return false
+	}
+	return instance.Settings.IdmapPro
+}
+
+// 获取GetCardAndNick的值
+func GetCardAndNick() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetCardAndNick value.")
+		return ""
+	}
+	return instance.Settings.CardAndNick
+}
+
+// 获取GetAutoBind的值
+func GetAutoBind() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetAutoBind value.")
+		return false
+	}
+	return instance.Settings.AutoBind
+}
+
+// 获取GetCustomBotName的值
+func GetCustomBotName() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetCustomBotName value.")
+		return "Gensokyo全域机器人"
+	}
+	return instance.Settings.CustomBotName
+}
+
+// 获取send_delay的值
+func GetSendDelay() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetSendDelay value.")
+		return 300
+	}
+	return instance.Settings.SendDelay
+}
+
+// 获取GetAtoPCount的值
+func GetAtoPCount() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to AtoPCount value.")
+		return 5
+	}
+	return instance.Settings.AtoPCount
+}
+
+// 获取GetReconnecTimes的值
+func GetReconnecTimes() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to ReconnecTimes value.")
+		return 50
+	}
+	return instance.Settings.ReconnecTimes
+}
+
+// 获取GetHeartBeatInterval的值
+func GetHeartBeatInterval() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to HeartBeatInterval value.")
+		return 5
+	}
+	return instance.Settings.HeartBeatInterval
+}
+
+// 获取LaunchReconectTimes
+func GetLaunchReconectTimes() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to LaunchReconectTimes value.")
+		return 3
+	}
+	return instance.Settings.LaunchReconectTimes
+}
+
+// 获取GetUnlockPrefix
+func GetUnlockPrefix() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to UnlockPrefix value.")
+		return "/unlock"
+	}
+	return instance.Settings.UnlockPrefix
+}
+
+// 获取白名单例外群数组
+func GetWhiteBypass() []int64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.WhiteBypass
+	}
+	return nil // 返回nil，如果instance为nil
+}
+
+// 获取GetTransferUrl的值
+func GetTransferUrl() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetTransferUrl value.")
+		return false
+	}
+	return instance.Settings.TransferUrl
+}
+
+// 获取 HTTP 地址
+func GetHttpAddress() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get HTTP address.")
+		return ""
+	}
+	return instance.Settings.HttpAddress
+}
+
+// 获取 HTTP 访问令牌
+func GetHTTPAccessToken() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get HTTP access token.")
+		return ""
+	}
+	return instance.Settings.AccessToken
+}
+
+// 获取 HTTP 版本
+func GetHttpVersion() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get HTTP version.")
+		return 11
+	}
+	return instance.Settings.HttpVersion
+}
+
+// 获取 HTTP 超时时间
+func GetHttpTimeOut() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get HTTP timeout.")
+		return 5
+	}
+	return instance.Settings.HttpTimeOut
+}
+
+// 获取 POST URL 数组
+func GetPostUrl() []string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get POST URL.")
+		return nil
+	}
+	return instance.Settings.PostUrl
+}
+
+// 获取 POST 密钥数组
+func GetPostSecret() []string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get POST secret.")
+		return nil
+	}
+	return instance.Settings.PostSecret
+}
+
+// 获取 VisualPrefixsBypass
+func GetVisualPrefixsBypass() []string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to getVisualPrefixsBypass.")
+		return nil
+	}
+	return instance.Settings.VisualPrefixsBypass
+}
+
+// 获取 POST 最大重试次数数组
+func GetPostMaxRetries() []int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get POST max retries.")
+		return nil
+	}
+	return instance.Settings.PostMaxRetries
+}
+
+// 获取 POST 重试间隔数组
+func GetPostRetriesInterval() []int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get POST retries interval.")
+		return nil
+	}
+	return instance.Settings.PostRetriesInterval
+}
+
+// 获取GetTransferUrl的值
+func GetNativeOb11() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to NativeOb11 value.")
+		return false
+	}
+	return instance.Settings.NativeOb11
+}
+
+// 获取GetRamDomSeq的值
+func GetRamDomSeq() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetRamDomSeq value.")
+		return false
+	}
+	return instance.Settings.RamDomSeq
+}
+
+// 获取GetUrlToQrimage的值
+func GetUrlToQrimage() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetUrlToQrimage value.")
+		return false
+	}
+	return instance.Settings.UrlToQrimage
+}
+
+func GetUseUin() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to UseUin value.")
+		return false
+	}
+	return instance.Settings.UseUin
+}
+
+// 获取GetQrSize的值
+func GetQrSize() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to QrSize value.")
+		return 200
+	}
+	return instance.Settings.QrSize
+}
+
+// func replaceVisualPrefixsLine(configData []byte) ([]byte, bool) {
+// 	// 定义新的 visual_prefixs 部分
+// 	newVisualPrefixs := `  visual_prefixs :                  #虚拟前缀 与white_prefixs配合使用 处理流程自动忽略该前缀 remove_prefix remove_at 需为true时生效
+//   - prefix: ""                      #虚拟前缀开头 例 你有3个指令 帮助 测试 查询 将 prefix 设置为 工具类 后 则可通过 工具类 帮助 触发机器人
+//     whiteList: [""]                 #开关状态取决于 white_prefix_mode 为每一个二级指令头设计独立的白名单
+//     No_White_Response : ""
+//   - prefix: ""
+//     whiteList: [""]
+//     No_White_Response : ""
+//   - prefix: ""
+//     whiteList: [""]
+//     No_White_Response : "" `
+
+// 	// 将 byte 数组转换为字符串
+// 	configStr := string(configData)
+
+// 	// 按行分割 configStr
+// 	lines := strings.Split(configStr, "\n")
+
+// 	// 创建一个新的字符串构建器
+// 	var newConfigData strings.Builder
+
+// 	// 标记是否进行了替换
+// 	replaced := false
+
+// 	// 遍历所有行
+// 	for _, line := range lines {
+// 		// 检查是否是 visual_prefixs 开头的行
+// 		if strings.HasPrefix(strings.TrimSpace(line), "visual_prefixs : [") {
+// 			// 替换为新的 visual_prefixs 部分
+// 			newConfigData.WriteString(newVisualPrefixs + "\n")
+// 			replaced = true
+// 			continue // 跳过原有行
+// 		}
+// 		newConfigData.WriteString(line + "\n")
+// 	}
+
+// 	// 返回新配置和是否发生了替换的标记
+// 	return []byte(newConfigData.String()), replaced
+// }
+
+// 获取GetWhiteBypassRevers的值
+func GetWhiteBypassRevers() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetWhiteBypassRevers value.")
+		return false
+	}
+	return instance.Settings.WhiteBypassRevers
+}
+
+// 获取GetGuildUrlImageToBase64的值
+func GetGuildUrlImageToBase64() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GuildUrlImageToBase64 value.")
+		return false
+	}
+	return instance.Settings.GuildUrlImageToBase64
+}
+
+// GetTencentBucketURL 获取 TencentBucketURL
+func GetTencentBucketURL() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get TencentBucketURL.")
 		return ""
 	}
 
-	// 使用传入的 basename
-	basename := options[0]
-	gptApiPathInterface, err := prompt.GetSettingFromFilename(basename, "GptApiPath")
-	if err != nil {
-		log.Println("Error retrieving GptApiPath:", err)
-		return getGptApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
+	bucketName := instance.Settings.TencentBucketName
+	bucketRegion := instance.Settings.TencentBucketRegion
 
-	gptApiPath, ok := gptApiPathInterface.(string)
-	if !ok || gptApiPath == "" { // 检查是否断言失败或结果为空字符串
-		fmt.Println("Type assertion failed or empty string for GptApiPath, fetching default")
-		return getGptApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return gptApiPath
-}
-
-// 获取GptToken
-func GetGptToken(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGptTokenInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGptTokenInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GptToken
-		}
+	// 构建并返回URL
+	if bucketName == "" || bucketRegion == "" {
+		mylog.Println("Warning: Tencent bucket name or region is not configured.")
 		return ""
 	}
 
-	// 使用传入的 basename
-	basename := options[0]
-	gptTokenInterface, err := prompt.GetSettingFromFilename(basename, "GptToken")
-	if err != nil {
-		log.Println("Error retrieving GptToken:", err)
-		return getGptTokenInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	gptToken, ok := gptTokenInterface.(string)
-	if !ok || gptToken == "" { // 检查是否断言失败或结果为空字符串
-		fmt.Println("Type assertion failed or empty string for GptToken, fetching default")
-		return getGptTokenInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if gptToken == "" {
-		return getGptTokenInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return gptToken
+	return fmt.Sprintf("https://%s.cos.%s.myqcloud.com", bucketName, bucketRegion)
 }
 
-// 获取MaxTokenGpt
-func GetMaxTokenGpt(options ...string) int {
+// GetTencentCosSecretid 获取 TencentCosSecretid
+func GetTencentCosSecretid() string {
 	mu.Lock()
 	defer mu.Unlock()
-	return getMaxTokenGptInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get TencentCosSecretid.")
+		return ""
+	}
+	return instance.Settings.TencentCosSecretid
 }
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getMaxTokenGptInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.MaxTokenGpt
-		}
+// GetTencentSecretKey 获取 TencentSecretKey
+func GetTencentSecretKey() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get TencentSecretKey.")
+		return ""
+	}
+	return instance.Settings.TencentSecretKey
+}
+
+// 获取GetTencentAudit的值
+func GetTencentAudit() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to TencentAudit value.")
+		return false
+	}
+	return instance.Settings.TencentAudit
+}
+
+// 获取 Oss 模式
+func GetOssType() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get ExtraPicAuditingType version.")
 		return 0
 	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	maxTokenGptInterface, err := prompt.GetSettingFromFilename(basename, "MaxTokenGpt")
-	if err != nil {
-		log.Println("Error retrieving MaxTokenGpt:", err)
-		return getMaxTokenGptInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	maxTokenGpt, ok := maxTokenGptInterface.(int)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for MaxTokenGpt, fetching default")
-		return getMaxTokenGptInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if maxTokenGpt == 0 {
-		return getMaxTokenGptInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return maxTokenGpt
+	return instance.Settings.OssType
 }
 
-// gpt安全模式
-func GetGptSafeMode() bool {
+// 获取BaiduBOSBucketName
+func GetBaiduBOSBucketName() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get BaiduBOSBucketName.")
+		return ""
+	}
+	return instance.Settings.BaiduBOSBucketName
+}
+
+// 获取BaiduBCEAK
+func GetBaiduBCEAK() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get BaiduBCEAK.")
+		return ""
+	}
+	return instance.Settings.BaiduBCEAK
+}
+
+// 获取BaiduBCESK
+func GetBaiduBCESK() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get BaiduBCESK.")
+		return ""
+	}
+	return instance.Settings.BaiduBCESK
+}
+
+// 获取BaiduAudit
+func GetBaiduAudit() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get BaiduAudit.")
+		return 0
+	}
+	return instance.Settings.BaiduAudit
+}
+
+// 获取阿里云的oss地址 外网的
+func GetAliyunEndpoint() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get AliyunEndpoint.")
+		return ""
+	}
+	return instance.Settings.AliyunEndpoint
+}
+
+// GetRegionID 从 AliyunEndpoint 获取 regionId
+func GetRegionID() string {
+	endpoint := GetAliyunEndpoint()
+	if endpoint == "" {
+		return ""
+	}
+
+	// 去除协议头（如 "https://"）
+	endpoint = strings.TrimPrefix(endpoint, "http://")
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+
+	// 将 endpoint 按照 "." 分割
+	parts := strings.Split(endpoint, ".")
+	if len(parts) >= 2 {
+		// 第一部分应该是包含 regionId 的信息（例如 "oss-cn-hangzhou"）
+		regionInfo := parts[0]
+		// 进一步提取 regionId
+		regionParts := strings.SplitN(regionInfo, "-", 3)
+		if len(regionParts) >= 3 {
+			// 返回 "cn-hangzhou" 部分
+			return regionParts[1] + "-" + regionParts[2]
+		}
+	}
+	return ""
+}
+
+// GetAliyunAccessKeyId 获取阿里云OSS的AccessKeyId
+func GetAliyunAccessKeyId() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get AliyunAccessKeyId.")
+		return ""
+	}
+	return instance.Settings.AliyunAccessKeyId
+}
+
+// GetAliyunAccessKeySecret 获取阿里云OSS的AccessKeySecret
+func GetAliyunAccessKeySecret() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get AliyunAccessKeySecret.")
+		return ""
+	}
+	return instance.Settings.AliyunAccessKeySecret
+}
+
+// GetAliyunBucketName 获取阿里云OSS的AliyunBucketName
+func GetAliyunBucketName() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get AliyunBucketName.")
+		return ""
+	}
+	return instance.Settings.AliyunBucketName
+}
+
+// 获取GetAliyunAudit的值
+func GetAliyunAudit() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to AliyunAudit value.")
+		return false
+	}
+	return instance.Settings.AliyunAudit
+}
+
+// 获取Alias的值
+func GetAlias() []string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.GptSafeMode
+		return instance.Settings.Alias
 	}
-	return false
+	return nil // 返回nil，如果instance为nil
 }
 
-// UrlSendPics
-func GetUrlSendPics() bool {
+// 获取SelfIntroduce的值
+func GetSelfIntroduce() []string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.UrlSendPics
+		return instance.Settings.SelfIntroduce
 	}
-	return false
+	return nil // 返回nil，如果instance为nil
 }
 
-// 获取GptSseType
-func GetGptSseType() int {
+// 获取WhiteEnable的值
+func GetWhiteEnable(index int) bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// 检查instance或instance.Settings.WhiteEnable是否为nil
+	if instance == nil || instance.Settings.WhiteEnable == nil {
+		return true // 如果为nil，返回默认值true
+	}
+
+	// 调整索引以符合从0开始的数组索引
+	adjustedIndex := index - 1
+
+	// 检查索引是否在数组范围内
+	if adjustedIndex >= 0 && adjustedIndex < len(instance.Settings.WhiteEnable) {
+		return instance.Settings.WhiteEnable[adjustedIndex]
+	}
+
+	// 如果索引超出范围，返回默认值true
+	return true
+}
+
+// 获取IdentifyAppids的值
+func GetIdentifyAppids() []int64 {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.GptSseType
+		return instance.Settings.IdentifyAppids
+	}
+	return nil // 返回nil，如果instance为nil
+}
+
+// 获取 TransFormApiIds 的值
+func GetTransFormApiIds() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to TransFormApiIds value.")
+		return false
+	}
+	return instance.Settings.TransFormApiIds
+}
+
+// 获取 CustomTemplateID 的值
+func GetCustomTemplateID() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get CustomTemplateID.")
+		return ""
+	}
+	return instance.Settings.CustomTemplateID
+}
+
+// 获取 KeyBoardIDD 的值
+func GetKeyBoardID() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get KeyBoardID.")
+		return ""
+	}
+	return instance.Settings.KeyBoardID
+}
+
+// 获取Uin int64
+func GetUinint64() int64 {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.Uin
 	}
 	return 0
 }
 
-// 是否开启群信息
-func GetGroupmessage() bool {
+// 获取Uin String
+func GetUinStr() string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.Groupmessage
+		return fmt.Sprintf("%d", instance.Settings.Uin)
 	}
-	return false
+	return "0"
 }
 
-// 获取SplitByPuntuations
-func GetSplitByPuntuations(options ...string) int {
+// 获取 VV GetVwhitePrefixMode 的值
+func GetVwhitePrefixMode() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getSplitByPuntuationsInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to VwhitePrefixMode value.")
+		return false
+	}
+	return instance.Settings.VwhitePrefixMode
 }
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getSplitByPuntuationsInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.SplitByPuntuations
-		}
-		return 0 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename 来查找特定配置
-	basename := options[0]
-	SplitByPuntuationsInterface, err := prompt.GetSettingFromFilename(basename, "SplitByPuntuations")
-	if err != nil {
-		log.Println("Error retrieving SplitByPuntuations:", err)
-		return getSplitByPuntuationsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	SplitByPuntuations, ok := SplitByPuntuationsInterface.(int)
-	if !ok { // 检查类型断言是否失败
-		fmt.Println("Type assertion failed for SplitByPuntuations, fetching default")
-		return getSplitByPuntuationsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if SplitByPuntuations == 0 {
-		return getSplitByPuntuationsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return SplitByPuntuations
-}
-
-// 获取GetSplitByPuntuationsGroup
-func GetSplitByPuntuationsGroup(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getSplitByPuntuationsGroupInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getSplitByPuntuationsGroupInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.SplitByPuntuationsGroup
-		}
-		return 0 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename 来查找特定配置
-	basename := options[0]
-	SplitByPuntuationsGroupInterface, err := prompt.GetSettingFromFilename(basename, "SplitByPuntuationsGroup")
-	if err != nil {
-		log.Println("Error retrieving SplitByPuntuationsGroup:", err)
-		return getSplitByPuntuationsGroupInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	SplitByPuntuationsGroup, ok := SplitByPuntuationsGroupInterface.(int)
-	if !ok { // 检查类型断言是否失败
-		fmt.Println("Type assertion failed for SplitByPuntuationsGroup, fetching default")
-		return getSplitByPuntuationsGroupInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if SplitByPuntuationsGroup == 0 {
-		return getSplitByPuntuationsGroupInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return SplitByPuntuationsGroup
-}
-
-// 获取GroupHintChance
-func GetGroupHintChance(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGroupHintChanceInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGroupHintChanceInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GroupHintChance
-		}
-		return 0 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename 来查找特定配置
-	basename := options[0]
-	GroupHintChanceInterface, err := prompt.GetSettingFromFilename(basename, "GroupHintChance")
-	if err != nil {
-		log.Println("Error retrieving GroupHintChance:", err)
-		return getGroupHintChanceInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	GroupHintChance, ok := GroupHintChanceInterface.(int)
-	if !ok { // 检查类型断言是否失败
-		fmt.Println("Type assertion failed for GroupHintChance, fetching default")
-		return getGroupHintChanceInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if GroupHintChance == 0 {
-		return getGroupHintChanceInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return GroupHintChance
-}
-
-// 获取HunyuanType
-func GetHunyuanType() int {
+// 获取Enters的值
+func GetEnters() []string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.HunyuanType
+		return instance.Settings.Enters
 	}
-	return 0
+	return nil // 返回nil，如果instance为nil
 }
 
-// 获取FirstQ
-func GetFirstQ() string {
+// 获取EntersExcept
+func GetEntersExcept() []string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.FirstQ) > 0 {
-		questions := instance.Settings.FirstQ
-		if len(questions) == 1 {
-			// 如果只有一个成员，直接返回
-			return questions[0]
-		} else {
-			// 随机选择一个返回
-			selectedIndex := rand.Intn(len(questions))
-			selectedQuestion := questions[selectedIndex]
-			fmtf.Printf("Selected first question: %s\n", selectedQuestion) // 输出你返回的是哪个问题
-			return selectedQuestion
-		}
+	if instance != nil {
+		return instance.Settings.EntersExcept
 	}
-	// 如果是nil或者空数组，返回空字符串
-	return ""
+	return nil // 返回nil，如果instance为nil
 }
 
-// 获取FirstA
-func GetFirstA() string {
+// 获取 LinkPrefix
+func GetLinkPrefix() string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.FirstA) > 0 {
-		answers := instance.Settings.FirstA
-		if len(answers) == 1 {
-			// 如果只有一个成员，直接返回
-			return answers[0]
-		} else {
-			// 随机选择一个返回
-			selectedIndex := rand.Intn(len(answers))
-			selectedAnswer := answers[selectedIndex]
-			fmtf.Printf("Selected first answer: %s\n", selectedAnswer) // 输出你返回的是哪个回答
-			return selectedAnswer
-		}
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get LinkPrefix.")
+		return ""
 	}
-	// 如果是nil或者空数组，返回空字符串
-	return ""
+	return instance.Settings.LinkPrefix
 }
 
-// 获取SecondQ
-func GetSecondQ() string {
+// 获取 LinkBots 数组
+func GetLinkBots() []string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.SecondQ) > 0 {
-		questions := instance.Settings.SecondQ
-		if len(questions) == 1 {
-			return questions[0]
-		} else {
-			selectedIndex := rand.Intn(len(questions))
-			selectedQuestion := questions[selectedIndex]
-			fmtf.Printf("Selected second question: %s\n", selectedQuestion)
-			return selectedQuestion
-		}
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get LinkBots.")
+		return nil
 	}
-	return ""
+	return instance.Settings.LinkBots
 }
 
-// 获取SecondA
-func GetSecondA() string {
+// 获取 LinkText
+func GetLinkText() string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.SecondA) > 0 {
-		answers := instance.Settings.SecondA
-		if len(answers) == 1 {
-			return answers[0]
-		} else {
-			selectedIndex := rand.Intn(len(answers))
-			selectedAnswer := answers[selectedIndex]
-			fmtf.Printf("Selected second answer: %s\n", selectedAnswer)
-			return selectedAnswer
-		}
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get LinkText.")
+		return ""
 	}
-	return ""
+	return instance.Settings.LinkText
 }
 
-// 获取ThirdQ
-func GetThirdQ() string {
+// 获取 LinkPic
+func GetLinkPic() string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.ThirdQ) > 0 {
-		questions := instance.Settings.ThirdQ
-		if len(questions) == 1 {
-			return questions[0]
-		} else {
-			selectedIndex := rand.Intn(len(questions))
-			selectedQuestion := questions[selectedIndex]
-			fmtf.Printf("Selected third question: %s\n", selectedQuestion)
-			return selectedQuestion
-		}
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get LinkPic.")
+		return ""
 	}
-	return ""
+	return instance.Settings.LinkPic
 }
 
-// 获取ThirdA
-func GetThirdA() string {
+// 获取 GetMusicPrefix
+func GetMusicPrefix() string {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.ThirdA) > 0 {
-		answers := instance.Settings.ThirdA
-		if len(answers) == 1 {
-			return answers[0]
-		} else {
-			selectedIndex := rand.Intn(len(answers))
-			selectedAnswer := answers[selectedIndex]
-			fmtf.Printf("Selected third answer: %s\n", selectedAnswer)
-			return selectedAnswer
-		}
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get MusicPrefix.")
+		return ""
 	}
-	return ""
+	return instance.Settings.MusicPrefix
+}
+
+// 获取 GetDisableWebui 的值
+func GetDisableWebui() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetDisableWebui value.")
+		return false
+	}
+	return instance.Settings.DisableWebui
+}
+
+// 获取 GetBotForumTitle
+func GetBotForumTitle() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get BotForumTitle.")
+		return ""
+	}
+	return instance.Settings.BotForumTitle
+}
+
+// 获取 GetGlobalInteractionToMessage 的值
+func GetGlobalInteractionToMessage() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GlobalInteractionToMessage value.")
+		return false
+	}
+	return instance.Settings.GlobalInteractionToMessage
+}
+
+// 获取 AutoPutInteraction 的值
+func GetAutoPutInteraction() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to AutoPutInteraction value.")
+		return false
+	}
+	return instance.Settings.AutoPutInteraction
+}
+
+// 获取 PutInteractionDelay 延迟
+func GetPutInteractionDelay() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get PutInteractionDelay.")
+		return 0
+	}
+	return instance.Settings.PutInteractionDelay
+}
+
+// 获取Fix11300开关
+func GetFix11300() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to Fix11300 value.")
+		return false
+	}
+	return instance.Settings.Fix11300
+}
+
+// 获取LotusWithoutIdmaps开关
+func GetLotusWithoutIdmaps() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to LotusWithoutIdmaps value.")
+		return false
+	}
+	return instance.Settings.LotusWithoutIdmaps
+}
+
+// 获取GetGroupListAllGuilds开关
+func GetGroupListAllGuilds() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetGroupListAllGuilds value.")
+		return false
+	}
+	return instance.Settings.GetGroupListAllGuilds
+}
+
+// 获取 GetGroupListGuilds  数量
+func GetGetGroupListGuilds() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get GetGroupListGuilds.")
+		return "10"
+	}
+	return instance.Settings.GetGroupListGuilds
+}
+
+// 获取GetGroupListReturnGuilds开关
+func GetGroupListReturnGuilds() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GetGroupListReturnGuilds value.")
+		return false
+	}
+	return instance.Settings.GetGroupListReturnGuilds
+}
+
+// 获取 GetGroupListGuidsType  数量
+func GetGroupListGuidsType() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get GetGroupListGuidsType.")
+		return 0
+	}
+	return instance.Settings.GetGroupListGuidsType
+}
+
+// 获取 GetGroupListDelay  数量
+func GetGroupListDelay() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get GetGroupListDelay.")
+		return 0
+	}
+	return instance.Settings.GetGroupListDelay
+}
+
+// 获取GetGlobalServerTempQQguild开关
+func GetGlobalServerTempQQguild() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GlobalServerTempQQguild value.")
+		return false
+	}
+	return instance.Settings.GlobalServerTempQQguild
+}
+
+// 获取ServerTempQQguild
+func GetServerTempQQguild() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to ServerTempQQguild value.")
+		return "0"
+	}
+	return instance.Settings.ServerTempQQguild
+}
+
+// 获取ServerTempQQguildPool
+func GetServerTempQQguildPool() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.ServerTempQQguildPool
+	}
+	return nil // 返回nil，如果instance为nil
+}
+
+// 获取UploadPicV2Base64开关
+func GetUploadPicV2Base64() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to UploadPicV2 value.")
+		return false
+	}
+	return instance.Settings.UploadPicV2Base64
+}
+
+// 获取 AutoWithdraw 数组
+func GetAutoWithdraw() []string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get AutoWithdraw.")
+		return nil
+	}
+	return instance.Settings.AutoWithdraw
+}
+
+// 获取 GetAutoWithdrawTime  数量
+func GetAutoWithdrawTime() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to get AutoWithdrawTime.")
+		return 0
+	}
+	return instance.Settings.AutoWithdrawTime
 }
 
 // 获取DefaultChangeWord
@@ -776,2701 +2225,166 @@ func GetDefaultChangeWord() string {
 	return "*"
 }
 
-// 是否SensitiveMode
-func GetSensitiveMode() bool {
+// 获取敏感词替换状态
+func GetEnableChangeWord() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.SensitiveMode
-	}
-	return false
-}
 
-// 获取SensitiveModeType
-func GetSensitiveModeType() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.SensitiveModeType
-	}
-	return 0
-}
-
-// 获取AntiPromptAttackPath
-func GetAntiPromptAttackPath() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.AntiPromptAttackPath
-	}
-	return ""
-}
-
-// 获取ReverseUserPrompt
-func GetReverseUserPrompt() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.ReverseUserPrompt
-	}
-	return false
-}
-
-// 获取IgnoreExtraTips
-func GetIgnoreExtraTips() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.IgnoreExtraTips
-	}
-	return false
-}
-
-// GetRandomSaveResponse 从SaveResponses数组中随机选择一个字符串返回
-func GetRandomSaveResponse() string {
-	mu.Lock()
-	defer mu.Unlock()
-
-	// 检查SaveResponses是否为空或nil
-	if len(instance.Settings.SaveResponses) > 0 {
-		if len(instance.Settings.SaveResponses) == 1 {
-			// 如果只有一个元素，直接返回这个元素
-			return instance.Settings.SaveResponses[0]
-		} else {
-			// 如果有多个元素，随机选择一个返回
-			selectedIndex := rand.Intn(len(instance.Settings.SaveResponses))
-			selectedResponse := instance.Settings.SaveResponses[selectedIndex]
-			fmtf.Printf("Selected save response: %s\n", selectedResponse)
-			return selectedResponse
-		}
-	}
-	// 如果数组为空，返回空字符串
-	return ""
-}
-
-// GetRestoreResponses 从RestoreResponses数组中随机选择一个字符串返回
-func GetRandomRestoreResponses() string {
-	mu.Lock()
-	defer mu.Unlock()
-
-	// 检查RestoreResponses是否为空或nil
-	if len(instance.Settings.RestoreResponses) > 0 {
-		if len(instance.Settings.RestoreResponses) == 1 {
-			// 如果只有一个元素，直接返回这个元素
-			return instance.Settings.RestoreResponses[0]
-		} else {
-			// 如果有多个元素，随机选择一个返回
-			selectedIndex := rand.Intn(len(instance.Settings.RestoreResponses))
-			selectedResponse := instance.Settings.RestoreResponses[selectedIndex]
-			fmtf.Printf("Selected save response: %s\n", selectedResponse)
-			return selectedResponse
-		}
-	}
-	// 如果数组为空，返回空字符串
-	return ""
-}
-
-// 获取RestoreCommand
-func GetRestoreCommand() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RestoreCommand
-	}
-	return nil
-}
-
-// 获取UsePrivateSSE
-func GetUsePrivateSSE() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.UsePrivateSSE
-	}
-	return false
-}
-
-// GetPromptkeyboard 获取Promptkeyboard，如果超过3个成员则随机选择3个
-func GetPromptkeyboard() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.Promptkeyboard) > 0 {
-		promptKeyboard := instance.Settings.Promptkeyboard
-		if len(promptKeyboard) <= 3 {
-			return promptKeyboard
-		}
-
-		// 如果数组成员超过3个，随机选择3个返回
-		selected := make([]string, 3)
-		indexesSelected := make(map[int]bool)
-		for i := 0; i < 3; i++ {
-			index := r.Intn(len(promptKeyboard))
-			// 确保不重复选择
-			for indexesSelected[index] {
-				index = r.Intn(len(promptKeyboard))
-			}
-			indexesSelected[index] = true
-			selected[i] = promptKeyboard[index]
-		}
-		return selected
-	}
-	return nil
-}
-
-// 获取Savelogs
-func GetSavelogs() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.Savelogs
-	}
-	return false
-}
-
-// 获取AntiPromptLimit
-func GetAntiPromptLimit() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.AntiPromptLimit
-	}
-	return 0.9
-}
-
-// 获取UseCache，增加可选参数支持动态配置查询
-func GetUseCache(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getUseCacheInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getUseCacheInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.UseCache
-		}
-		return 0
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	useCacheInterface, err := prompt.GetSettingFromFilename(basename, "UseCache")
-	if err != nil {
-		log.Println("Error retrieving UseCache:", err)
-		return getUseCacheInternal() // 如果出错，递归调用自身，不传递任何参数
-	}
-
-	useCache, ok := useCacheInterface.(int)
-	if !ok || useCache == 0 {
-		log.Println("Type assertion failed for UseCache")
-		return getUseCacheInternal() // 如果类型断言失败，递归调用自身，不传递任何参数
-	}
-
-	return useCache
-}
-
-// 获取CacheThreshold
-func GetCacheThreshold() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.CacheThreshold
-	}
-	return 0
-}
-
-// 获取CacheChance
-func GetCacheChance() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.CacheChance
-	}
-	return 0
-}
-
-// 获取EmbeddingType
-func GetEmbeddingType() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.EmbeddingType
-	}
-	return 0
-}
-
-// 获取WenxinEmbeddingUrl
-func GetWenxinEmbeddingUrl() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.WenxinEmbeddingUrl
-	}
-	return ""
-}
-
-// 获取GptEmbeddingUrl
-func GetGptEmbeddingUrl() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GptEmbeddingUrl
-	}
-	return ""
-}
-
-// 获取PrintHanming
-func GetPrintHanming() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.PrintHanming
-	}
-	return false
-}
-
-// 获取CacheK
-func GetCacheK() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.CacheK
-	}
-	return 0
-}
-
-// 获取CacheN
-func GetCacheN() int64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.CacheN
-	}
-	return 0
-}
-
-// 获取PrintVector
-func GetPrintVector() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.PrintVector
-	}
-	return false
-}
-
-// 获取VToBThreshold
-func GetVToBThreshold() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.VToBThreshold
-	}
-	return 0
-}
-
-// 获取GptModeration
-func GetGptModeration() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GptModeration
-	}
-	return false
-}
-
-// 获取WenxinTopp
-func GetWenxinTopp() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.WenxinTopp
-	}
-	return 0
-}
-
-// 获取WnxinPenaltyScore
-func GetWnxinPenaltyScore() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.WnxinPenaltyScore
-	}
-	return 0
-}
-
-// 获取WenxinMaxOutputTokens
-func GetWenxinMaxOutputTokens() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.WenxinMaxOutputTokens
-	}
-	return 0
-}
-
-// 获取VectorSensitiveFilter
-func GetVectorSensitiveFilter() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.VectorSensitiveFilter
-	}
-	return false
-}
-
-// 获取VertorSensitiveThreshold
-func GetVertorSensitiveThreshold() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.VertorSensitiveThreshold
-	}
-	return 0
-}
-
-// GetAllowedLanguages 返回允许的语言列表
-func GetAllowedLanguages() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.AllowedLanguages
-	}
-	return nil // 或返回一个默认的语言列表
-}
-
-// GetLanguagesResponseMessages 返回语言拦截响应消息列表
-func GetLanguagesResponseMessages() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.LanguagesResponseMessages) > 0 {
-		// 如果列表中只有一个消息，直接返回这个消息
-		if len(instance.Settings.LanguagesResponseMessages) == 1 {
-			return instance.Settings.LanguagesResponseMessages[0]
-		}
-		// 如果有多个消息，随机选择一个返回
-		index := rand.Intn(len(instance.Settings.LanguagesResponseMessages))
-		return instance.Settings.LanguagesResponseMessages[index]
-	}
-	return "" // 如果列表为空，返回空字符串
-}
-
-// 获取QuestionMaxLenth
-func GetQuestionMaxLenth() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.QuestionMaxLenth
-	}
-	return 0
-}
-
-// GetQmlResponseMessages 返回语言拦截响应消息列表
-func GetQmlResponseMessages() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.QmlResponseMessages) > 0 {
-		// 如果列表中只有一个消息，直接返回这个消息
-		if len(instance.Settings.QmlResponseMessages) == 1 {
-			return instance.Settings.QmlResponseMessages[0]
-		}
-		// 如果有多个消息，随机选择一个返回
-		index := rand.Intn(len(instance.Settings.QmlResponseMessages))
-		return instance.Settings.QmlResponseMessages[index]
-	}
-	return "" // 如果列表为空，返回空字符串
-}
-
-// BlacklistResponseMessages 返回语言拦截响应消息列表
-func GetBlacklistResponseMessages() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil && len(instance.Settings.BlacklistResponseMessages) > 0 {
-		// 如果列表中只有一个消息，直接返回这个消息
-		if len(instance.Settings.BlacklistResponseMessages) == 1 {
-			return instance.Settings.BlacklistResponseMessages[0]
-		}
-		// 如果有多个消息，随机选择一个返回
-		index := rand.Intn(len(instance.Settings.BlacklistResponseMessages))
-		return instance.Settings.BlacklistResponseMessages[index]
-	}
-	return "" // 如果列表为空，返回空字符串
-}
-
-// 获取NoContext
-func GetNoContext() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.NoContext
-	}
-	return false
-}
-
-// 获取GroupContext
-func GetGroupContext(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGroupContextInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGroupContextInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GroupContext
-		}
-		return 0
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	GroupContextInterface, err := prompt.GetSettingFromFilename(basename, "GroupContext")
-	if err != nil {
-		log.Println("Error retrieving GroupContext:", err)
-		return getGroupContextInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	GroupContext, ok := GroupContextInterface.(int)
-	if !ok || GroupContext == 0 { // 检查是否断言失败或结果为空字符串
-		log.Println("Type assertion failed or empty string for GroupContext, fetching default")
-		return getGroupContextInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return GroupContext
-}
-
-// 获取WithdrawCommand
-func GetWithdrawCommand() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.WithdrawCommand
-	}
-	return nil
-}
-
-// 获取MemoryCommand
-func GetMemoryCommand() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.MemoryCommand
-	}
-	return nil
-}
-
-// 获取MemoryLoadCommand
-func GetMemoryLoadCommand() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.MemoryLoadCommand
-	}
-	return nil
-}
-
-// 获取NewConversationCommand
-func GetNewConversationCommand() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.NewConversationCommand
-	}
-	return nil
-}
-
-// 获取FunctionMode
-func GetFunctionMode() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.FunctionMode
-	}
-	return false
-}
-
-// 获取FunctionPath
-func GetFunctionPath() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.FunctionPath
-	}
-	return ""
-}
-
-// 获取UseFunctionPromptkeyboard
-func GetUseFunctionPromptkeyboard() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.UseFunctionPromptkeyboard
-	}
-	return false
-}
-
-// 获取MemoryListMD
-func GetMemoryListMD() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.MemoryListMD
-	}
-	return 0
-}
-
-// 获取UseAIPromptkeyboard
-func GetUseAIPromptkeyboard() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.UseAIPromptkeyboard
-	}
-	return false
-}
-
-// 获取AIPromptkeyboardPath
-func GetAIPromptkeyboardPath(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getAIPromptkeyboardPathInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getAIPromptkeyboardPathInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.AIPromptkeyboardPath
-		}
-		return ""
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	pathInterface, err := prompt.GetSettingFromFilename(basename, "AIPromptkeyboardPath")
-	if err != nil {
-		log.Println("Error retrieving AIPromptkeyboardPath:", err)
-		return getAIPromptkeyboardPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	path, ok := pathInterface.(string)
-	if !ok || path == "" { // 检查是否断言失败或结果为空字符串
-		log.Println("Type assertion failed or empty string for AIPromptkeyboardPath, fetching default")
-		return getAIPromptkeyboardPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return path
-}
-
-// 获取RWKV API路径
-func GetRwkvApiPath() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvApiPath
-	}
-	return ""
-}
-
-// 获取RWKV最大令牌数
-func GetRwkvMaxTokens(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getRwkvMaxTokensInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getRwkvMaxTokensInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.RwkvMaxTokens
-		}
-		return 0
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	maxTokensInterface, err := prompt.GetSettingFromFilename(basename, "RwkvMaxTokens")
-	if err != nil {
-		log.Println("Error retrieving RwkvMaxTokens:", err)
-		return getRwkvMaxTokensInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	maxTokens, ok := maxTokensInterface.(int)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for RwkvMaxTokens, fetching default")
-		return getRwkvMaxTokensInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if maxTokens == 0 {
-		return getRwkvMaxTokensInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return maxTokens
-}
-
-// 获取RwkvSseType
-func GetRwkvSseType() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvSseType
-	}
-	return 0
-}
-
-// 获取RWKV温度
-func GetRwkvTemperature() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvTemperature
-	}
-	return 0.0
-}
-
-// 获取RWKV Top P
-func GetRwkvTopP() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvTopP
-	}
-	return 0.0
-}
-
-// 获取RWKV存在惩罚
-func GetRwkvPresencePenalty() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvPresencePenalty
-	}
-	return 0.0
-}
-
-// 获取RWKV频率惩罚
-func GetRwkvFrequencyPenalty() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvFrequencyPenalty
-	}
-	return 0.0
-}
-
-// 获取RWKV惩罚衰减
-func GetRwkvPenaltyDecay() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvPenaltyDecay
-	}
-	return 0.0
-}
-
-// 获取RWKV Top K
-func GetRwkvTopK() int {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvTopK
-	}
-	return 0
-}
-
-// 获取RWKV是否全局惩罚
-func GetRwkvGlobalPenalty() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvGlobalPenalty
-	}
-	return false
-}
-
-// 获取RWKV是否流模式
-func GetRwkvStream() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvStream
-	}
-	return false
-}
-
-// 获取RWKV停止列表
-func GetRwkvStop() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvStop
-	}
-	return nil
-}
-
-// 获取RWKV用户名
-func GetRwkvUserName() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvUserName
-	}
-	return ""
-}
-
-// 获取RWKV助手名
-func GetRwkvAssistantName() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvAssistantName
-	}
-	return ""
-}
-
-// 获取RWKV系统名称
-func GetRwkvSystemName() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvSystemName
-	}
-	return ""
-}
-
-// 获取RWKV是否预处理
-func GetRwkvPreSystem() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.RwkvPreSystem
-	}
-	return false
-}
-
-// 获取隐藏日志
-func GetHideExtraLogs() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.HideExtraLogs
-	}
-	return false
-}
-
-// 获取wsServerToken
-func GetWSServerToken() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.WSServerToken
-	}
-	return ""
-}
-
-// 获取PathToken
-func GetPathToken() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.PathToken
-	}
-	return ""
-}
-
-// 获取开启全部api
-func GetAllApi() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.AllApi
-	}
-	return false
-}
-
-// 获取Proxy
-func GetProxy(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getProxyInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getProxyInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.Proxy
-		}
-		return "" // 提供一个默认的 Proxy 值
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	proxyInterface, err := prompt.GetSettingFromFilename(basename, "Proxy")
-	if err != nil {
-		log.Println("Error retrieving Proxy:", err)
-		return getProxyInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	proxy, ok := proxyInterface.(string)
-	if !ok || proxy == "" { // 检查是否断言失败或结果为空字符串
-		fmt.Println("Type assertion failed or empty string for Proxy, fetching default")
-		return getProxyInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return proxy
-}
-
-// 获取 StandardGptApi
-func GetStandardGptApi(options ...string) bool {
-	mu.Lock()
-	defer mu.Unlock()
-	return getStandardGptApiInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getStandardGptApiInternal(options ...string) bool {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.StandardGptApi
-		}
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to EnableChangeWord.")
 		return false
 	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	standardGptApiInterface, err := prompt.GetSettingFromFilename(basename, "StandardGptApi")
-	if err != nil {
-		log.Println("Error retrieving StandardGptApi:", err)
-		return getStandardGptApiInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	standardGptApi, ok := standardGptApiInterface.(bool)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for StandardGptApi, fetching default")
-		return getStandardGptApiInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return standardGptApi
+	return instance.Settings.EnableChangeWord
 }
 
-// 获取 PromptMarksLength
-func GetPromptMarksLength(options ...string) int {
+// 获取GlobalGroupMsgRejectReciveEventToMessage状态
+func GetGlobalGroupMsgRejectReciveEventToMessage() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getPromptMarksLengthInternal(options...)
-}
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptMarksLengthInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.PromptMarksLength
-		}
-		return 0 // 默认返回 0 或一个合理的默认值
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	promptMarksLengthInterface, err := prompt.GetSettingFromFilename(basename, "PromptMarksLength")
-	if err != nil {
-		log.Println("Error retrieving PromptMarksLength:", err)
-		return getPromptMarksLengthInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	promptMarksLength, ok := promptMarksLengthInterface.(int)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for PromptMarksLength, fetching default")
-		return getPromptMarksLengthInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return promptMarksLength
-}
-
-// 获取 PromptMarks
-func GetPromptMarks(options ...string) []structs.BranchConfig {
-	mu.Lock()
-	defer mu.Unlock()
-	return getPromptMarksInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptMarksInternal(options ...string) []structs.BranchConfig {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.PromptMarks
-		}
-		return nil // 如果实例或设置未定义，返回nil
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	promptMarksInterface, err := prompt.GetSettingFromFilename(basename, "PromptMarks")
-	if err != nil {
-		log.Println("Error retrieving PromptMarks:", err)
-		return getPromptMarksInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	promptMarks, ok := promptMarksInterface.([]structs.BranchConfig)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for PromptMarks, fetching default")
-		return getPromptMarksInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return promptMarks
-}
-
-// 获取 EnhancedQA
-func GetEnhancedQA(options ...string) bool {
-	mu.Lock()
-	defer mu.Unlock()
-	return getEnhancedQAInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getEnhancedQAInternal(options ...string) bool {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.EnhancedQA
-		}
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to GlobalGroupMsgRejectReciveEventToMessage.")
 		return false
 	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	enhancedQAInterface, err := prompt.GetSettingFromFilename(basename, "EnhancedQA")
-	if err != nil {
-		log.Println("Error retrieving EnhancedQA:", err)
-		return getEnhancedQAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	enhancedQA, ok := enhancedQAInterface.(bool)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for EnhancedQA, fetching default")
-		return getEnhancedQAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return enhancedQA
+	return instance.Settings.GlobalGroupMsgRejectReciveEventToMessage
 }
 
-// 获取 PromptChoicesQ
-func GetPromptChoicesQ(options ...string) []structs.PromptChoice {
-	mu.Lock()
-	defer mu.Unlock()
-	return getPromptChoicesQInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptChoicesQInternal(options ...string) []structs.PromptChoice {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.PromptChoicesQ
-		}
-		return nil // 如果实例或设置未定义，返回nil
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	promptChoicesInterface, err := prompt.GetSettingFromFilename(basename, "PromptChoicesQ")
-	if err != nil {
-		log.Println("Error retrieving PromptChoicesQ:", err)
-		return getPromptChoicesQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	promptChoices, ok := promptChoicesInterface.([]structs.PromptChoice)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for PromptChoicesQ, fetching default")
-		return getPromptChoicesQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return promptChoices
-}
-
-// 获取 PromptChanceQ
-func GetPromptChanceQ(options ...string) []structs.PromptChance {
-	mu.Lock()
-	defer mu.Unlock()
-	return getPromptChanceQInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptChanceQInternal(options ...string) []structs.PromptChance {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.PromptChanceQ
-		}
-		return nil // 如果实例或设置未定义，返回nil
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	promptChanceInterface, err := prompt.GetSettingFromFilename(basename, "PromptChanceQ")
-	if err != nil {
-		log.Println("Error retrieving PromptChanceQ:", err)
-		return getPromptChanceQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	promptChances, ok := promptChanceInterface.([]structs.PromptChance)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for PromptChanceQ, fetching default")
-		return getPromptChanceQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return promptChances
-}
-
-// 获取 PromptChoicesA
-func GetPromptChoicesA(options ...string) []structs.PromptChoice {
-	mu.Lock()
-	defer mu.Unlock()
-	return getPromptChoicesAInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptChoicesAInternal(options ...string) []structs.PromptChoice {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.PromptChoicesA
-		}
-		return nil // 如果实例或设置未定义，返回nil
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	promptChoicesInterface, err := prompt.GetSettingFromFilename(basename, "PromptChoicesA")
-	if err != nil {
-		log.Println("Error retrieving PromptChoicesA:", err)
-		return getPromptChoicesAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	promptChoices, ok := promptChoicesInterface.([]structs.PromptChoice)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for PromptChoicesA, fetching default")
-		return getPromptChoicesAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return promptChoices
-}
-
-// 获取switchOnQ
-func GetSwitchOnQ(options ...string) []structs.PromptSwitch {
-	mu.Lock()
-	defer mu.Unlock()
-	return getSwitchOnQInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getSwitchOnQInternal(options ...string) []structs.PromptSwitch {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.SwitchOnQ
-		}
-		return nil // 默认值为空数组
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	switchOnQInterface, err := prompt.GetSettingFromFilename(basename, "SwitchOnQ")
-	if err != nil {
-		log.Println("Error retrieving SwitchOnQ:", err)
-		return getSwitchOnQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	switchOnQ, ok := switchOnQInterface.([]structs.PromptSwitch)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for SwitchOnQ, fetching default")
-		return getSwitchOnQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return switchOnQ
-}
-
-// 获取switchOnA
-func GetSwitchOnA(options ...string) []structs.PromptSwitch {
-	mu.Lock()
-	defer mu.Unlock()
-	return getSwitchOnAInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getSwitchOnAInternal(options ...string) []structs.PromptSwitch {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.SwitchOnA
-		}
-		return nil // 默认值为空数组
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	switchOnAInterface, err := prompt.GetSettingFromFilename(basename, "SwitchOnA")
-	if err != nil {
-		log.Println("Error retrieving SwitchOnA:", err)
-		return getSwitchOnAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	switchOnA, ok := switchOnAInterface.([]structs.PromptSwitch)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for SwitchOnA, fetching default")
-		return getSwitchOnAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return switchOnA
-}
-
-// 获取ExitOnQ
-func GetExitOnQ(options ...string) []structs.PromptExit {
-	mu.Lock()
-	defer mu.Unlock()
-	return getExitOnQInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getExitOnQInternal(options ...string) []structs.PromptExit {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.ExitOnQ
-		}
-		return nil // 默认值为空数组
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	exitOnQInterface, err := prompt.GetSettingFromFilename(basename, "ExitOnQ")
-	if err != nil {
-		log.Println("Error retrieving ExitOnQ:", err)
-		return getExitOnQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	exitOnQ, ok := exitOnQInterface.([]structs.PromptExit)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for ExitOnQ, fetching default")
-		return getExitOnQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return exitOnQ
-}
-
-// 获取ExitOnA
-func GetExitOnA(options ...string) []structs.PromptExit {
-	mu.Lock()
-	defer mu.Unlock()
-	return getExitOnAInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getExitOnAInternal(options ...string) []structs.PromptExit {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.ExitOnA
-		}
-		return nil // 默认值为空数组
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	exitOnAInterface, err := prompt.GetSettingFromFilename(basename, "ExitOnA")
-	if err != nil {
-		log.Println("Error retrieving ExitOnA:", err)
-		return getExitOnAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	exitOnA, ok := exitOnAInterface.([]structs.PromptExit)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for ExitOnA, fetching default")
-		return getExitOnAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return exitOnA
-}
-
-// 获取EnvType
-func GetEnvType(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getEnvTypeInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getEnvTypeInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.EnvType
-		}
-		return 0 // 如果实例或设置未定义，返回默认值0
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	envTypeInterface, err := prompt.GetSettingFromFilename(basename, "EnvType")
-	if err != nil {
-		log.Println("Error retrieving EnvType:", err)
-		return getEnvTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	envType, ok := envTypeInterface.(int)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for EnvType, fetching default")
-		return getEnvTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return envType
-}
-
-// 获取 PromptCoverQ
-func GetPromptCoverQ(options ...string) []structs.PromptChoice {
-	mu.Lock()
-	defer mu.Unlock()
-	return getPromptCoverQInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptCoverQInternal(options ...string) []structs.PromptChoice {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.PromptCoverQ
-		}
-		return nil // 如果实例或设置未定义，返回nil
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	promptCoverInterface, err := prompt.GetSettingFromFilename(basename, "PromptCoverQ")
-	if err != nil {
-		log.Println("Error retrieving PromptCoverQ:", err)
-		return getPromptCoverQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	promptCover, ok := promptCoverInterface.([]structs.PromptChoice)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for PromptCoverQ, fetching default")
-		return getPromptCoverQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return promptCover
-}
-
-// 获取 PromptCoverA
-func GetPromptCoverA(options ...string) []structs.PromptChoice {
-	mu.Lock()
-	defer mu.Unlock()
-	return getPromptCoverAInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getPromptCoverAInternal(options ...string) []structs.PromptChoice {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.PromptCoverA
-		}
-		return nil // 如果实例或设置未定义，返回nil
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	promptCoverInterface, err := prompt.GetSettingFromFilename(basename, "PromptCoverA")
-	if err != nil {
-		log.Println("Error retrieving PromptCoverA:", err)
-		return getPromptCoverAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	promptCover, ok := promptCoverInterface.([]structs.PromptChoice)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for PromptCoverA, fetching default")
-		return getPromptCoverAInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return promptCover
-}
-
-// 获取 EnvPics
-func GetEnvPics(options ...string) []string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getEnvPicsInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getEnvPicsInternal(options ...string) []string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.EnvPics
-		}
-		return nil // 如果实例或设置未定义，返回nil
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	envPicsInterface, err := prompt.GetSettingFromFilename(basename, "EnvPics")
-	if err != nil {
-		log.Println("Error retrieving EnvPics:", err)
-		return getEnvPicsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	envPics, ok := envPicsInterface.([]string)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for EnvPics, fetching default")
-		return getEnvPicsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return envPics
-}
-
-// 获取 EnvContents
-func GetEnvContents(options ...string) []string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getEnvContentsInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getEnvContentsInternal(options ...string) []string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.EnvContents
-		}
-		return nil // 如果实例或设置未定义，返回nil
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	envContentsInterface, err := prompt.GetSettingFromFilename(basename, "EnvContents")
-	if err != nil {
-		log.Println("Error retrieving EnvContents:", err)
-		return getEnvContentsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	envContents, ok := envContentsInterface.([]string)
-	if !ok { // 检查是否断言失败
-		log.Println("Type assertion failed for EnvContents, fetching default")
-		return getEnvContentsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return envContents
-}
-
-// 群内md气泡
-func GetMdPromptKeyboardAtGroup() bool {
+// 获取GlobalGroupMsgRejectMessage
+func GetGlobalGroupMsgRejectMessage() string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.MdPromptKeyboardAtGroup
+		return instance.Settings.GlobalGroupMsgRejectMessage
 	}
-	return false
+	return ""
 }
 
-// 第四个气泡
-func GetNo4Promptkeyboard() bool {
+// 获取GlobalGroupMsgRejectMessage
+func GetGlobalGroupMsgReceiveMessage() string {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance != nil {
-		return instance.Settings.No4Promptkeyboard
+		return instance.Settings.GlobalGroupMsgReceiveMessage
 	}
-	return false
+	return ""
 }
 
-// GetTyqwApiPath 获取TYQW API路径，可接受basename作为参数
-func GetTyqwApiPath(options ...string) string {
+// 获取EntersAsBlock状态
+func GetEntersAsBlock() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getTyqwApiPathInternal(options...)
-}
 
-// getTyqwApiPathInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTyqwApiPathInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TyqwApiPath
-		}
-		return "" // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "TyqwApiPath")
-	if err != nil {
-		log.Println("Error retrieving TyqwApiPath:", err)
-		return getTyqwApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	apiPath, ok := apiPathInterface.(string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for TyqwApiPath, fetching default")
-		return getTyqwApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if apiPath == "" {
-		return getTyqwApiPathInternal()
-	}
-
-	return apiPath
-}
-
-// 获取TYQW最大Token数量，可接受basename作为参数
-func GetTyqwMaxTokens(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getTyqwMaxTokensInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTyqwMaxTokensInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TyqwMaxTokens
-		}
-		return 0 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	maxTokensInterface, err := prompt.GetSettingFromFilename(basename, "TyqwMaxTokens")
-	if err != nil {
-		log.Println("Error retrieving TyqwMaxTokens:", err)
-		return getTyqwMaxTokensInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	maxTokens, ok := maxTokensInterface.(int)
-	if !ok { // 检查类型断言是否失败
-		fmt.Println("Type assertion failed for TyqwMaxTokens, fetching default")
-		return getTyqwMaxTokensInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if maxTokens == 0 {
-		return getTyqwMaxTokensInternal()
-	}
-
-	return maxTokens
-}
-
-// GetTyqwTemperature 获取TYQW温度设置，可接受basename作为参数
-func GetTyqwTemperature(options ...string) float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	return getTyqwTemperatureInternal(options...)
-}
-
-// getTyqwTemperatureInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTyqwTemperatureInternal(options ...string) float64 {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TyqwTemperature
-		}
-		return 0.0 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	temperatureInterface, err := prompt.GetSettingFromFilename(basename, "TyqwTemperature")
-	if err != nil {
-		log.Println("Error retrieving TyqwTemperature:", err)
-		return getTyqwTemperatureInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	temperature, ok := temperatureInterface.(float64)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for TyqwTemperature, fetching default")
-		return getTyqwTemperatureInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if temperature == 0 {
-		return getTyqwTemperatureInternal()
-	}
-
-	return temperature
-}
-
-// GetTyqwTopP 获取TYQW Top P值，可接受basename作为参数
-func GetTyqwTopP(options ...string) float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	return getTyqwTopPInternal(options...)
-}
-
-// getTyqwTopPInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTyqwTopPInternal(options ...string) float64 {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TyqwTopP
-		}
-		return 0.0 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	topPInterface, err := prompt.GetSettingFromFilename(basename, "TyqwTopP")
-	if err != nil {
-		log.Println("Error retrieving TyqwTopP:", err)
-		return getTyqwTopPInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	topP, ok := topPInterface.(float64)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for TyqwTopP, fetching default")
-		return getTyqwTopPInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if topP == 0 {
-		return getTyqwTopPInternal()
-	}
-
-	return topP
-}
-
-// GetTyqwTopK 获取TYQW Top K设置，可接受basename作为参数
-func GetTyqwTopK(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getTyqwTopKInternal(options...)
-}
-
-// getTyqwTopKInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTyqwTopKInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TyqwTopK
-		}
-		return 0 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	topKInterface, err := prompt.GetSettingFromFilename(basename, "TyqwTopK")
-	if err != nil {
-		log.Println("Error retrieving TyqwTopK:", err)
-		return getTyqwTopKInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	topK, ok := topKInterface.(int)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for TyqwTopK, fetching default")
-		return getTyqwTopKInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if topK == 0 {
-		return getTyqwTopKInternal()
-	}
-
-	return topK
-}
-
-// GetTyqwSseType 获取TYQW SSE类型，可接受basename作为参数
-func GetTyqwSseType(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getTyqwSseTypeInternal(options...)
-}
-
-// getTyqwSseTypeInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTyqwSseTypeInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TyqwSseType
-		}
-		return 0 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	sseTypeInterface, err := prompt.GetSettingFromFilename(basename, "TyqwSseType")
-	if err != nil {
-		log.Println("Error retrieving TyqwSseType:", err)
-		return getTyqwSseTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	sseType, ok := sseTypeInterface.(int)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for TyqwSseType, fetching default")
-		return getTyqwSseTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if sseType == 0 {
-		return getTyqwSseTypeInternal()
-	}
-
-	return sseType
-}
-
-// 获取TYQW用户名
-func GetTyqwUserName() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwUserName
-	}
-	return "" // 默认值或错误处理
-}
-
-// 获取TYQW助手名称
-func GetTyqwAssistantName() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwAssistantName
-	}
-	return "" // 默认值或错误处理
-}
-
-// 获取TYQW系统名称
-func GetTyqwSystemName() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwSystemName
-	}
-	return "" // 默认值或错误处理
-}
-
-// 获取TYQW是否在系统层面进行预处理
-func GetTyqwPreSystem() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwPreSystem
-	}
-	return false // 默认值或错误处理
-}
-
-// 获取TYQW重复度惩罚因子
-func GetTyqwRepetitionPenalty() float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwRepetitionPenalty
-	}
-	return 1.0 // 默认值或错误处理
-}
-
-// 获取TYQW停止标记
-func GetTyqwStopTokens() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwStop
-	}
-	return nil // 默认值或错误处理
-}
-
-// 获取TYQW随机数种子
-func GetTyqwSeed() int64 {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwSeed
-	}
-	return 0 // 默认值或错误处理
-}
-
-// 获取TYQW是否启用互联网搜索
-func GetTyqwEnableSearch() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.TyqwEnableSearch
-	}
-	return false // 默认值或错误处理
-}
-
-// GetTyqwModel 获取TYQW模型名称，可接受basename作为参数
-func GetTyqwModel(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getTyqwModelInternal(options...)
-}
-
-// getTyqwModelInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTyqwModelInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TyqwModel
-		}
-		return "default-model" // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	modelInterface, err := prompt.GetSettingFromFilename(basename, "TyqwModel")
-	if err != nil {
-		log.Println("Error retrieving TyqwModel:", err)
-		return getTyqwModelInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	model, ok := modelInterface.(string)
-	if !ok || model == "" { // 检查类型断言是否失败或结果为空字符串
-		log.Println("Type assertion failed or empty string for TyqwModel, fetching default")
-		return getTyqwModelInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if model == "" {
-		return getTyqwModelInternal()
-	}
-
-	return model
-}
-
-// GetTyqwKey 获取TYQW API Key，可接受basename作为参数
-func GetTyqwKey(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getTyqwKeyInternal(options...)
-}
-
-// getTyqwKeyInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTyqwKeyInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TyqwApiKey
-		}
-		return "" // 默认值或错误处理，表示没有找到有效的API Key
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	apiKeyInterface, err := prompt.GetSettingFromFilename(basename, "TyqwApiKey")
-	if err != nil {
-		log.Println("Error retrieving TyqwApiKey:", err)
-		return getTyqwKeyInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	apiKey, ok := apiKeyInterface.(string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for TyqwApiKey, fetching default")
-		return getTyqwKeyInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if apiKey == "" {
-		return getTyqwKeyInternal()
-	}
-
-	return apiKey
-}
-
-// 获取TYQW Workspace
-func GetTyqworkspace() (string, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		if instance.Settings.TyqwWorkspace == "" {
-			return "", fmt.Errorf("workspace is not configured") // 错误处理，当workspace未配置时
-		}
-		return instance.Settings.TyqwWorkspace, nil
-	}
-	return "", fmt.Errorf("configuration instance is not initialized") // 错误处理，当配置实例未初始化时
-}
-
-// GetGlmApiPath 获取GLM API路径，可接受basename作为参数
-func GetGlmApiPath(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGlmApiPathInternal(options...)
-}
-
-// getGlmApiPathInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGlmApiPathInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GlmApiPath
-		}
-		return "" // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	apiPathInterface, err := prompt.GetSettingFromFilename(basename, "GlmApiPath")
-	if err != nil {
-		log.Println("Error retrieving GlmApiPath:", err)
-		return getGlmApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	apiPath, ok := apiPathInterface.(string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for GlmApiPath, fetching default")
-		return getGlmApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if apiPath == "" {
-		return getGlmApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return apiPath
-}
-
-// GetGlmModel 获取模型编码，可接受basename作为参数
-func GetGlmModel(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGlmModelInternal(options...)
-}
-
-// getGlmModelInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGlmModelInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GlmModel
-		}
-		return "" // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	modelInterface, err := prompt.GetSettingFromFilename(basename, "GlmModel")
-	if err != nil {
-		log.Println("Error retrieving GlmModel:", err)
-		return getGlmModelInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	model, ok := modelInterface.(string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for GlmModel, fetching default")
-		return getGlmModelInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if model == "" {
-		return getGlmModelInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return model
-}
-
-// GetGlmApiKey 获取glm密钥，可接受basename作为参数
-func GetGlmApiKey(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGlmApiKeyInternal(options...)
-}
-
-// getGlmApiKeyInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGlmApiKeyInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GlmApiKey
-		}
-		return "" // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	apiKeyInterface, err := prompt.GetSettingFromFilename(basename, "GlmApiKey")
-	if err != nil {
-		log.Println("Error retrieving GlmApiKey:", err)
-		return getGlmApiKeyInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	apiKey, ok := apiKeyInterface.(string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for GlmApiKey, fetching default")
-		return getGlmApiKeyInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if apiKey == "" {
-		return getGlmApiKeyInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return apiKey
-}
-
-// GetGlmMaxTokens 获取模型输出的最大tokens数，可接受basename作为参数
-func GetGlmMaxTokens(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGlmMaxTokensInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGlmMaxTokensInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GlmMaxTokens
-		}
-		return 1024 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename 来查找特定配置
-	basename := options[0]
-	maxTokensInterface, err := prompt.GetSettingFromFilename(basename, "GlmMaxTokens")
-	if err != nil {
-		log.Println("Error retrieving GlmMaxTokens:", err)
-		return getGlmMaxTokensInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	maxTokens, ok := maxTokensInterface.(int)
-	if !ok { // 检查类型断言是否失败
-		fmt.Println("Type assertion failed for GlmMaxTokens, fetching default")
-		return getGlmMaxTokensInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if maxTokens == 0 {
-		return getGlmMaxTokensInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return maxTokens
-}
-
-// GetGlmTemperature 获取模型的采样温度，可接受basename作为参数
-func GetGlmTemperature(options ...string) float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGlmTemperatureInternal(options...)
-}
-
-// getGlmTemperatureInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGlmTemperatureInternal(options ...string) float64 {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GlmTemperature
-		}
-		return 0.95 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	temperatureInterface, err := prompt.GetSettingFromFilename(basename, "GlmTemperature")
-	if err != nil {
-		log.Println("Error retrieving GlmTemperature:", err)
-		return getGlmTemperatureInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	temperature, ok := temperatureInterface.(float64)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for GlmTemperature, fetching default")
-		return getGlmTemperatureInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if temperature == 0 {
-		return getGlmTemperatureInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return temperature
-}
-
-// GetGlmDoSample 获取是否启用采样策略
-func GetGlmDoSample() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmDoSample
-	}
-	return true // 返回默认值
-}
-
-// GetGlmToolChoice 获取工具选择策略
-func GetGlmToolChoice() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmToolChoice
-	}
-	return "auto" // 返回默认值
-}
-
-// GetGlmUserID 获取终端用户的唯一ID
-func GetGlmUserID() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmUserID
-	}
-	return "" // 如果没有配置则返回空字符串
-}
-
-// GetGlmRequestID 获取请求的唯一标识
-func GetGlmRequestID() string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmRequestID
-	}
-	return "" // 返回默认值，表示没有设置
-}
-
-// GetGlmTopP 获取核取样概率，可接受basename作为参数
-func GetGlmTopP(options ...string) float64 {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGlmTopPInternal(options...)
-}
-
-// getGlmTopPInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGlmTopPInternal(options ...string) float64 {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GlmTopP
-		}
-		return 0.7 // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	topPInterface, err := prompt.GetSettingFromFilename(basename, "GlmTopP")
-	if err != nil {
-		log.Println("Error retrieving GlmTopP:", err)
-		return getGlmTopPInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	topP, ok := topPInterface.(float64)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for GlmTopP, fetching default")
-		return getGlmTopPInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if topP == 0 {
-		return getGlmTopPInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return topP
-}
-
-// GetGlmStop 获取停止生成的词列表
-func GetGlmStop() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmStop
-	}
-	return nil // 返回空切片，表示没有设置停止词
-}
-
-// GetGlmTools 获取可调用的工具列表
-func GetGlmTools() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance != nil {
-		return instance.Settings.GlmTools
-	}
-	return []string{} // 返回空切片，表示没有工具设置
-}
-
-// GetGroupHintWords 获取GroupHintWords列表，可接受basename作为参数
-func GetGroupHintWords(options ...string) []string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGroupHintWordsInternal(options...)
-}
-
-// getGroupHintWordsInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGroupHintWordsInternal(options ...string) []string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GroupHintWords
-		}
-		return nil // 默认值或错误处理
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	hintWordsInterface, err := prompt.GetSettingFromFilename(basename, "GroupHintWords")
-	if err != nil {
-		log.Println("Error retrieving GroupHintWords:", err)
-		return getGroupHintWordsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	hintWords, ok := hintWordsInterface.([]string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for GroupHintWords, fetching default")
-		return getGroupHintWordsInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return hintWords
-}
-
-// 获取HunyuanStreamModeration值
-func GetHunyuanStreamModeration(options ...string) bool {
-	mu.Lock()
-	defer mu.Unlock()
-	return getHunyuanStreamModerationInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getHunyuanStreamModerationInternal(options ...string) bool {
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.HunyuanStreamModeration
-		}
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to EntersAsBlock.")
 		return false
 	}
-
-	basename := options[0]
-	valueInterface, err := prompt.GetSettingFromFilename(basename, "HunyuanStreamModeration")
-	if err != nil {
-		log.Println("Error retrieving HunyuanStreamModeration:", err)
-		return getHunyuanStreamModerationInternal()
-	}
-
-	value, ok := valueInterface.(bool)
-	if !ok || !value {
-		log.Println("Fetching default HunyuanStreamModeration")
-		return getHunyuanStreamModerationInternal()
-	}
-
-	return value
+	return instance.Settings.EntersAsBlock
 }
 
-// 获取TopPHunyuan值
-func GetTopPHunyuan(options ...string) float64 {
+// 获取NativeMD状态
+func GetNativeMD() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getTopPHunyuanInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to NativeMD.")
+		return false
+	}
+	return instance.Settings.NativeMD
 }
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTopPHunyuanInternal(options ...string) float64 {
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TopPHunyuan
-		}
-		return 0.0
-	}
-
-	basename := options[0]
-	valueInterface, err := prompt.GetSettingFromFilename(basename, "TopPHunyuan")
-	if err != nil {
-		log.Println("Error retrieving TopPHunyuan:", err)
-		return getTopPHunyuanInternal()
-	}
-
-	value, ok := valueInterface.(float64)
-	if !ok || value == 0.0 {
-		log.Println("Fetching default TopPHunyuan")
-		return getTopPHunyuanInternal()
-	}
-
-	return value
-}
-
-// 获取TemperatureHunyuan值
-func GetTemperatureHunyuan(options ...string) float64 {
+// 获取DowntimeMessage
+func GetDowntimeMessage() string {
 	mu.Lock()
 	defer mu.Unlock()
-	return getTemperatureHunyuanInternal(options...)
+	if instance != nil {
+		return instance.Settings.DowntimeMessage
+	}
+	return ""
 }
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getTemperatureHunyuanInternal(options ...string) float64 {
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.TemperatureHunyuan
-		}
-		return 0.0
-	}
-
-	basename := options[0]
-	valueInterface, err := prompt.GetSettingFromFilename(basename, "TemperatureHunyuan")
-	if err != nil {
-		log.Println("Error retrieving TemperatureHunyuan:", err)
-		return getTemperatureHunyuanInternal()
-	}
-
-	value, ok := valueInterface.(float64)
-	if !ok || value == 0.0 {
-		log.Println("Fetching default TemperatureHunyuan")
-		return getTemperatureHunyuanInternal()
-	}
-
-	return value
-}
-
-// GetYuanqiConf return conf.YuanqiAssistantID, conf.YuanqiToken
-func GetYuanqiConf(options ...string) (string, string) {
+// 获取GetAutoLink的值
+func GetAutoLink() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getYuanqiConfInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to AutoLink value.")
+		return false
+	}
+	return instance.Settings.AutoLink
 }
 
-// getYuanqiConfInternal 内部递归函数，处理配置获取逻辑
-func getYuanqiConfInternal(options ...string) (string, string) {
-	if len(options) == 0 || options[0] == "" {
-		// 从instance中读取配置数组
-		if instance != nil && len(instance.Settings.Yuanqiconfs) > 0 {
-			// 从instance全局变量中随机选择一个配置
-			index := rand.Intn(len(instance.Settings.Yuanqiconfs))
-			conf := instance.Settings.Yuanqiconfs[index]
-			return conf.YuanqiAssistantID, conf.YuanqiToken
-		} else {
-			return "", ""
-		}
-	}
-
-	// 使用prompt包从指定的文件名中获取配置
-	basename := options[0]
-	confInterface, err := prompt.GetSettingFromFilename(basename, "Yuanqiconfs")
-	if err != nil {
-		log.Printf("Error retrieving settings from file: %s, error: %v", basename, err)
-		return getYuanqiConfInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	// 断言获取的interface{}为[]YuanqiConf
-	confs, ok := confInterface.([]structs.YuanqiConf)
-	if !ok {
-		log.Println("Type assertion failed for YuanqiConfs, attempting default behavior")
-		return getYuanqiConfInternal() // 递归调用内部函数，尝试默认配置
-	}
-
-	if len(confs) == 0 {
-		log.Println("No configurations found in file:", basename)
-		return getYuanqiConfInternal() // 递归调用内部函数，尝试默认配置
-	}
-
-	// 随机选择一个配置返回
-	index := rand.Intn(len(confs))
-	conf := confs[index]
-	return conf.YuanqiAssistantID, conf.YuanqiToken
-}
-
-// 获取 ReplacementPairsIn
-func GetReplacementPairsIn(options ...string) []structs.ReplacementPair {
+// 获取GetLinkLines的值
+func GetLinkLines() int {
 	mu.Lock()
 	defer mu.Unlock()
-	return getReplacementPairsInInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to LinkLines value.")
+		return 2 //默认2个一行
+	}
+
+	return instance.Settings.LinkLines
 }
 
-// getReplacementPairsInInternal 内部递归函数，处理配置获取逻辑
-func getReplacementPairsInInternal(options ...string) []structs.ReplacementPair {
-	// 从instance中读取配置数组
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil && len(instance.Settings.ReplacementPairsIn) > 0 {
-			return instance.Settings.ReplacementPairsIn
-		} else {
-			return nil
-		}
-	}
-
-	// 使用prompt包从指定的文件名中获取配置
-	basename := options[0]
-	confInterface, err := prompt.GetSettingFromFilename(basename, "ReplacementPairsIn")
-	if err != nil {
-		log.Printf("Error retrieving settings from file: %s, error: %v", basename, err)
-		return getReplacementPairsInInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	// 断言获取的interface{}为[]ReplacementPair
-	confs, ok := confInterface.([]structs.ReplacementPair)
-	if !ok {
-		log.Println("Type assertion failed for ReplacementPair, attempting default behavior")
-		return getReplacementPairsInInternal() // 递归调用内部函数，尝试默认配置
-	}
-
-	if len(confs) == 0 {
-		log.Println("No configurations found in file:", basename)
-		return getReplacementPairsInInternal() // 递归调用内部函数，尝试默认配置
-	}
-
-	return confs
-}
-
-// 获取 ReplacementPairsOut
-func GetReplacementPairsOut(options ...string) []structs.ReplacementPair {
+// 获取GetLinkNum的值
+func GetLinkNum() int {
 	mu.Lock()
 	defer mu.Unlock()
-	return getReplacementPairsOutInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to LinkNum value.")
+		return 6 //默认6个
+	}
+
+	return instance.Settings.LinkNum
 }
 
-// getReplacementPairsInOutternal 内部递归函数，处理配置获取逻辑
-func getReplacementPairsOutInternal(options ...string) []structs.ReplacementPair {
-	// 从instance中读取配置数组
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil && len(instance.Settings.ReplacementPairsOut) > 0 {
-			return instance.Settings.ReplacementPairsOut
-		} else {
-			return nil
-		}
-	}
-
-	// 使用prompt包从指定的文件名中获取配置
-	basename := options[0]
-	confInterface, err := prompt.GetSettingFromFilename(basename, "ReplacementPairsOut")
-	if err != nil {
-		log.Printf("Error retrieving settings from file: %s, error: %v", basename, err)
-		return getReplacementPairsOutInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	// 断言获取的interface{}为[]ReplacementPair
-	confs, ok := confInterface.([]structs.ReplacementPair)
-	if !ok {
-		log.Println("Type assertion failed for ReplacementPair, attempting default behavior")
-		return getReplacementPairsOutInternal() // 递归调用内部函数，尝试默认配置
-	}
-
-	if len(confs) == 0 {
-		log.Println("No configurations found in file:", basename)
-		return getReplacementPairsOutInternal() // 递归调用内部函数，尝试默认配置
-	}
-
-	return confs
-}
-
-// 获取助手版本
-func GetYuanqiVersion(options ...string) float64 {
+// 获取GetDoNotReplaceAppid的值
+func GetDoNotReplaceAppid() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getYuanqiVersionInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to DoNotReplaceAppid value.")
+		return false
+	}
+	return instance.Settings.DoNotReplaceAppid
 }
 
-func getYuanqiVersionInternal(options ...string) float64 {
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.YuanqiVersion
-		}
-		return 0.0 // 默认值或错误处理
-	}
-
-	basename := options[0]
-	versionInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiVersion")
-	if err != nil {
-		log.Println("Error retrieving YuanqiVersion:", err)
-		return getYuanqiVersionInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	version, ok := versionInterface.(float64)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for YuanqiVersion, fetching default")
-		return getYuanqiVersionInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if version == 0 {
-		return getYuanqiVersionInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return version
-}
-
-// 获取聊天类型
-func GetYuanqiChatType(options ...string) string {
+// 获取GetMemoryMsgid的值
+func GetMemoryMsgid() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getYuanqiChatTypeInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to MemoryMsgid value.")
+		return false
+	}
+	return instance.Settings.MemoryMsgid
 }
 
-func getYuanqiChatTypeInternal(options ...string) string {
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.YuanqiChatType
-		}
-		return "published" // 默认值或错误处理
-	}
-
-	basename := options[0]
-	chatTypeInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiChatType")
-	if err != nil {
-		log.Println("Error retrieving YuanqiChatType:", err)
-		return getYuanqiChatTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	chatType, ok := chatTypeInterface.(string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for YuanqiChatType, fetching default")
-		return getYuanqiChatTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if chatType == "" {
-		return getYuanqiChatTypeInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return chatType
-}
-
-// 获取API地址
-func GetYuanqiApiPath(options ...string) string {
+// 获取GetLotusGrpc的值
+func GetLotusGrpc() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getYuanqiApiPathInternal(options...)
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to LotusGrpc value.")
+		return false
+	}
+	return instance.Settings.LotusGrpc
 }
 
-func getYuanqiApiPathInternal(options ...string) string {
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.YuanqiApiPath
-		}
-		return "https://open.hunyuan.tencent.com/openapi/v1/agent/chat/completion" // 默认值或错误处理
-	}
-
-	basename := options[0]
-	chatTypeInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiApiPath")
-	if err != nil {
-		log.Println("Error retrieving YuanqiApiPath:", err)
-		return getYuanqiApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	YuanqiApiPath, ok := chatTypeInterface.(string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for YuanqiApiPath, fetching default")
-		return getYuanqiApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if YuanqiApiPath == "" {
-		return getYuanqiApiPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return YuanqiApiPath
-}
-
-// 获取YuanqiMaxToken
-func GetYuanqiMaxToken(options ...string) int {
+// 获取LotusWithoutUploadPic的值
+func GetLotusWithoutUploadPic() bool {
 	mu.Lock()
 	defer mu.Unlock()
-	return getYuanqiMaxTokenInternal(options...)
-}
 
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getYuanqiMaxTokenInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.YuanqiMaxToken
-		}
-		return 0
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to LotusWithoutUploadPic value.")
+		return false
 	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	YuanqiMaxTokenInterface, err := prompt.GetSettingFromFilename(basename, "YuanqiMaxToken")
-	if err != nil {
-		log.Println("Error retrieving MaxTokenYuanQi:", err)
-		return getYuanqiMaxTokenInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	YuanqiMaxToken, ok := YuanqiMaxTokenInterface.(int)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for MaxTokenYuanQi, fetching default")
-		return getYuanqiMaxTokenInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if YuanqiMaxToken == 0 {
-		return getYuanqiMaxTokenInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return YuanqiMaxToken
-}
-
-// 获取GroupAddNicknameToQ
-func GetGroupAddNicknameToQ(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGroupAddNicknameToQInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGroupAddNicknameToQInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GroupAddNicknameToQ
-		}
-		return 0
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	YuanqiMaxTokenInterface, err := prompt.GetSettingFromFilename(basename, "GroupAddNicknameToQ")
-	if err != nil {
-		log.Println("Error retrieving GroupAddNicknameToQ:", err)
-		return getGroupAddNicknameToQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	GroupAddNicknameToQ, ok := YuanqiMaxTokenInterface.(int)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for GroupAddNicknameToQ, fetching default")
-		return getGroupAddNicknameToQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if GroupAddNicknameToQ == 0 {
-		return getGroupAddNicknameToQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return GroupAddNicknameToQ
-}
-
-// 获取GroupAddCardToQ
-func GetGroupAddCardToQ(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getGroupAddCardToQInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getGroupAddCardToQInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.GroupAddCardToQ
-		}
-		return 0
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	GroupAddCardToQInterface, err := prompt.GetSettingFromFilename(basename, "GroupAddCardToQ")
-	if err != nil {
-		log.Println("Error retrieving GroupAddCardToQ:", err)
-		return getGroupAddCardToQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	GroupAddCardToQ, ok := GroupAddCardToQInterface.(int)
-	if !ok { // 检查是否断言失败
-		fmt.Println("Type assertion failed for GroupAddCardToQ, fetching default")
-		return getGroupAddCardToQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if GroupAddCardToQ == 0 {
-		return getGroupAddCardToQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return GroupAddCardToQ
-}
-
-// 获取 SpecialNameToQ
-func GetSpecialNameToQ(options ...string) []structs.ReplacementNamePair {
-	mu.Lock()
-	defer mu.Unlock()
-	return getSpecialNameToQInternal(options...)
-}
-
-// getReplacementPairsInOutternal 内部递归函数，处理配置获取逻辑
-func getSpecialNameToQInternal(options ...string) []structs.ReplacementNamePair {
-	// 从instance中读取配置数组
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil && len(instance.Settings.SpecialNameToQ) > 0 {
-			return instance.Settings.SpecialNameToQ
-		} else {
-			return nil
-		}
-	}
-
-	// 使用prompt包从指定的文件名中获取配置
-	basename := options[0]
-	confInterface, err := prompt.GetSettingFromFilename(basename, "SpecialNameToQ")
-	if err != nil {
-		log.Printf("Error retrieving settings from file: %s, error: %v", basename, err)
-		return getSpecialNameToQInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	// 断言获取的interface{}为[]ReplacementPair
-	confs, ok := confInterface.([]structs.ReplacementNamePair)
-	if !ok {
-		log.Println("Type assertion failed for ReplacementPair, attempting default behavior")
-		return getSpecialNameToQInternal() // 递归调用内部函数，尝试默认配置
-	}
-
-	if len(confs) == 0 {
-		log.Println("No configurations found in file:", basename)
-		return getSpecialNameToQInternal() // 递归调用内部函数，尝试默认配置
-	}
-
-	return confs
-}
-
-// GetConversationPath 获取ConversationPath，可接受basename作为参数
-func GetConversationPath(options ...string) string {
-	mu.Lock()
-	defer mu.Unlock()
-	return getConversationPathInternal(options...)
-}
-
-// getTyqwApiPathInternal 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getConversationPathInternal(options ...string) string {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			ConversationPath := instance.Settings.ConversationPath
-			if ConversationPath != "" {
-				return ConversationPath
-			} else {
-				return "/conversation" // 默认值 /conversation
-			}
-		}
-		// instance未加载
-		return "/conversation" // 默认值 /conversation
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	ConversationPathInterface, err := prompt.GetSettingFromFilename(basename, "ConversationPath")
-	if err != nil {
-		log.Println("Error retrieving ConversationPath:", err)
-		return getConversationPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	ConversationPath, ok := ConversationPathInterface.(string)
-	if !ok { // 检查类型断言是否失败
-		log.Println("Type assertion failed for ConversationPath, fetching default")
-		return getConversationPathInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	if ConversationPath == "" {
-		return getConversationPathInternal()
-	}
-
-	return ConversationPath
-}
-
-// 获取NoEmoji
-func GetNoEmoji(options ...string) int {
-	mu.Lock()
-	defer mu.Unlock()
-	return getNoEmojiInternal(options...)
-}
-
-// 内部逻辑执行函数，不处理锁，可以安全地递归调用
-func getNoEmojiInternal(options ...string) int {
-	// 检查是否有参数传递进来，以及是否为空字符串
-	if len(options) == 0 || options[0] == "" {
-		if instance != nil {
-			return instance.Settings.NoEmoji
-		}
-		return 0
-	}
-
-	// 使用传入的 basename
-	basename := options[0]
-	NoEmojiInterface, err := prompt.GetSettingFromFilename(basename, "NoEmoji")
-	if err != nil {
-		log.Println("Error retrieving NoEmoji:", err)
-		return getNoEmojiInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	NoEmoji, ok := NoEmojiInterface.(int)
-	if !ok || NoEmoji == 0 { // 检查是否断言失败或结果为空字符串
-		log.Println("Type assertion failed or empty string for NoEmoji, fetching default")
-		return getNoEmojiInternal() // 递归调用内部函数，不传递任何参数
-	}
-
-	return NoEmoji
+	return instance.Settings.LotusWithoutUploadPic
 }
