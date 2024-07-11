@@ -142,17 +142,16 @@ func (app *App) ProcessPromptMarks(userID int64, QorA string, promptStr *string)
 				bestPromptMarksLength = config.GetPromptMarksLength(bestPromptStr)
 			}
 		}
-
-		// 如果找到有效的匹配，则插入记录
-		if maxMatchCount > 0 {
-			err := app.InsertCustomTableRecord(userID, bestPromptStr, bestPromptMarksLength)
-			if err != nil {
-				fmt.Println("Error inserting custom table record:", err)
-				return
-			}
-			// 输出结果
-			fmt.Printf("type1=流转prompt参数: %s, newPromptStrStat: %d\n", bestPromptStr, bestPromptMarksLength)
-			*promptStr = bestPromptStr
+	}
+	// 如果找到有效的匹配，则插入记录
+	if maxMatchCount > 0 {
+		err := app.InsertCustomTableRecord(userID, bestPromptStr, bestPromptMarksLength)
+		if err != nil {
+			fmt.Println("Error inserting custom table record:", err)
+			return
 		}
+		// 输出结果
+		fmt.Printf("type1=流转prompt参数: %s, newPromptStrStat: %d\n", bestPromptStr, bestPromptMarksLength)
+		*promptStr = bestPromptStr
 	}
 }

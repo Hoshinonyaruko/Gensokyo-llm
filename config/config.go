@@ -86,6 +86,16 @@ func Getregion() string {
 	return "0"
 }
 
+// 获取AccessKey
+func GetAccessKey() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.AccessKey
+	}
+	return ""
+}
+
 // 获取useSse
 func GetuseSse(options ...string) int {
 	mu.Lock()
@@ -3429,4 +3439,38 @@ func getConversationPathInternal(options ...string) string {
 	}
 
 	return ConversationPath
+}
+
+// 获取NoEmoji
+func GetNoEmoji(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getNoEmojiInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getNoEmojiInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.NoEmoji
+		}
+		return 0
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	NoEmojiInterface, err := prompt.GetSettingFromFilename(basename, "NoEmoji")
+	if err != nil {
+		log.Println("Error retrieving NoEmoji:", err)
+		return getNoEmojiInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	NoEmoji, ok := NoEmojiInterface.(int)
+	if !ok || NoEmoji == 0 { // 检查是否断言失败或结果为空字符串
+		log.Println("Type assertion failed or empty string for NoEmoji, fetching default")
+		return getNoEmojiInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return NoEmoji
 }

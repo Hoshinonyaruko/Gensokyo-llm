@@ -255,6 +255,11 @@ func SendGroupMessage(groupID int64, userID int64, message string, selfid string
 		message = acnode.CheckWordOUT(message)
 	}
 
+	// 是否不显示Emoji
+	if config.GetNoEmoji(promptstr) == 2 {
+		message = RemoveEmojis(message)
+	}
+
 	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
 	message = ReplaceTextOut(message, promptstr)
 
@@ -358,6 +363,11 @@ func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message strin
 
 	if config.GetSensitiveModeType() == 1 {
 		message = acnode.CheckWordOUT(message)
+	}
+
+	// 是否不显示Emoji
+	if config.GetNoEmoji(promptstr) == 2 {
+		message = RemoveEmojis(message)
 	}
 
 	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
@@ -610,6 +620,11 @@ func SendGroupMessageMdPromptKeyboardV2(groupID int64, userID int64, message str
 		message = acnode.CheckWordOUT(message)
 	}
 
+	// 是否不显示Emoji
+	if config.GetNoEmoji(promptstr) == 2 {
+		message = RemoveEmojis(message)
+	}
+
 	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
 	message = ReplaceTextOut(message, promptstr)
 
@@ -816,6 +831,11 @@ func SendPrivateMessage(UserID int64, message string, selfid string, promptstr s
 		message = acnode.CheckWordOUT(message)
 	}
 
+	// 是否不显示Emoji
+	if config.GetNoEmoji(promptstr) == 2 {
+		message = RemoveEmojis(message)
+	}
+
 	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
 	message = ReplaceTextOut(message, promptstr)
 
@@ -993,6 +1013,11 @@ func SendPrivateMessageSSE(UserID int64, message structs.InterfaceBody, promptst
 	// 检查是否需要启用敏感词过滤
 	if config.GetSensitiveModeType() == 1 && message.Content != "" {
 		message.Content = acnode.CheckWordOUT(message.Content)
+	}
+
+	// 是否不显示Emoji
+	if config.GetNoEmoji(promptstr) == 2 {
+		message.Content = RemoveEmojis(message.Content)
 	}
 
 	//精细化替换 每个yml配置文件都可以具有一个非全局的文本替换规则
@@ -1792,9 +1817,14 @@ func sendDeleteRequest(url string, requestBody []byte) error {
 	return nil
 }
 
-func DeleteLatestMessage(messageType string, id int64, userid int64) error {
-	// 获取基础URL
-	baseURL := config.GetHttpPath() // 假设config.GetHttpPath()返回基础URL
+func DeleteLatestMessage(messageType string, id int64, userid int64, selfid string) error {
+	var baseURL string
+	if len(config.GetHttpPaths()) > 0 {
+		baseURL, _ = GetBaseURLByUserID(selfid)
+	} else {
+		// 获取基础URL
+		baseURL = config.GetHttpPath() // 假设config.getHttpPath()返回基础URL
+	}
 
 	// 构建完整的URL
 	baseURL = baseURL + "/delete_msg"
@@ -1924,4 +1954,15 @@ func ReplaceTextOut(text string, promptstr string) string {
 
 	// 返回替换后的文本
 	return text
+}
+
+// RemoveEmojis 函数用于移除文本中的所有 emoji 表情符号
+func RemoveEmojis(input string) string {
+	// 定义匹配 emoji 表情符号的正则表达式
+	emojiRegex := regexp.MustCompile(`[\p{So}\p{Sc}\p{Sk}\p{S}]`)
+
+	// 使用正则表达式替换掉 emoji 符号
+	output := emojiRegex.ReplaceAllString(input, "")
+
+	return output
 }

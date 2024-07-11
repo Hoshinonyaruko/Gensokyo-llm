@@ -89,16 +89,17 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 
 	//根据是否有prompt参数 选择是否载入config.yml的prompt还是prompts文件夹的
 	if promptstr == "" {
+		// 元器的系统提示词在元器WEBUI内设置。
 		// 获取系统提示词
-		systemPromptContent := config.SystemPrompt()
-		if systemPromptContent != "0" {
-			systemPrompt := structs.Message{
-				Text: systemPromptContent,
-				Role: "system",
-			}
-			// 将系统提示词添加到历史信息的开始
-			history = append([]structs.Message{systemPrompt}, history...)
-		}
+		// systemPromptContent := config.SystemPrompt()
+		// if systemPromptContent != "0" {
+		// 	systemPrompt := structs.Message{
+		// 		Text: systemPromptContent,
+		// 		Role: "system",
+		// 	}
+		// 	// 将系统提示词添加到历史信息的开始
+		// 	history = append([]structs.Message{systemPrompt}, history...)
+		// }
 
 		// 分别获取FirstQ&A, SecondQ&A, ThirdQ&A
 		pairs := []struct {
@@ -127,11 +128,6 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 				// 注意追加的顺序，确保问题在答案之前
 				history = append(history, qMessage, aMessage)
 			}
-		}
-	} else {
-		history, err = prompt.GetMessagesFromFilename(promptstr)
-		if err != nil {
-			fmtf.Printf("prompt.GetMessagesFromFilename error: %v\n", err)
 		}
 	}
 
@@ -182,6 +178,7 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				// 将系统级别QA简单的附加在用户对话前方的位置(ai会知道,但不会主动引导)
+				// 2024-7-11 fix 上面加多了
 				history = append(history, systemHistory...)
 			}
 
@@ -246,10 +243,6 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 
 	// 获取代理服务器地址
 	proxyURL := config.GetProxy(promptstr)
-	if err != nil {
-		http.Error(w, fmtf.Sprintf("Failed to get proxy: %v", err), http.StatusInternalServerError)
-		return
-	}
 
 	client := &http.Client{}
 
@@ -519,8 +512,8 @@ func (app *App) ChatHandlerYuanQi(w http.ResponseWriter, r *http.Request) {
 
 func truncateHistoryYuanQi(history []structs.Message, prompt string, promptstr string) []structs.Message {
 	MAX_TOKENS := config.GetYuanqiMaxToken(promptstr)
-	fmtf.Printf("测试,该用户最大上下文长度:%v\n", MAX_TOKENS)
-	fmtf.Printf("测试,该用户当前上下文:%v\n", history)
+	//fmtf.Printf("测试,该用户最大上下文长度:%v\n", MAX_TOKENS)
+	//fmtf.Printf("测试,该用户当前上下文:%v\n", history)
 
 	tokenCount := len(prompt)
 	for _, msg := range history {

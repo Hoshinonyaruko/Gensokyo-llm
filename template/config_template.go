@@ -16,6 +16,7 @@ settings:
   pathToken : ""                                #gensokyo正向http-api的access_token(是onebotv11标准的)
   apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt 3=rwkv 4=通义千问 5=智谱AI 6=腾讯元器
   iPWhiteList : ["192.168.0.102"]               #接口调用,安全ip白名单,gensokyo的ip地址,或调用api的程序的ip地址
+  accessKey : ""                                #白名单ip未符合时,校验url参数&access_token=xxxx是否匹配
   systemPrompt : [""]                           #人格提示词,或多个随机
   firstQ : [""]                                 #强化思想钢印,在每次对话的system之前固定一个QA,需都填写内容,会增加token消耗,可一定程度提高人格提示词效果,或抵抗催眠
   firstA : [""]                                 #强化思想钢印,在每次对话的system之前固定一个QA,需都填写内容,会增加token消耗,可一定程度提高人格提示词效果,或抵抗催眠
@@ -54,6 +55,7 @@ settings:
   groupContext : 0                              #群上下文 在智能体在群内时,以群为单位处理上下文. 0=默认 1=一个人一个上下文 2=群聊共享上下文
   groupAddNicknameToQ : 0                       #群上下文增加message.sender.nickname到上下文(昵称)让模型能知道发送者名字 0=默认 1=false 2=true
   groupAddCardToQ : 0                           #群上下文增加message.sender.card到上下文(群名片)让模型能知道发送者名字 0=默认 1=false 2=true
+  noEmoji : 0                                   #0=默认,正常发emoji 1=正常发emoji 2=不发任何emoji
   specialNameToQ:                               #开启groupAddNicknameToQ和groupAddCardToQ时有效,应用特殊规则,让模型对某个id产生特殊称谓
   - id: 12345
     name: ""
@@ -160,7 +162,7 @@ settings:
   gptModel : "gpt-3.5-turbo"
   gptApiPath : ""
   gptEmbeddingUrl : ""                          #向量地址,和上面一样,基于标准的openai格式.哎哟..api2d这个向量好贵啊..暂不支持。
-  ptToken : ""
+  gptToken : ""
   maxTokenGpt : 4096
   gptSafeMode : false                           #额外走腾讯云检查安全,但是会额外消耗P数(会给出回复,但可能跑偏)仅api2d支持
   gptModeration : false                         #额外走腾讯云检查安全,不合规直接拦截.(和上面一样但是会直接拦截.)仅api2d支持
