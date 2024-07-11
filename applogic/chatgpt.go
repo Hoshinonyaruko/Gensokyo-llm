@@ -205,8 +205,14 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 	})
 
 	//是否安全模式
+	var boolusesse bool
 	safemode := config.GetGptSafeMode()
 	useSSe := config.GetuseSse(promptstr)
+	if useSSe == 2 {
+		boolusesse = true
+	} else {
+		boolusesse = false
+	}
 	// 腾讯云审核 by api2d
 	gptModeration := config.GetGptModeration()
 	var gptModerationStop bool
@@ -221,14 +227,14 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		requestBody = map[string]interface{}{
 			"model":    model,
 			"messages": messages,
-			"stream":   useSSe,
+			"stream":   boolusesse,
 		}
 	} else {
 		requestBody = map[string]interface{}{
 			"model":           model,
 			"messages":        messages,
 			"safe_mode":       safemode,
-			"stream":          useSSe,
+			"stream":          boolusesse,
 			"moderation":      gptModeration,
 			"moderation_stop": gptModerationStop,
 		}
@@ -259,6 +265,8 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			Proxy: http.ProxyURL(proxy),
 		}
 	}
+
+	fmtf.Printf("Gpt请求地址:%v\n", apiURL)
 
 	// 创建HTTP请求
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(requestBodyJSON))

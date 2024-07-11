@@ -119,8 +119,12 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 检查IP是否在白名单中
 	if !utils.Contains(whiteList, ip) {
-		http.Error(w, "Access denied", http.StatusInternalServerError)
-		return
+		// 尝试获取URL中的access_token
+		accessToken := r.URL.Query().Get("access_token")
+		if accessToken == "" || accessToken != config.GetAccessKey() {
+			http.Error(w, "Access denied", http.StatusForbidden) // 使用403 Forbidden作为更合适的HTTP状态码
+			return
+		}
 	}
 
 	// 读取请求体
@@ -160,7 +164,41 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	promptstr = r.URL.Query().Get("prompt")
 	if promptstr != "" {
 		// 使用 prompt 变量进行后续处理
-		fmt.Printf("收到prompt参数: %s\n", promptstr)
+		fmtf.Printf("收到prompt参数: %s\n", promptstr)
+	}
+
+	var lockPrompt bool
+	// 读取URL参数 "lock_prompt"
+	lockPromptValue := r.URL.Query().Get("lock_prompt")
+	if lockPromptValue != "" {
+		// 转换lockPromptValue从字符串到bool
+		lockPrompt, err = strconv.ParseBool(lockPromptValue)
+		if err != nil {
+			// 如果转换失败，可能是因为参数不存在或参数不是有效的布尔字符串 ("true", "false")
+			fmtf.Printf("错误:无法解析lock_prompt参数: %s\n", err)
+		} else {
+			// 使用 lockPrompt 变量进行后续处理
+			if lockPrompt {
+				fmtf.Println("lock_prompt已激活")
+			}
+		}
+	}
+
+	var nomemory bool
+	// 读取URL参数 "lock_prompt"
+	nomemoryValue := r.URL.Query().Get("no_memory")
+	if nomemoryValue != "" {
+		// 转换lockPromptValue从字符串到bool
+		nomemory, err = strconv.ParseBool(nomemoryValue)
+		if err != nil {
+			// 如果转换失败，可能是因为参数不存在或参数不是有效的布尔字符串 ("true", "false")
+			fmtf.Printf("错误:无法解析no_memory参数: %s\n", err)
+		} else {
+			// 使用 lockPrompt 变量进行后续处理
+			if nomemory {
+				fmtf.Println("no_memory已激活")
+			}
+		}
 	}
 
 	// 判断是否是群聊，然后检查触发词
@@ -203,77 +241,83 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if CustomRecord != nil {
-		// 提示词参数
-		if CustomRecord.PromptStr != "" {
-			// 用数据库读取到的CustomRecord PromptStr去覆盖当前的PromptStr
-			promptstr = CustomRecord.PromptStr
-			fmt.Printf("刷新prompt参数: %s,newPromptStrStat:%d\n", promptstr, CustomRecord.PromptStrStat-1)
-			newPromptStrStat := CustomRecord.PromptStrStat - 1
-			// 根据条件区分群和私聊
-			if config.GetGroupContext() == 2 && message.MessageType != "private" {
-				err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newPromptStrStat)
-				if err != nil {
-					fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
-				}
-			} else {
-				err = app.InsertCustomTableRecord(message.UserID+message.SelfID, promptstr, newPromptStrStat)
-				if err != nil {
-					fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
-				}
-			}
-		}
-
-		// MARK: 提示词之间 整体切换Q
-		if config.GetGroupContext() == 2 && message.MessageType != "private" {
-			app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
-		} else {
-			app.ProcessPromptMarks(message.UserID+message.SelfID, message.Message.(string), &promptstr)
-		}
-
-		// 提示词之间流转 达到信号量
-		if CustomRecord.PromptStrStat-1 <= 0 {
-			PromptMarks := config.GetPromptMarks(promptstr)
-			if len(PromptMarks) != 0 {
-				randomIndex := rand.Intn(len(PromptMarks))
-				selectedBranch := PromptMarks[randomIndex]
-				newPromptStr := selectedBranch.BranchName
-
-				// 刷新新的提示词给用户目前的状态 新的场景应该从1开始
+	// 如果不锁定promptstr,有些场景,不希望promptstr被数据库里的CustomRecord.PromptStr所覆盖,比如功能玩法场景
+	if !lockPrompt {
+		if CustomRecord != nil {
+			// 提示词参数
+			if CustomRecord.PromptStr != "" {
+				// 用数据库读取到的CustomRecord PromptStr去覆盖当前的PromptStr
+				promptstr = CustomRecord.PromptStr
+				fmt.Printf("刷新prompt参数: %s,newPromptStrStat:%d\n", promptstr, CustomRecord.PromptStrStat-1)
+				newPromptStrStat := CustomRecord.PromptStrStat - 1
+				// 根据条件区分群和私聊
 				if config.GetGroupContext() == 2 && message.MessageType != "private" {
-					app.InsertCustomTableRecord(message.GroupID+message.SelfID, newPromptStr, 1)
+					err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newPromptStrStat)
+					if err != nil {
+						fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
+					}
 				} else {
-					app.InsertCustomTableRecord(message.UserID+message.SelfID, newPromptStr, 1)
+					err = app.InsertCustomTableRecord(message.UserID+message.SelfID, promptstr, newPromptStrStat)
+					if err != nil {
+						fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
+					}
 				}
-
-				fmt.Printf("流转prompt参数: %s, newPromptStrStat: %d\n", newPromptStr, 1)
-				promptstr = newPromptStr
 			}
-		}
-	} else {
-		// MARK: 提示词之间 整体切换Q 当用户没有存档时
-		if config.GetGroupContext() == 2 && message.MessageType != "private" {
-			app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
-		} else {
-			app.ProcessPromptMarks(message.UserID+message.SelfID, message.Message.(string), &promptstr)
-		}
 
-		var newstat int
-		if config.GetPromptMarksLength(promptstr) > 1000 {
-			newstat = config.GetPromptMarksLength(promptstr)
-		} else {
-			newstat = 1
-		}
+			// MARK: 提示词之间 整体切换Q
+			if config.GetGroupContext() == 2 && message.MessageType != "private" {
+				app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
+			} else {
+				app.ProcessPromptMarks(message.UserID+message.SelfID, message.Message.(string), &promptstr)
+			}
 
-		// 初始状态就是 1 设置了1000以上长度的是固有场景,不可切换
-		if config.GetGroupContext() == 2 && message.MessageType != "private" {
-			err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newstat)
-		} else {
-			err = app.InsertCustomTableRecord(message.UserID+message.SelfID, promptstr, newstat)
-		}
+			//读取当前的信号量
+			PromptStrStat := config.GetPromptMarksLength(promptstr)
 
-		if err != nil {
-			fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
+			// 提示词之间流转 达到信号量
+			if PromptStrStat-1 <= 0 {
+				PromptMarks := config.GetPromptMarks(promptstr)
+				if len(PromptMarks) != 0 {
+					randomIndex := rand.Intn(len(PromptMarks))
+					selectedBranch := PromptMarks[randomIndex]
+					newPromptStr := selectedBranch.BranchName
+
+					// 刷新新的提示词给用户目前的状态 新的场景应该从1开始
+					if config.GetGroupContext() == 2 && message.MessageType != "private" {
+						app.InsertCustomTableRecord(message.GroupID+message.SelfID, newPromptStr, 1)
+					} else {
+						app.InsertCustomTableRecord(message.UserID+message.SelfID, newPromptStr, 1)
+					}
+
+					fmt.Printf("流转prompt参数: %s, newPromptStrStat: %d\n", newPromptStr, 1)
+					promptstr = newPromptStr
+				}
+			}
+		} else {
+			// MARK: 提示词之间 整体切换Q 当用户没有存档时
+			if config.GetGroupContext() == 2 && message.MessageType != "private" {
+				app.ProcessPromptMarks(message.GroupID+message.SelfID, message.Message.(string), &promptstr)
+			} else {
+				app.ProcessPromptMarks(message.UserID+message.SelfID, message.Message.(string), &promptstr)
+			}
+
+			var newstat int
+			if config.GetPromptMarksLength(promptstr) > 1000 {
+				newstat = config.GetPromptMarksLength(promptstr)
+			} else {
+				newstat = 1
+			}
+
+			// 初始状态就是 1 设置了1000以上长度的是固有场景,不可切换
+			if config.GetGroupContext() == 2 && message.MessageType != "private" {
+				err = app.InsertCustomTableRecord(message.GroupID+message.SelfID, promptstr, newstat)
+			} else {
+				err = app.InsertCustomTableRecord(message.UserID+message.SelfID, promptstr, newstat)
+			}
+
+			if err != nil {
+				fmt.Printf("app.InsertCustomTableRecord 出错: %s\n", err)
+			}
 		}
 	}
 
@@ -284,7 +328,7 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 	api := r.URL.Query().Get("api")
 	if api != "" {
 		// 使用 prompt 变量进行后续处理
-		fmt.Printf("收到api参数: %s\n", api)
+		fmtf.Printf("收到api参数: %s\n", api)
 	}
 
 	// 从URL查询参数中获取skip_lang_check
@@ -707,6 +751,11 @@ func (app *App) GensokyoHandler(w http.ResponseWriter, r *http.Request) {
 			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.GroupID+message.SelfID, requestmsg)
 		} else {
 			fmtf.Printf("实际请求conversation端点内容:[%v]%v\n", message.UserID+message.SelfID, requestmsg)
+		}
+
+		// 本次指令不受到记忆的影响,例外.用于玩法类,不需要上下文的场景.
+		if nomemory {
+			parentMessageID = ""
 		}
 
 		requestBody, err := json.Marshal(map[string]interface{}{
@@ -1218,7 +1267,7 @@ func processMessage(response string, conversationid string, newmesssage string, 
 
 // 处理撤回信息的函数
 func handleWithdrawMessage(message structs.OnebotGroupMessage) {
-	fmt.Println("处理撤回操作")
+	fmtf.Println("处理撤回操作")
 	var id int64
 
 	// 根据消息类型决定使用哪个ID
@@ -1234,8 +1283,9 @@ func handleWithdrawMessage(message structs.OnebotGroupMessage) {
 		return
 	}
 
+	selfidstr := strconv.FormatInt(message.SelfID, 10)
 	// 调用DeleteLatestMessage函数
-	err := utils.DeleteLatestMessage(message.RealMessageType, id, message.UserID)
+	err := utils.DeleteLatestMessage(message.RealMessageType, id, message.UserID, selfidstr)
 	if err != nil {
 		fmt.Println("Error deleting latest message:", err)
 		return

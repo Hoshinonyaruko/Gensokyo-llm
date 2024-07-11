@@ -12,6 +12,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/promptkb"
@@ -158,6 +159,9 @@ func (app *App) handleMemoryList(msg structs.OnebotGroupMessage, promptstr strin
 	}
 
 	for _, memory := range memories {
+		// 使用acnode.CheckWordOUT()过滤
+		memory.ConversationTitle = acnode.CheckWordOUT(memory.ConversationTitle)
+
 		if config.GetMemoryListMD() == 0 {
 			responseBuilder.WriteString(memory.ConversationTitle + "\n")
 		}

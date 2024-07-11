@@ -272,6 +272,7 @@ type Settings struct {
 	PathToken               string                `yaml:"pathToken"`
 	SystemPrompt            []string              `yaml:"systemPrompt"`
 	IPWhiteList             []string              `yaml:"iPWhiteList"`
+	AccessKey               string                `yaml:"accessKey"`
 	ApiType                 int                   `yaml:"apiType"`
 	Proxy                   string                `yaml:"proxy"`
 	UrlSendPics             bool                  `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
@@ -284,6 +285,7 @@ type Settings struct {
 	GroupAddNicknameToQ     int                   `yaml:"groupAddNicknameToQ"`
 	GroupAddCardToQ         int                   `yaml:"groupAddCardToQ"`
 	SpecialNameToQ          []ReplacementNamePair `yaml:"specialNameToQ"`
+	NoEmoji                 int                   `yaml:"noEmoji"` // 0 false 1 false 2 true
 
 	HunyuanType             int     `yaml:"hunyuanType"`
 	MaxTokensHunyuan        int     `yaml:"maxTokensHunyuan"`
