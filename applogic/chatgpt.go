@@ -122,9 +122,14 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		history, err = prompt.GetMessagesFromFilename(promptstr)
+		// 只获取系统提示词
+		systemMessage, err := prompt.GetFirstSystemMessageStruct(promptstr)
 		if err != nil {
-			fmtf.Printf("prompt.GetMessagesFromFilename error: %v\n", err)
+			fmt.Println("Error:", err)
+		} else {
+			// 如果找到system消息，将其添加到历史数组中
+			history = append(history, systemMessage)
+			fmt.Println("Added system message back to history.")
 		}
 	}
 
@@ -182,6 +187,11 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 
 		// 添加用户历史到总历史中
 		history = append(history, userHistory...)
+	} else {
+		history, err = prompt.GetMessagesExcludingSystem(promptstr)
+		if err != nil {
+			fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+		}
 	}
 
 	fmtf.Printf("CLOSE-AI上下文history:%v\n", history)
