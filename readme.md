@@ -21,6 +21,8 @@ _✨ 适用于Gensokyo以及Onebotv11的大模型一键端 ✨_
 
 [中级-大模型api配置示例-国际篇](/docs/中级-大模型api配置示例-国际篇.md)
 
+[上手即用-在Telegram快速部署](/docs/在telegram快速部署的教程.md)
+
 ---
 
 ## 特性
