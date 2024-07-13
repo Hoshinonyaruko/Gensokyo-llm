@@ -196,9 +196,13 @@ func (app *App) ChatHandlerGlm(w http.ResponseWriter, r *http.Request) {
 		// 添加用户历史到总历史中
 		history = append(history, userHistory...)
 	} else {
-		history, err = prompt.GetMessagesExcludingSystem(promptstr)
-		if err != nil {
-			fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+		var systemHistory []structs.Message
+		if promptstr != "" {
+			systemHistory, err = prompt.GetMessagesExcludingSystem(promptstr)
+			if err != nil {
+				fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+			}
+			history = append(history, systemHistory...)
 		}
 	}
 

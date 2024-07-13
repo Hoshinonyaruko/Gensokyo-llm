@@ -188,9 +188,13 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 		// 添加用户历史到总历史中
 		history = append(history, userHistory...)
 	} else {
-		history, err = prompt.GetMessagesExcludingSystem(promptstr)
-		if err != nil {
-			fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+		var systemHistory []structs.Message
+		if promptstr != "" {
+			systemHistory, err = prompt.GetMessagesExcludingSystem(promptstr)
+			if err != nil {
+				fmtf.Printf("prompt.GetMessagesExcludingSystem error: %v\n", err)
+			}
+			history = append(history, systemHistory...)
 		}
 	}
 
@@ -255,11 +259,6 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 
 	// 获取代理服务器地址
 	proxyURL := config.GetProxy(promptstr)
-	if err != nil {
-		http.Error(w, fmtf.Sprintf("Failed to get proxy: %v", err), http.StatusInternalServerError)
-		return
-	}
-
 	client := &http.Client{}
 
 	// 检查是否有有效的代理地址

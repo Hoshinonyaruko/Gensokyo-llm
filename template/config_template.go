@@ -15,9 +15,9 @@ settings:
   lotus : ""                                    #当填写另一个gensokyo-llm的http地址时,将请求另一个的conversation端点,实现多个llm不需要多次配置,简化配置,单独使用请忽略留空.例:http://192.168.0.1:12345(包含http头和端口)
   pathToken : ""                                #gensokyo正向http-api的access_token(是onebotv11标准的)
   apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt 3=rwkv 4=通义千问 5=智谱AI 6=腾讯元器
-  iPWhiteList : ["192.168.0.102"]               #接口调用,安全ip白名单,gensokyo的ip地址,或调用api的程序的ip地址
+  iPWhiteList : ["192.168.0.101","127.0.0.1"]               #接口调用,安全ip白名单,gensokyo的ip地址,或调用api的程序的ip地址
   accessKey : ""                                #白名单ip未符合时,校验url参数&access_token=xxxx是否匹配
-  systemPrompt : [""]                           #人格提示词,或多个随机
+  systemPrompt : ["我是一个助手."]                           #人格提示词,或多个随机
   firstQ : [""]                                 #强化思想钢印,在每次对话的system之前固定一个QA,需都填写内容,会增加token消耗,可一定程度提高人格提示词效果,或抵抗催眠
   firstA : [""]                                 #强化思想钢印,在每次对话的system之前固定一个QA,需都填写内容,会增加token消耗,可一定程度提高人格提示词效果,或抵抗催眠
   secondQ : [""]                                #可空
