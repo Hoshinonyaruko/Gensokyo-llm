@@ -119,11 +119,25 @@ func WsHandler(w http.ResponseWriter, r *http.Request, config *config.Config) {
 		messageType, p, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("Error reading message: %v", err)
+			removeFromClients(conn) // Remove the faulty connection
 			break
 		}
 
 		if messageType == websocket.TextMessage {
 			processWSMessage(p)
+		}
+	}
+}
+
+func removeFromClients(conn *websocket.Conn) {
+	lock.Lock()
+	defer lock.Unlock()
+	for i, client := range clients {
+		if client.Conn == conn {
+			// Remove the client safely without memory leak
+			clients[i] = clients[len(clients)-1]
+			clients = clients[:len(clients)-1]
+			break
 		}
 	}
 }
