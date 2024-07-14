@@ -13,10 +13,13 @@ import (
 	"syscall"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/gin-gonic/gin"
 	_ "github.com/mattn/go-sqlite3" // 只导入，作为驱动
 
 	"github.com/hoshinonyaruko/gensokyo-llm/applogic"
+	oneclient "github.com/hoshinonyaruko/gensokyo-llm/common/client"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
+	"github.com/hoshinonyaruko/gensokyo-llm/controller"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 	"github.com/hoshinonyaruko/gensokyo-llm/hunyuan"
 	"github.com/hoshinonyaruko/gensokyo-llm/server"
@@ -191,6 +194,26 @@ func main() {
 		// "/channel_temp/" 是 URL 路径前缀，所有以此路径前缀开始的请求
 		// 都会由 fileServer 处理器处理
 		http.Handle("/channel_temp/", http.StripPrefix("/channel_temp/", fileServer))
+	}
+
+	// 简易OneApi
+	if conf.Settings.OneApi {
+		oneclient.Init()
+		go func() {
+			r := gin.Default()
+
+			r.POST("/v1/chat/completions", func(c *gin.Context) {
+				err := controller.RelayTextHelper(c)
+				if err != nil {
+					c.JSON(err.StatusCode, gin.H{"error": err.Message})
+				}
+			})
+
+			// 启动服务器并监听配置文件中的端口
+			if err := r.Run(fmt.Sprintf(":%d", conf.Settings.OneApiPort)); err != nil {
+				fmt.Printf("Failed to start server: %v\n", err)
+			}
+		}()
 	}
 
 	exePath, err := os.Executable()
