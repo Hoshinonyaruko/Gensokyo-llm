@@ -3474,3 +3474,13 @@ func getNoEmojiInternal(options ...string) int {
 
 	return NoEmoji
 }
+
+// ModelInterceptor模型覆盖
+func GetModelInterceptor() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.ModelInterceptor
+	}
+	return false
+}

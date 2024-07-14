@@ -2,7 +2,7 @@
 
 **步骤 1: 下载 One-API**
 - One-API 是一个轻便易用的项目，包含一个可执行文件，无需其他环境支持，且带有 Web UI。
-- 下载链接：[one-api](https://github.com/songquanpeng/one-api)
+- 下载链接：[one-api](https://github.com/hoshinonyaruko/gensokyo-llm)
 
 **步骤 2: 运行 One-API**
 - 执行下载的 One-API 可执行文件。

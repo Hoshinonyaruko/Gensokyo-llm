@@ -36,7 +36,7 @@ standardGptApi: true  # 标准的gptApi, OpenAI 和 Groq 需要开启
 ```
 
 #### One-API 测试配置(该项目也支持国内多个大模型,具体请参考one-api接入教程)
-[one-api](https://github.com/songquanpeng/one-api)
+[one-api](https://github.com/hoshinonyaruko/gensokyo-llm)
 ```yaml
 gptModel: "chatglm_turbo"
 gptApiPath: "http://127.0.0.1:3000/v1/chat/completions"
