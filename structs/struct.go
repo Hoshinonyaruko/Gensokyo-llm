@@ -274,6 +274,9 @@ type Settings struct {
 	IPWhiteList             []string              `yaml:"iPWhiteList"`
 	AccessKey               string                `yaml:"accessKey"`
 	ApiType                 int                   `yaml:"apiType"`
+	OneApi                  bool                  `yaml:"oneApi"`
+	OneApiPort              int                   `yaml:"oneApiPort"`
+	ModelInterceptor        bool                  `yaml:"modelInterceptor"`
 	Proxy                   string                `yaml:"proxy"`
 	UrlSendPics             bool                  `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
 	MdPromptKeyboardAtGroup bool                  `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard

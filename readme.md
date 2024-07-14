@@ -21,7 +21,15 @@ _✨ 适用于Gensokyo以及Onebotv11的大模型一键端 ✨_
 
 [中级-大模型api配置示例-国际篇](/docs/中级-大模型api配置示例-国际篇.md)
 
-[上手即用-在Telegram快速部署](/docs/在telegram快速部署的教程.md)
+[上手即用-在Telegram快速部署](/docs/简单-在telegram快速部署的教程.md)
+
+[上手即用-在Discord快速部署](/docs/简单-在DC部署ai聊天机器人.md)
+
+[上手即用-在Kook快速部署](/docs/简单-在KooK部署ai聊天机器人.md)
+
+[简单-对接酒馆(SillyTavern)-混元](/docs/简单-对接酒馆-混元.md)
+
+[简单-对接酒馆(SillyTavern)-豆包](/docs/简单-对接酒馆-豆包.md)
 
 ---
 
