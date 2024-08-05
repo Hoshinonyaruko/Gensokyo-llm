@@ -3484,3 +3484,37 @@ func GetModelInterceptor() bool {
 	}
 	return false
 }
+
+// 获取 MdPromptKeyboardAtGroupCmds
+func GetMdPromptKeyboardAtGroupCmds(options ...string) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	return getMdPromptKeyboardAtGroupCmdsInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getMdPromptKeyboardAtGroupCmdsInternal(options ...string) []string {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.MdPromptKeyboardAtGroupCmds
+		}
+		return nil // 如果实例或设置未定义，返回nil
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	MdPromptKeyboardAtGroupCmdsInterface, err := prompt.GetSettingFromFilename(basename, "MdPromptKeyboardAtGroupCmds")
+	if err != nil {
+		log.Println("Error retrieving MdPromptKeyboardAtGroupCmds:", err)
+		return getMdPromptKeyboardAtGroupCmdsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	envContents, ok := MdPromptKeyboardAtGroupCmdsInterface.([]string)
+	if !ok { // 检查是否断言失败
+		log.Println("Type assertion failed for MdPromptKeyboardAtGroupCmds, fetching default")
+		return getMdPromptKeyboardAtGroupCmdsInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return envContents
+}

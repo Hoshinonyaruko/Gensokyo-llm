@@ -1214,7 +1214,7 @@ func processMessage(response string, conversationid string, newmesssage string, 
 
 	for _, char := range response {
 		AppendRune(conversationid, char)
-		if utils.ContainsRune(punctuations, char, userinfo.GroupID, promptstr) {
+		if utils.ContainsRune(punctuations, char, userinfo.GroupID, userinfo.UserID, promptstr) {
 			// 达到标点符号，发送累积的整个消息
 			if GetMessageLength(conversationid) > 0 {
 				accumulatedMessage, _ := GetCurrentMessage(conversationid)
