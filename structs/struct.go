@@ -258,37 +258,38 @@ type ReplacementNamePair struct {
 }
 
 type Settings struct {
-	AllApi                  bool                  `yaml:"allApi"`
-	SecretId                string                `yaml:"secretId"`
-	SecretKey               string                `yaml:"secretKey"`
-	Region                  string                `yaml:"region"`
-	UseSse                  int                   `yaml:"useSse"` // 0 false 1 false 2 true
-	Port                    int                   `yaml:"port"`
-	SelfPath                string                `yaml:"selfPath"`
-	HttpPath                string                `yaml:"path"`
-	HttpPaths               []string              `yaml:"paths"`
-	ConversationPath        string                `yaml:"conversationPath"`
-	Lotus                   string                `yaml:"lotus"`
-	PathToken               string                `yaml:"pathToken"`
-	SystemPrompt            []string              `yaml:"systemPrompt"`
-	IPWhiteList             []string              `yaml:"iPWhiteList"`
-	AccessKey               string                `yaml:"accessKey"`
-	ApiType                 int                   `yaml:"apiType"`
-	OneApi                  bool                  `yaml:"oneApi"`
-	OneApiPort              int                   `yaml:"oneApiPort"`
-	ModelInterceptor        bool                  `yaml:"modelInterceptor"`
-	Proxy                   string                `yaml:"proxy"`
-	UrlSendPics             bool                  `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
-	MdPromptKeyboardAtGroup bool                  `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
-	GroupHintWords          []string              `yaml:"groupHintWords"`
-	GroupHintChance         int                   `yaml:"groupHintChance"`
-	GroupContext            int                   `yaml:"groupContext"` // 0 false 1 false 2 true
-	ReplacementPairsIn      []ReplacementPair     `yaml:"replacementPairsIn"`
-	ReplacementPairsOut     []ReplacementPair     `yaml:"replacementPairsOut"`
-	GroupAddNicknameToQ     int                   `yaml:"groupAddNicknameToQ"`
-	GroupAddCardToQ         int                   `yaml:"groupAddCardToQ"`
-	SpecialNameToQ          []ReplacementNamePair `yaml:"specialNameToQ"`
-	NoEmoji                 int                   `yaml:"noEmoji"` // 0 false 1 false 2 true
+	AllApi                      bool                  `yaml:"allApi"`
+	SecretId                    string                `yaml:"secretId"`
+	SecretKey                   string                `yaml:"secretKey"`
+	Region                      string                `yaml:"region"`
+	UseSse                      int                   `yaml:"useSse"` // 0 false 1 false 2 true
+	Port                        int                   `yaml:"port"`
+	SelfPath                    string                `yaml:"selfPath"`
+	HttpPath                    string                `yaml:"path"`
+	HttpPaths                   []string              `yaml:"paths"`
+	ConversationPath            string                `yaml:"conversationPath"`
+	Lotus                       string                `yaml:"lotus"`
+	PathToken                   string                `yaml:"pathToken"`
+	SystemPrompt                []string              `yaml:"systemPrompt"`
+	IPWhiteList                 []string              `yaml:"iPWhiteList"`
+	AccessKey                   string                `yaml:"accessKey"`
+	ApiType                     int                   `yaml:"apiType"`
+	OneApi                      bool                  `yaml:"oneApi"`
+	OneApiPort                  int                   `yaml:"oneApiPort"`
+	ModelInterceptor            bool                  `yaml:"modelInterceptor"`
+	Proxy                       string                `yaml:"proxy"`
+	UrlSendPics                 bool                  `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
+	MdPromptKeyboardAtGroup     bool                  `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
+	MdPromptKeyboardAtGroupCmds []string              `yaml:"mdPromptKeyboardAtGroupCMDs"`
+	GroupHintWords              []string              `yaml:"groupHintWords"`
+	GroupHintChance             int                   `yaml:"groupHintChance"`
+	GroupContext                int                   `yaml:"groupContext"` // 0 false 1 false 2 true
+	ReplacementPairsIn          []ReplacementPair     `yaml:"replacementPairsIn"`
+	ReplacementPairsOut         []ReplacementPair     `yaml:"replacementPairsOut"`
+	GroupAddNicknameToQ         int                   `yaml:"groupAddNicknameToQ"`
+	GroupAddCardToQ             int                   `yaml:"groupAddCardToQ"`
+	SpecialNameToQ              []ReplacementNamePair `yaml:"specialNameToQ"`
+	NoEmoji                     int                   `yaml:"noEmoji"` // 0 false 1 false 2 true
 
 	HunyuanType             int     `yaml:"hunyuanType"`
 	MaxTokensHunyuan        int     `yaml:"maxTokensHunyuan"`

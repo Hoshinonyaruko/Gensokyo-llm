@@ -149,13 +149,13 @@ func GetKey(groupid int64, userid int64) string {
 }
 
 // 随机的分布发送
-func ContainsRune(slice []rune, value rune, groupid int64, promptstr string) bool {
+func ContainsRune(slice []rune, value rune, groupid int64, userid int64, promptstr string) bool {
 	var probability int
-	if groupid == 0 {
-		// 获取概率百分比
+	if groupid == userid {
+		// 获取私聊百分比
 		probability = config.GetSplitByPuntuations(promptstr)
 	} else {
-		// 获取概率百分比
+		// 获取群聊百分比
 		probability = config.GetSplitByPuntuationsGroup(promptstr)
 	}
 
@@ -387,8 +387,13 @@ func SendGroupMessageMdPromptKeyboard(groupID int64, userID int64, message strin
 	if !config.GetUseAIPromptkeyboard() {
 		promptkeyboard = config.GetPromptkeyboard()
 	} else {
-		fmtf.Printf("ai生成气泡:%v", "Q"+newmsg+"A"+response)
-		promptkeyboard = promptkb.GetPromptKeyboardAI("Q"+newmsg+"A"+response, promptstr)
+		mdCMDs := config.GetMdPromptKeyboardAtGroupCmds(promptstr)
+		if len(mdCMDs) > 0 {
+			promptkeyboard = mdCMDs
+		} else {
+			fmtf.Printf("ai生成气泡:%v", "Q"+newmsg+"A"+response)
+			promptkeyboard = promptkb.GetPromptKeyboardAI("Q"+newmsg+"A"+response, promptstr)
+		}
 	}
 
 	// 使用acnode.CheckWordOUT()过滤promptkeyboard中的每个字符串

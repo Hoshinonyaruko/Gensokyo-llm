@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/hoshinonyaruko/gensokyo-llm/acnode"
 	"github.com/hoshinonyaruko/gensokyo-llm/config"
 	"github.com/hoshinonyaruko/gensokyo-llm/fmtf"
 )
@@ -47,6 +48,9 @@ func GetPromptKeyboardAI(msg string, promptstr string) []string {
 
 	// 按提示词区分的细化替换 这里主要不是为了安全和敏感词,而是细化效果,也就没有使用acnode提高效率
 	msg = ReplaceTextIn(msg, keyboardprompt)
+
+	//然后再过一层安全!
+	msg = acnode.CheckWordIN(msg)
 
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"message":         msg,

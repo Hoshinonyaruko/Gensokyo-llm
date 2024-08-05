@@ -84,9 +84,8 @@ settings:
 
   AIPromptkeyboardPath : ""                     #调用另一个(可以是自身,规则,当使用中间件指定prompt参数时,配置位于prompts文件夹,其格式xxx-keyboard.yml,若未使用中间件,请在path中指定prompts参数,并将相应的xxx.yml放在prompts文件夹下)设置系统提示词的gsk-llm联合工作的/conversation地址,约定系统提示词需返回文本json数组(3个).
   useAIPromptkeyboard : false                   #使用ai生成气泡.
-  #systemPrompt: [
-  #  "你要扮演一个json生成器,根据我下一句提交的QA内容,推断我可能会继续问的问题,生成json数组格式的结果,如:输入Q我好累啊A要休息一下吗,返回[\"嗯，我想要休息\",\"我想喝杯咖啡\",\"你平时怎么休息呢\"]，返回需要是[\"\",\"\",\"\"]需要2-3个结果"
-  #]
+  mdPromptKeyboardAtGroup : false               #QQ智能体 群内mdPromptKeyboard
+  mdPromptKeyboardAtGroupCMDs : []               #QQ智能体 固定指令
 
   #语言过滤
   allowedLanguages : ["cmn"]                    #根据自身安全实力,酌情过滤,cmn代表中文,小写字母,[]空数组代表不限制. /gensokyo api 可传参数skip_lang_check=true让某些信息跳过检查
