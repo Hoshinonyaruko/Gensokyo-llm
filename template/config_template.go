@@ -15,6 +15,7 @@ settings:
   lotus : ""                                    #当填写另一个gensokyo-llm的http地址时,将请求另一个的conversation端点,实现多个llm不需要多次配置,简化配置,单独使用请忽略留空.例:http://192.168.0.1:12345(包含http头和端口)
   pathToken : ""                                #gensokyo正向http-api的access_token(是onebotv11标准的)
   apiType : 0                                   #0=混元 1=文心(文心平台包含了N种模型...) 2=gpt 3=rwkv 4=通义千问 5=智谱AI 6=腾讯元器
+  stringob11 : false                            #兼容string模式ob11
 
   oneApi : false                                #内置了一个简化版的oneApi
   oneApiPort : 50052                            #内置简化版oneApi所监听的地址 :50052/v1

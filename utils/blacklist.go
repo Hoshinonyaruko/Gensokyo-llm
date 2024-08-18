@@ -136,3 +136,48 @@ func BlacklistIntercept(message structs.OnebotGroupMessage, selfid string, promp
 
 	return false // 用户ID不在黑名单中，不拦截
 }
+
+// BlacklistIntercept 检查用户ID是否在黑名单中，如果在，则发送预设消息
+func BlacklistInterceptSP(message structs.OnebotGroupMessageS, selfid string, promptstr string) bool {
+	// 检查群ID是否在黑名单中
+	if IsInBlacklist(message.GroupID) {
+		// 获取黑名单响应消息
+		responseMessage := config.GetBlacklistResponseMessages()
+
+		// 根据消息类型发送响应
+		if message.RealMessageType == "group_private" || message.MessageType == "private" {
+			if !config.GetUsePrivateSSE() {
+				SendPrivateMessageSP(message.UserID, responseMessage, selfid, promptstr)
+			} else {
+				SendSSEPrivateMessageSP(message.UserID, responseMessage, promptstr, selfid)
+			}
+		} else {
+			SendGroupMessageSP(message.GroupID, message.UserID, responseMessage, selfid, promptstr)
+		}
+
+		fmt.Printf("groupid:[%v]这个群在黑名单中,被拦截\n", message.GroupID)
+		return true // 拦截
+	}
+
+	// 检查用户ID是否在黑名单中
+	if IsInBlacklist(message.UserID) {
+		// 获取黑名单响应消息
+		responseMessage := config.GetBlacklistResponseMessages()
+
+		// 根据消息类型发送响应
+		if message.RealMessageType == "group_private" || message.MessageType == "private" {
+			if !config.GetUsePrivateSSE() {
+				SendPrivateMessageSP(message.UserID, responseMessage, selfid, promptstr)
+			} else {
+				SendSSEPrivateMessageSP(message.UserID, responseMessage, promptstr, selfid)
+			}
+		} else {
+			SendGroupMessageSP(message.GroupID, message.UserID, responseMessage, selfid, promptstr)
+		}
+
+		fmt.Printf("userid:[%v]这位用户在黑名单中,被拦截\n", message.UserID)
+		return true // 拦截
+	}
+
+	return false // 用户ID不在黑名单中，不拦截
+}
