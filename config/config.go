@@ -3518,3 +3518,13 @@ func getMdPromptKeyboardAtGroupCmdsInternal(options ...string) []string {
 
 	return envContents
 }
+
+// 获取Stringob11
+func GetStringob11() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.Stringob11
+	}
+	return false
+}

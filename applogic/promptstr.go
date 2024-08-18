@@ -106,6 +106,17 @@ func (app *App) deleteCustomRecord(userID int64) error {
 	return nil
 }
 
+func (app *App) deleteCustomRecordSP(userID string) error {
+	deleteSQL := `DELETE FROM custom_table WHERE user_id = ?;`
+
+	_, err := app.DB.Exec(deleteSQL, userID)
+	if err != nil {
+		return fmt.Errorf("error deleting record from custom_table: %w", err)
+	}
+
+	return nil
+}
+
 // Helper function to get index from field name
 func fieldIndex(field string) int {
 	if strings.HasPrefix(field, "str") && len(field) > 3 {
