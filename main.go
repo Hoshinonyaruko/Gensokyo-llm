@@ -95,10 +95,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to ensure database tables exist: %v", err)
 	}
-	// 确保user_context表存在
-	err = app.EnsureUserContextTableExists()
-	if err != nil {
-		log.Fatalf("Failed to ensure user_context table exists: %v", err)
+
+	if !config.GetStringob11() {
+		// 确保user_context表存在
+		err = app.EnsureUserContextTableExists()
+		if err != nil {
+			log.Fatalf("Failed to ensure user_context table exists: %v", err)
+		}
+	} else {
+		// 确保user_context表存在
+		err = app.EnsureUserContextTableExistsSP()
+		if err != nil {
+			log.Fatalf("Failed to ensure user_context table exists: %v", err)
+		}
 	}
 
 	// 确保向量表存在
@@ -119,10 +128,18 @@ func main() {
 		log.Fatalf("Failed to ensure SensitiveWordsTable table exists: %v", err)
 	}
 
-	// 故事模式存档
-	err = app.EnsureCustomTableExist()
-	if err != nil {
-		log.Fatalf("Failed to ensure CustomTableExist table exists: %v", err)
+	if !config.GetStringob11() {
+		// 故事模式存档
+		err = app.EnsureCustomTableExist()
+		if err != nil {
+			log.Fatalf("Failed to ensure CustomTableExist table exists: %v", err)
+		}
+	} else {
+		// 故事模式存档
+		err = app.EnsureCustomTableExistSP()
+		if err != nil {
+			log.Fatalf("Failed to ensure CustomTableExist table exists: %v", err)
+		}
 	}
 
 	// 用户多个记忆表
@@ -253,7 +270,12 @@ func main() {
 	}
 
 	// 设置路由
-	http.HandleFunc("/gensokyo", app.GensokyoHandler)
+	if !config.GetStringob11() {
+		http.HandleFunc("/gensokyo", app.GensokyoHandler)
+	} else {
+		http.HandleFunc("/gensokyo", app.GensokyoHandlerSP)
+	}
+
 	var wspath string
 	if conf.Settings.WSPath == "nil" {
 		wspath = "/"
