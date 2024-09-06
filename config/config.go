@@ -3475,6 +3475,40 @@ func getNoEmojiInternal(options ...string) int {
 	return NoEmoji
 }
 
+// 获取NoEmoji
+func GetSuperSafe(options ...string) int {
+	mu.Lock()
+	defer mu.Unlock()
+	return getSuperSafeInternal(options...)
+}
+
+// 内部逻辑执行函数，不处理锁，可以安全地递归调用
+func getSuperSafeInternal(options ...string) int {
+	// 检查是否有参数传递进来，以及是否为空字符串
+	if len(options) == 0 || options[0] == "" {
+		if instance != nil {
+			return instance.Settings.SuperSafe
+		}
+		return 0
+	}
+
+	// 使用传入的 basename
+	basename := options[0]
+	SuperSafeInterface, err := prompt.GetSettingFromFilename(basename, "SuperSafe")
+	if err != nil {
+		log.Println("Error retrieving getSuperSafeInternal:", err)
+		return getSuperSafeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	SuperSafe, ok := SuperSafeInterface.(int)
+	if !ok || SuperSafe == 0 { // 检查是否断言失败或结果为空字符串
+		log.Println("Type assertion failed or empty string for getSuperSafeInternal, fetching default")
+		return getSuperSafeInternal() // 递归调用内部函数，不传递任何参数
+	}
+
+	return SuperSafe
+}
+
 // ModelInterceptor模型覆盖
 func GetModelInterceptor() bool {
 	mu.Lock()
@@ -3525,6 +3559,16 @@ func GetStringob11() bool {
 	defer mu.Unlock()
 	if instance != nil {
 		return instance.Settings.Stringob11
+	}
+	return false
+}
+
+// 获取GroupNoKeyboard
+func GetGroupNoKeyboard() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.GroupNoKeyboard
 	}
 	return false
 }
