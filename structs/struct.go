@@ -304,6 +304,7 @@ type Settings struct {
 	UrlSendPics                 bool                  `yaml:"urlSendPics"`             // 自己构造图床加速图片发送
 	MdPromptKeyboardAtGroup     bool                  `yaml:"mdPromptKeyboardAtGroup"` // 群内使用md能力模拟PromptKeyboard
 	MdPromptKeyboardAtGroupCmds []string              `yaml:"mdPromptKeyboardAtGroupCMDs"`
+	GroupNoKeyboard             bool                  `yaml:"groupNoKeyboard"`
 	GroupHintWords              []string              `yaml:"groupHintWords"`
 	GroupHintChance             int                   `yaml:"groupHintChance"`
 	GroupContext                int                   `yaml:"groupContext"` // 0 false 1 false 2 true
@@ -313,6 +314,7 @@ type Settings struct {
 	GroupAddCardToQ             int                   `yaml:"groupAddCardToQ"`
 	SpecialNameToQ              []ReplacementNamePair `yaml:"specialNameToQ"`
 	NoEmoji                     int                   `yaml:"noEmoji"` // 0 false 1 false 2 true
+	SuperSafe                   int                   `yaml:"superSafe"`
 
 	Stringob11 bool `yaml:"stringob11"`
 

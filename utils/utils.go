@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/abadojack/whatlanggo"
 	"github.com/google/uuid"
@@ -843,98 +844,111 @@ func SendGroupMessageMdPromptKeyboardSP(groupID string, userID string, message s
 		mdContent = message
 	}
 
-	fmt.Println(mdContent)
-
-	// 构建Buttons
-	buttons := []structs.Button{}
-	// 添加promptkeyboard的按钮，每个按钮一行
-	for i, label := range promptkeyboard {
-		buttons = append(buttons, structs.Button{
-			ID: fmt.Sprintf("%d", i+1),
-			RenderData: structs.RenderData{
-				Label:        label,
-				VisitedLabel: label,
-				Style:        1,
-			},
-			Action: structs.Action{
-				Type: 2,
-				Permission: structs.Permission{
-					Type:           2,
-					SpecifyRoleIDs: []string{"1", "2", "3"},
+	var promptKeyboardMd structs.PromptKeyboardMarkdown
+	if !config.GetGroupNoKeyboard() {
+		// 构建Buttons
+		buttons := []structs.Button{}
+		// 添加promptkeyboard的按钮，每个按钮一行
+		for i, label := range promptkeyboard {
+			buttons = append(buttons, structs.Button{
+				ID: fmt.Sprintf("%d", i+1),
+				RenderData: structs.RenderData{
+					Label:        label,
+					VisitedLabel: label,
+					Style:        1,
 				},
-				Data:          label,
-				UnsupportTips: "请升级新版手机QQ",
-				Enter:         true,
-				Reply:         true,
-			},
-		})
-	}
-
-	// 添加"重置", "撤回", "重发"按钮，它们在一个单独的行
-	rowWithThreeButtons := []structs.Button{}
-	labels := []string{"重置", "忽略", "记忆", "载入"}
-
-	for i, label := range labels {
-		actionType := 1
-		if label == "载入" {
-			actionType = 2 // 设置特定的 ActionType
+				Action: structs.Action{
+					Type: 2,
+					Permission: structs.Permission{
+						Type:           2,
+						SpecifyRoleIDs: []string{"1", "2", "3"},
+					},
+					Data:          label,
+					UnsupportTips: "请升级新版手机QQ",
+					Enter:         true,
+					Reply:         true,
+				},
+			})
 		}
 
-		button := structs.Button{
-			ID: fmt.Sprintf("%d", i+4), // 确保ID不重复
-			RenderData: structs.RenderData{
-				Label:        label,
-				VisitedLabel: label,
-				Style:        1,
-			},
-			Action: structs.Action{
-				Type: actionType, // 使用条件变量设置的 actionType
-				Permission: structs.Permission{
-					Type:           2,
-					SpecifyRoleIDs: []string{"1", "2", "3"},
-				},
-				Data:          label,
-				UnsupportTips: "请升级新版手机QQ",
-			},
-		}
+		// 添加"重置", "撤回", "重发"按钮，它们在一个单独的行
+		rowWithThreeButtons := []structs.Button{}
+		labels := []string{"重置", "忽略", "记忆", "载入"}
 
-		rowWithThreeButtons = append(rowWithThreeButtons, button)
-	}
-
-	// 构建完整的PromptKeyboardMarkdown对象
-	var rows []structs.Row // 初始化一个空切片来存放行
-
-	// GetMemoryListMD==1 将buttons添加到rows
-	if config.GetMemoryListMD() == 1 {
-		// 遍历所有按钮，并每个按钮创建一行
-		for _, button := range buttons {
-			row := structs.Row{
-				Buttons: []structs.Button{button}, // 将当前按钮加入到新行中
+		for i, label := range labels {
+			actionType := 1
+			if label == "载入" {
+				actionType = 2 // 设置特定的 ActionType
 			}
-			rows = append(rows, row) // 将新行添加到行切片中
+
+			button := structs.Button{
+				ID: fmt.Sprintf("%d", i+4), // 确保ID不重复
+				RenderData: structs.RenderData{
+					Label:        label,
+					VisitedLabel: label,
+					Style:        1,
+				},
+				Action: structs.Action{
+					Type: actionType, // 使用条件变量设置的 actionType
+					Permission: structs.Permission{
+						Type:           2,
+						SpecifyRoleIDs: []string{"1", "2", "3"},
+					},
+					Data:          label,
+					UnsupportTips: "请升级新版手机QQ",
+				},
+			}
+
+			rowWithThreeButtons = append(rowWithThreeButtons, button)
 		}
-	}
 
-	// 添加特定的 rowWithThreeButtons 至 rows 数组的末尾
-	row := structs.Row{
-		Buttons: rowWithThreeButtons, // 将当前三个按钮放入
-	}
-	rows = append(rows, row)
+		// 构建完整的PromptKeyboardMarkdown对象
+		var rows []structs.Row // 初始化一个空切片来存放行
 
-	// 构建 PromptKeyboardMarkdown 结构体
-	promptKeyboardMd := structs.PromptKeyboardMarkdown{
-		Markdown: structs.Markdown{
-			Content: mdContent,
-		},
-		Keyboard: structs.Keyboard{
-			Content: structs.KeyboardContent{
-				Rows: rows, // 使用动态创建的行数组
+		// GetMemoryListMD==1 将buttons添加到rows
+		if config.GetMemoryListMD() == 1 {
+			// 遍历所有按钮，并每个按钮创建一行
+			for _, button := range buttons {
+				row := structs.Row{
+					Buttons: []structs.Button{button}, // 将当前按钮加入到新行中
+				}
+				rows = append(rows, row) // 将新行添加到行切片中
+			}
+		}
+
+		// 添加特定的 rowWithThreeButtons 至 rows 数组的末尾
+		row := structs.Row{
+			Buttons: rowWithThreeButtons, // 将当前三个按钮放入
+		}
+		rows = append(rows, row)
+
+		// 构建 PromptKeyboardMarkdown 结构体
+		promptKeyboardMd = structs.PromptKeyboardMarkdown{
+			Markdown: structs.Markdown{
+				Content: mdContent,
 			},
-		},
-		Content:   "keyboard",
-		MsgID:     "123",
-		Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
-		MsgType:   2,
+			Keyboard: structs.Keyboard{
+				Content: structs.KeyboardContent{
+					Rows: rows, // 使用动态创建的行数组
+				},
+			},
+			Content:   "keyboard",
+			MsgID:     "123",
+			Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
+			MsgType:   2,
+		}
+
+	} else {
+		// 构建 PromptKeyboardMarkdown 结构体
+		promptKeyboardMd = structs.PromptKeyboardMarkdown{
+			Markdown: structs.Markdown{
+				Content: mdContent,
+			},
+			Content:   "keyboard",
+			MsgID:     "123",
+			Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
+			MsgType:   2,
+		}
 	}
 
 	// 序列化成JSON
@@ -3161,7 +3175,7 @@ func DeleteLatestMessageSP(messageType string, id string, userid string, selfid 
 	// 获取最新的有效消息ID
 	messageID, valid := GetLatestValidMessageIDSP(userid)
 	if !valid {
-		return fmt.Errorf("no valid message ID found for user/group/guild ID: %d", id)
+		return fmt.Errorf("no valid message ID found for user/group/guild ID: %s", id)
 	}
 
 	// 构造请求体
@@ -3279,4 +3293,15 @@ func RemoveEmojis(input string) string {
 	output := emojiRegex.ReplaceAllString(input, "")
 
 	return output
+}
+
+// FilterSimplifiedChinese filters the input string to keep only simplified Chinese characters
+func FilterSimplifiedChinese(input string) string {
+	var result []rune
+	for _, char := range input {
+		if unicode.Is(unicode.Scripts["Han"], char) && char >= '\u4e00' && char <= '\u9fa5' {
+			result = append(result, char)
+		}
+	}
+	return string(result)
 }

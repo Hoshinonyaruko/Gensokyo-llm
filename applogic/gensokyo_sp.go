@@ -504,6 +504,11 @@ func (app *App) GensokyoHandlerSP(w http.ResponseWriter, r *http.Request) {
 			fmtf.Printf("繁体转换简体失败:%v", err)
 		}
 
+		// 是否超级安全
+		if config.GetSuperSafe(promptstr) == 2 {
+			requestmsg = utils.FilterSimplifiedChinese(requestmsg)
+		}
+
 		// 替换in替换词规则
 		if config.GetSensitiveMode() {
 			requestmsg = acnode.CheckWordIN(requestmsg)
