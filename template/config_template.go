@@ -64,6 +64,7 @@ settings:
   groupAddNicknameToQ : 0                       #群上下文增加message.sender.nickname到上下文(昵称)让模型能知道发送者名字 0=默认 1=false 2=true
   groupAddCardToQ : 0                           #群上下文增加message.sender.card到上下文(群名片)让模型能知道发送者名字 0=默认 1=false 2=true
   noEmoji : 0                                   #0=默认,正常发emoji 1=正常发emoji 2=不发任何emoji
+  superSafe : 0                                 #0=默认,1=正常,2=超级安全性
 
   specialNameToQ:                               #开启groupAddNicknameToQ和groupAddCardToQ时有效,应用特殊规则,让模型对某个id产生特殊称谓
   - id: 12345
@@ -87,6 +88,7 @@ settings:
   useAIPromptkeyboard : false                   #使用ai生成气泡.
   mdPromptKeyboardAtGroup : false               #QQ智能体 群内mdPromptKeyboard
   mdPromptKeyboardAtGroupCMDs : []               #QQ智能体 固定指令
+  groupNoKeyboard : false                        #群内不使用按钮
 
   #语言过滤
   allowedLanguages : ["cmn"]                    #根据自身安全实力,酌情过滤,cmn代表中文,小写字母,[]空数组代表不限制. /gensokyo api 可传参数skip_lang_check=true让某些信息跳过检查
