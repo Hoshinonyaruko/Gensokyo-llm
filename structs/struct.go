@@ -341,6 +341,10 @@ type Settings struct {
 	GptEmbeddingUrl string `yaml:"gptEmbeddingUrl"`
 	StandardGptApi  bool   `yaml:"standardGptApi"`
 
+	// GptThinkingType 控制 OpenAI 兼容接口的 thinking.type。
+	// 支持 enabled、disabled、auto；留空时不发送 thinking 字段。
+	GptThinkingType string `yaml:"gptThinkingType"`
+
 	Groupmessage       bool `yaml:"groupMessage"`
 	SplitByPuntuations int  `yaml:"splitByPuntuations"`
 

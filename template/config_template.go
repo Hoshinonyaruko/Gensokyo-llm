@@ -178,6 +178,7 @@ settings:
   gptModeration : false                         #额外走腾讯云检查安全,不合规直接拦截.(和上面一样但是会直接拦截.)仅api2d支持
   gptSseType : 0                                #gpt的sse流式有两种形式,0是只返回新的 你 好 呀 , 我 是 一 个,1是递增 你好呀，我是一个人类 你 你好 你好呀 你好呀， 你好呀，我 你好呀，我是
   standardGptApi : false                        #标准的gptApi,openai和groq需要开启.
+  gptThinkingType : ""                          #OpenAI兼容接口的thinking.type；可填enabled、disabled、auto；留空不发送。豆包Seed 2.0需要直接回答时填disabled
 
   # RWKV 模型配置文件 仅适用于对接gensokyo-discord、gensokyo-telegram等平台,国内请遵守并符合相应的api资质要求.
   rwkvApiPath: "https://api.example.com/rwkv"       # 符合 RWKV 标准的 API 地址 是否以流形式取决于UseSSE配置

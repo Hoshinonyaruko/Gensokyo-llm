@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -376,6 +377,62 @@ func getGptModelInternal(options ...string) string {
 	}
 
 	return gptModel
+}
+
+// GetGptThinkingType 获取 OpenAI 兼容接口的 thinking.type。
+// 支持：enabled、disabled、auto。
+// 返回空字符串表示不向上游发送 thinking 字段。
+func GetGptThinkingType(options ...string) string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	return getGptThinkingTypeInternal(options...)
+}
+
+// getGptThinkingTypeInternal 是不加锁的内部实现。
+// 允许在读取 prompt 独立配置失败时，安全回退到主配置。
+func getGptThinkingTypeInternal(options ...string) string {
+	// 未指定 prompt 配置文件时，读取主配置。
+	if len(options) == 0 || options[0] == "" {
+		if instance == nil {
+			return ""
+		}
+
+		return normalizeGptThinkingType(instance.Settings.GptThinkingType)
+	}
+
+	// 指定了 prompt 配置文件时，优先读取对应 YAML。
+	basename := options[0]
+
+	thinkingTypeInterface, err := prompt.GetSettingFromFilename(
+		basename,
+		"GptThinkingType",
+	)
+	if err != nil {
+		log.Println("Error retrieving GptThinkingType:", err)
+		return getGptThinkingTypeInternal()
+	}
+
+	thinkingType, ok := thinkingTypeInterface.(string)
+	if !ok || strings.TrimSpace(thinkingType) == "" {
+		// prompt 配置没有填写时，回退到主配置。
+		return getGptThinkingTypeInternal()
+	}
+
+	return normalizeGptThinkingType(thinkingType)
+}
+
+// normalizeGptThinkingType 只允许火山方舟支持的 thinking.type。
+// 非法值返回空字符串，避免向不兼容的上游发送错误参数。
+func normalizeGptThinkingType(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+
+	switch value {
+	case "enabled", "disabled", "auto":
+		return value
+	default:
+		return ""
+	}
 }
 
 // 获取GptApiPath

@@ -243,6 +243,15 @@ func (app *App) ChatHandlerChatgpt(w http.ResponseWriter, r *http.Request) {
 			"messages": messages,
 			"stream":   boolusesse,
 		}
+
+		// OpenAI 兼容接口扩展参数：
+		// 火山方舟 Seed 2.0 系列可通过 thinking.type 控制思考模式。
+		// 配置留空时不发送该字段，保持对普通 OpenAI 接口的兼容性。
+		if thinkingType := config.GetGptThinkingType(promptstr); thinkingType != "" {
+			requestBody["thinking"] = map[string]interface{}{
+				"type": thinkingType,
+			}
+		}
 	} else {
 		requestBody = map[string]interface{}{
 			"model":           model,
